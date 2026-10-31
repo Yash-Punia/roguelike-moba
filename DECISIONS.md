@@ -121,3 +121,10 @@ From TDD §13:
 - Telemetry: automatic capture (needs a backend and consent screen) or manual JSON export?
 - Production engine choice, and whether sim math should move to fixed-point now.
 - Models: in-house Blender or CC0 stand-ins first?
+
+## D-011 — TypeScript pinned to 6.0; libraries added only when used
+- Date: 2026-10-31
+- Source: made during development
+- Decision: TypeScript 6.0.3 (not 7.0) with `moduleResolution: "bundler"`. All dependencies pinned exactly. Preact, Howler, Playwright and vite-plugin-pwa are added in the milestone that first uses them, not up front.
+- Why: typescript-eslint 8.72 supports TypeScript `<6.1`, and lint carries the determinism rules for `src/sim/**`. Unused libraries add install weight and upgrade churn.
+- Alternatives: TypeScript 7 without type-aware lint (rejected: loses the determinism lint).

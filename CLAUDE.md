@@ -48,13 +48,16 @@ Layout follows TDD §13 with the repo root as the project root: `data/`, `assets
 
 ## Commands
 
-Prefix shell commands with `rtk`. Scripts come online during M1:
+Prefix shell commands with `rtk`.
 
-- `npm run dev` — Vite dev server
-- `npm run build` — production bundle
-- `npm run test` — Vitest unit, scenario and determinism tests
-- `npm run soak` — headless bot-vs-bot matches
-- `npm run e2e` — Playwright smoke tests
+- `npm run dev` — Vite dev server (also on the LAN for phone testing)
+- `npm run build` — type-check + production bundle
+- `npm test` — Vitest unit, scenario and determinism tests (`tests/`)
+- `npm run lint` — ESLint, including the determinism rules for `src/sim/**`
+- `npm run typecheck` — `tsc --noEmit`
+- Later: `npm run soak` (headless bot matches, M5), `npm run e2e` (Playwright, M5)
+
+TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (D-011).
 
 ## Workflow (hard rules)
 

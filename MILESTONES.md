@@ -24,7 +24,7 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | |
+| `[c]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | |
 | `[ ]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | |
 | `[ ]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | |
 | `[ ]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | |
