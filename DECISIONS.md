@@ -74,25 +74,47 @@ Entry format:
 - Date: 2026-10-31
 - Source: made during development
 - Decision: where the GDD states a current proposal, build that until told otherwise:
-  - Gamma's Heat Wave is a moving aura.
-  - Alpha's Frag Grenade target order includes the enemy HQ after champions.
-  - Bazooka Tank is a small tracked vehicle.
-  - Team size is 3v3.
-  - No fog of war beyond Trench concealment.
+  - Gamma's Heat Wave is a moving aura. **Confirmed by user 2026-10-31.**
+  - Alpha's Frag Grenade target order includes the enemy HQ after champions. **Confirmed by user 2026-10-31.**
+  - Bazooka Tank is a small tracked vehicle. **Confirmed by user 2026-10-31.**
+  - ~~Team size is 3v3.~~ Superseded by D-009.
+  - ~~No fog of war beyond Trench concealment.~~ Superseded by D-010.
 - Why: unblocks implementation; all are config or small-system changes if revised.
 - Alternatives: see the open questions below.
+
+## D-009 — Team size and lane count are chosen before each match
+- Date: 2026-10-31
+- Source: user instruction
+- Decision: match setup picks team size (2v2, 3v3, 4v4 or 5v5) and lane count (2 or 3). Each lane count has its own map file: `data/map-2lane.json` and `data/map-3lane.json`. Any team size can be played on either map.
+  - 3v3 on 3 lanes stays the reference mode the GDD numbers are tuned for; other combinations are for playtesting.
+  - Duplicate champions are allowed on a team, since the roster has only 3 champions and teams can have up to 5.
+  - Bots spread across lanes as evenly as possible; extra champions double up, preferring the centre lane on the 3-lane map.
+  - The 2-lane map layout (lane positions, Trench zones, camp and boss pits) is designed when it is built in M3 and logged here then.
+  - Until the setup screen exists (M4), both options are set through URL parameters and the debug panel.
+- Why: lets the user playtest how team size and lane count change pacing and pressure.
+- Alternatives: fixed 3v3 on 3 lanes (the GDD's original design).
+
+## D-010 — Map-wide fog of war, League of Legends style
+- Date: 2026-10-31
+- Source: user instruction (supersedes the "no fog beyond Trenches" default in D-008)
+- Decision: each team sees only what its units and structures can see.
+  - **Vision sources:** champions, minions, structures, captured Behemoth and, if added later, wards or powers. Each has a vision radius in config. Starting values to tune: champion 10 m, minion 6 m, Sub-base 10 m, HQ 12 m.
+  - **Team vision** is the union of all its sources, recomputed each tick into a per-team grid. An enemy unit is visible only if it stands in a visible cell.
+  - **Trenches work like LoL brush**, layered on top of fog: a unit inside a Trench stays hidden even inside enemy vision, unless an enemy is within 3 m or it fired in the last 1 s (the GDD §4 rules).
+  - **Always visible:** terrain and structures, as in LoL. Structures are shown in their last known state.
+  - **Hidden units** can't be auto-targeted (GDD §6 already requires this) and aren't drawn. Fogged ground is drawn darker in the world.
+  - **The minimap** shows the fog: only allied units and visible enemies appear, and fogged areas are dimmed.
+  - Bots get exactly the same vision as humans, read from the snapshot. No cheating.
+- Why: user wants LoL-style map awareness and ganking, and the minimap to matter.
+- Alternatives: Trench concealment only (GDD original). Fog radii are config values, so fog can be tuned very generous if it hurts readability on a 16 m wide portrait view.
 
 ---
 
 ## Open questions (unresolved)
 
 From GDD §13:
-- Bazooka Tank: small tracked vehicle (default) or heavy infantryman?
-- Frag Grenade: include HQ in target order (default) or champion → Sub-base → minion?
-- 3v3 final, or test 5v5 once the core loop is proven?
-- Heat Wave: moving aura (default) or fixed zone?
-- Fog of war beyond Trench concealment?
 - Launch roster size: 6, 9 or 12 champions?
+- (Resolved: Bazooka Tank, Frag Grenade HQ targeting and Heat Wave in D-008; team size in D-009; fog of war in D-010.)
 
 From TDD §13:
 - Add a minimal online 1v1/3v3 test (Node server running `sim`) after M5, or is bot play enough?

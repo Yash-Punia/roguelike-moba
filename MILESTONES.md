@@ -70,9 +70,12 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | `map.json`: 3 lanes with splines and bends, 6 Sub-bases, no-man's land, Crater split | |
+| `[ ]` | `map-3lane.json`: 3 lanes with splines and bends, 6 Sub-bases, no-man's land, Crater split | |
+| `[ ]` | `map-2lane.json`: 2-lane layout designed and logged in DECISIONS (D-009) | |
+| `[ ]` | Match config: team size 2v2–5v5 and lane count 2/3 via URL params + debug panel; map chosen by lane count; duplicate champions allowed (D-009) | |
 | `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit crates | |
-| `[ ]` | Line-of-sight ray march; render fade for hidden enemies | |
+| `[ ]` | Line-of-sight ray march for shots | |
+| `[ ]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010) | |
 | `[ ]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow | |
 | `[ ]` | Gamma: Flamethrower cone, Charge, Heat Wave aura | |
 | `[ ]` | Bazooka Tank (rocket splash, structure bonuses), wave composition by time, +6%/min scaling | |
@@ -82,9 +85,9 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
 | `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
-| `[ ]` | 6 champions on the field (5 basic bots) with lane assignment | |
+| `[ ]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count | |
 
-**Exit criteria:** a full 3v3 match on the whole map runs start to finish without errors.
+**Exit criteria:** full matches run start to finish without errors for every team size (2v2 to 5v5) on both maps.
 
 ---
 
@@ -99,8 +102,9 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 | `[ ]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid | |
 | `[ ]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard) | |
 | `[ ]` | Bounties, level catch-up, underdog charge, HQ last line | |
-| `[ ]` | HUD: top bar structures, minimap, scoreboard, notifications, respawn overlay, pings | |
-| `[ ]` | Menus: title, match setup, pause, results | |
+| `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
+| `[ ]` | HUD: top bar structures, scoreboard, notifications, respawn overlay | |
+| `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
 **Exit criteria:** bot matches land near 8–10 minutes; Normal bots feel like a real 3v3.
 
