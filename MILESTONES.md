@@ -26,8 +26,8 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 | --- | --- | --- |
 | `[c]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | cdcd569 |
 | `[c]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | af81c9e |
-| `[c]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | |
-| `[ ]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | |
+| `[c]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | 6fe7991 |
+| `[c]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | |
 | `[ ]` | Three.js scene: flat-shaded Lambert, sun + hemisphere light, greybox ground | |
 | `[ ]` | Camera: 35° FOV, 60° pitch, 16 m wide view, 40% framing, smooth follow + look-ahead, own HQ at bottom | |
 | `[ ]` | Portrait game frame (9:21–9:16) with letterbox side panels | |
