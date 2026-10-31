@@ -33,8 +33,8 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 | `[c]` | Portrait game frame (9:21–9:16) with letterbox side panels | e03e36c |
 | `[c]` | Input: keyboard (WASD/arrows), mouse-drag and touch floating joystick → quantised `Command` | 62db699 |
 | `[c]` | Movement + circle collision against map edges and static obstacle grid | 9c1a8c6 |
-| `[c]` | Debug panel skeleton (lil-gui, F1) with live config edits and FPS overlay | |
-| `[ ]` | Determinism test: same seed + commands → same state hash | |
+| `[c]` | Debug panel skeleton (lil-gui, F1) with live config edits and FPS overlay | bcd174c |
+| `[c]` | Determinism test: same seed + commands → same state hash | |
 
 **Exit criteria:** a primitive champion moves smoothly with keyboard and touch on a desktop and a phone browser; determinism test passes.
 
