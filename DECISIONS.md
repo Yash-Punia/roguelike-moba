@@ -156,3 +156,10 @@ From TDD §13:
 - Decision: sparse-set stores insert and remove with splices so `ids` is always ascending; entity ids are never reused. `snapshot()` reuses its objects between calls.
 - Why: ascending-id iteration (determinism rule 2) for free in every system, and no stale-id aliasing. O(n) splices are negligible at ~100 entities.
 - Alternatives: unsorted dense arrays with a sort per system (more code, same result at this scale).
+
+## D-016 — Camera solves for 16 m width; visible depth follows from the aspect
+- Date: 2026-10-31
+- Source: made during development
+- Decision: the camera keeps the TDD rule (35° vertical FOV, 60° pitch, distance solved each frame so the view is 16 m wide at the framed point, which sits 40% up the screen). Visible ground depth is whatever that produces: roughly 32 m at 9:16 and 40 m at 9:19.5, not the GDD's 26 m. Smoothing is exponential (first-order, critically damped) with a 0.15 s time constant; look-ahead is 2 m along the move direction. All values in `data/camera.json`.
+- Why: 16 × 26 m only fits a ~3:4 frame at this FOV; width is what keeps every phone fair. The deeper view also matters for the D-010 fog radii (10 m champion vision covers a small part of the screen).
+- Alternatives: lower FOV or steeper pitch to hit 26 m depth (changes the GDD look); tune live once fog exists.

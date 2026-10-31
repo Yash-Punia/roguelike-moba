@@ -20,6 +20,7 @@ export function createScene(container: HTMLElement, config: Config) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
