@@ -20,6 +20,7 @@ const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
 let lastFrame = performance.now();
+if (import.meta.env.DEV) Object.assign(window, { warfront: { sim, view, config } });
 
 startLoop({
   step: () => {

@@ -1,7 +1,9 @@
-import type { Config } from '../data/schema';
+import { TICK_HZ, type Config } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
+import { buildGrid } from './grid';
 import { createStreams, type Streams } from './rng';
+import { movementSystem } from './systems/movement';
 
 export type PlayerId = number;
 export enum Team {
@@ -78,6 +80,7 @@ export function createSim(config: Config, seed: number, players: PlayerSetup[]) 
   const rng: Streams = createStreams(seed);
   const events: SimEvent[] = [];
   const playerEntity: Entity[] = [];
+  const grid = buildGrid(config.map);
   let tick = 0;
 
   players.forEach((p, player) => {
@@ -113,6 +116,7 @@ export function createSim(config: Config, seed: number, players: PlayerSetup[]) 
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
       }
+      movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
       tick++;
       return { tick, events };
     },

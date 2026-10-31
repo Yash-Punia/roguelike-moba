@@ -31,8 +31,8 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 | `[c]` | Three.js scene: flat-shaded Lambert, sun + hemisphere light, greybox ground | d7ebdae |
 | `[c]` | Camera: 35° FOV, 60° pitch, 16 m wide view, 40% framing, smooth follow + look-ahead, own HQ at bottom | 09da5f3 |
 | `[c]` | Portrait game frame (9:21–9:16) with letterbox side panels | e03e36c |
-| `[c]` | Input: keyboard (WASD/arrows), mouse-drag and touch floating joystick → quantised `Command` | |
-| `[ ]` | Movement + circle collision against map edges and static obstacle grid | |
+| `[c]` | Input: keyboard (WASD/arrows), mouse-drag and touch floating joystick → quantised `Command` | 62db699 |
+| `[c]` | Movement + circle collision against map edges and static obstacle grid | |
 | `[ ]` | Debug panel skeleton (lil-gui, F1) with live config edits and FPS overlay | |
 | `[ ]` | Determinism test: same seed + commands → same state hash | |
 
