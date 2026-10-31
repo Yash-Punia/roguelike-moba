@@ -8,6 +8,15 @@ import input from '../../data/input.json';
 
 export const rawConfig: RawConfig = { match, champions, map, camera, input } as RawConfig;
 
+/** Source file of each config section, for exporting edits back to `/data`. */
+export const configFiles: Record<keyof RawConfig, string> = {
+  match: 'match.json',
+  champions: 'champions.json',
+  map: 'map-3lane.json',
+  camera: 'camera.json',
+  input: 'input.json',
+};
+
 /** Validates and converts raw JSON config. Throws a readable error on any bad value. */
 export function parseConfig(raw: unknown): Config {
   const result = ConfigSchema.safeParse(raw);

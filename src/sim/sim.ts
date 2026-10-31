@@ -70,7 +70,8 @@ export interface StepResult {
   events: readonly SimEvent[];
 }
 
-export function createSim(config: Config, seed: number, players: PlayerSetup[]) {
+export function createSim(initialConfig: Config, seed: number, players: PlayerSetup[]) {
+  let config = initialConfig;
   const world = new World();
   const transforms = world.store<Transform>();
   const motions = world.store<Motion>();
@@ -80,7 +81,7 @@ export function createSim(config: Config, seed: number, players: PlayerSetup[]) 
   const rng: Streams = createStreams(seed);
   const events: SimEvent[] = [];
   const playerEntity: Entity[] = [];
-  const grid = buildGrid(config.map);
+  let grid = buildGrid(config.map);
   let tick = 0;
 
   players.forEach((p, player) => {
@@ -141,6 +142,19 @@ export function createSim(config: Config, seed: number, players: PlayerSetup[]) 
         s.radius = colliders.get(e)?.radius ?? 0;
       }
       return snap;
+    },
+
+    /** Live tuning (dev only): swaps config and re-derives cached values from it. */
+    setConfig(next: Config) {
+      config = next;
+      grid = buildGrid(next.map);
+      for (let i = 0; i < champions.ids.length; i++) {
+        const e = champions.ids[i]!;
+        const def = next.champions.find((c) => c.id === champions.data[i]!.championId);
+        if (!def) continue;
+        motions.get(e)!.speed = def.moveSpeed;
+        colliders.get(e)!.radius = def.radius;
+      }
     },
 
     entityOf(player: PlayerId): Entity | undefined {

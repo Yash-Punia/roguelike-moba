@@ -10,7 +10,7 @@ export function createKeyboard() {
   const down = new Set<string>();
 
   addEventListener('keydown', (e) => {
-    if (!MOVE_KEYS.has(e.code)) return;
+    if (!MOVE_KEYS.has(e.code) || e.target instanceof HTMLInputElement) return;
     down.add(e.code);
     e.preventDefault(); // arrow keys would scroll
   });

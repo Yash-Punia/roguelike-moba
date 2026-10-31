@@ -55,6 +55,15 @@ describe('movement', () => {
     expect(e.x).toBeCloseTo(base.map.bounds.minX + 0.5);
   });
 
+  it('applies a live moveSpeed change on the next tick', () => {
+    const sim = createSim(open, 1, [{ team: Team.Blue, championId: 'alpha' }]);
+    const faster = structuredClone(open);
+    faster.champions[0]!.moveSpeed = 7;
+    sim.setConfig(faster);
+    for (let i = 0; i < 30; i++) sim.step([move(0, 127)]);
+    expect(sim.snapshot().entities[0]!.y - spawn.y).toBeCloseTo(7, 5);
+  });
+
   it('moves a Red champion towards -y on a -y command', () => {
     const e = run(open, move(0, -127), 30, Team.Red);
     expect(e.y - base.map.spawn.red.y).toBeCloseTo(-3.5, 5);

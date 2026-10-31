@@ -8,8 +8,9 @@ import { startLoop } from './loop';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
+const debug = import.meta.env.DEV || params.has('debug');
 
-const config = parseConfig(rawConfig);
+let config = parseConfig(rawConfig);
 const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, championId: 'alpha' }]);
 
 const container = document.getElementById('frame')!;
@@ -19,12 +20,14 @@ const input = createInput(container, () => config.input, 0, localTeam);
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
+const stats = { simMs: 0 };
 let lastFrame = performance.now();
-if (import.meta.env.DEV) Object.assign(window, { warfront: { sim, view, config } });
 
-startLoop({
+const loop = startLoop({
   step: () => {
+    const t0 = debug ? performance.now() : 0;
     sim.step([input.sample(sim.tick)]);
+    if (debug) stats.simMs = performance.now() - t0;
     view.capture(sim.snapshot());
   },
   draw: (alpha) => {
@@ -36,3 +39,19 @@ startLoop({
     view.render();
   },
 });
+
+if (debug) {
+  Object.assign(window, { warfront: { sim, view, get config() { return config; } } });
+  import('../tools/debug-panel').then(({ createDebugPanel }) =>
+    createDebugPanel({
+      raw: rawConfig,
+      apply: (next) => {
+        config = next;
+        sim.setConfig(next);
+      },
+      loop,
+      stats,
+      frame: container,
+    }),
+  );
+}
