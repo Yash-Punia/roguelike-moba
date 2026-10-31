@@ -39,6 +39,12 @@ describe('command', () => {
     expect([c.moveX, c.moveY, c.tick]).toEqual([0, 127, 3]);
   });
 
+  it('never emits -0 (replays round-trip through JSON)', () => {
+    const c = buildCommand(0, 0, { x: 1, y: 0 }, Team.Red);
+    expect(Object.is(c.moveY, 0)).toBe(true);
+    expect(Object.is(buildCommand(0, 0, { x: -0.001, y: 0 }, Team.Blue).moveX, 0)).toBe(true);
+  });
+
   it('rotates 180° for Red: stick up moves towards -y', () => {
     const c = buildCommand(0, 0, { x: 0.5, y: 1 }, Team.Red);
     expect(c.moveY).toBe(-127);

@@ -26,7 +26,8 @@ export function keyVector(up: boolean, down: boolean, left: boolean, right: bool
 }
 
 // Symmetric rounding: Math.round(-63.5) is -63, which would make Red's stick weaker than Blue's.
-const quantise = (v: number) => Math.sign(v) * Math.min(127, Math.round(Math.abs(v) * 127));
+// `|| 0` normalises -0, which JSON turns into 0 and would make replays diverge (atan2(-0, x) ≠ atan2(0, x)).
+const quantise = (v: number) => Math.sign(v) * Math.min(127, Math.round(Math.abs(v) * 127)) || 0;
 
 /**
  * Builds a world-space Command (D-014). Screen up is towards the enemy HQ, so a Red
