@@ -142,3 +142,17 @@ From TDD §13:
 - Decision: `TICK_HZ = 30` is a constant in `src/data/schema.ts`, not a config value. Camera (`data/camera.json`) and input (`data/input.json`) numbers are config so they can be tuned live. Camera timing stays in seconds because it runs in real time, not ticks.
 - Why: the tick length is architecture (replays, conversions); changing it at runtime is not supported. Camera and joystick feel are exactly what playtests tune.
 - Alternatives: tick rate in `match.json` (rejected: implies it is safely tunable).
+
+## D-014 — `Command` movement is in world space
+- Date: 2026-10-31
+- Source: made during development
+- Decision: `Command.moveX/moveY` are world-space directions (x right, y towards the Red HQ). The input layer rotates the stick 180° for a local Red player, whose camera looks towards −y.
+- Why: bots naturally think in world space, so humans and bots share one code path, and replays don't depend on which camera recorded them. TDD §3 left this unspecified.
+- Alternatives: screen-space commands rotated in the sim (rejected: the sim would need to know about cameras).
+
+## D-015 — ECS keeps component stores sorted by entity id
+- Date: 2026-10-31
+- Source: made during development
+- Decision: sparse-set stores insert and remove with splices so `ids` is always ascending; entity ids are never reused. `snapshot()` reuses its objects between calls.
+- Why: ascending-id iteration (determinism rule 2) for free in every system, and no stale-id aliasing. O(n) splices are negligible at ~100 entities.
+- Alternatives: unsorted dense arrays with a sort per system (more code, same result at this scale).
