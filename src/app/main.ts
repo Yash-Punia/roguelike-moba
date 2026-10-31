@@ -1,3 +1,4 @@
+import './style.css';
 import { parseConfig, rawConfig } from '../data/load';
 import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
@@ -10,10 +11,7 @@ const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
 const config = parseConfig(rawConfig);
 const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, championId: 'alpha' }]);
 
-const container = document.createElement('div');
-container.style.cssText = 'position:fixed;inset:0';
-document.body.style.margin = '0';
-document.body.appendChild(container);
+const container = document.getElementById('frame')!;
 
 const view = createScene(container, config);
 const rig = createCameraRig(view.camera, localTeam);

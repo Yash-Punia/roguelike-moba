@@ -1,0 +1,68 @@
+:root {
+  --bg: #1d1a14;
+  --text: #d8cdb2;
+  --muted: #9a8f76;
+  /* Portrait game frame: aspect ratio clamped between 9:21 and 9:16 (TDD §10). */
+  --frame-w: min(100vw, 100dvh * 9 / 16);
+  --frame-h: min(100dvh, var(--frame-w) * 21 / 9);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, sans-serif;
+  /* Suppress browser gestures that fight the joystick. */
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body {
+  display: grid;
+  grid-template-columns: 1fr var(--frame-w) 1fr;
+  align-items: center;
+  height: 100dvh;
+}
+
+#frame {
+  position: relative;
+  width: var(--frame-w);
+  height: var(--frame-h);
+  overflow: hidden;
+  container-type: size;
+}
+
+.side {
+  align-self: stretch;
+  padding: 24px;
+  overflow: auto;
+}
+
+.side h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.side dt {
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+.side dd {
+  margin: 2px 0 0;
+}
+
+/* Only show the side panels when there is room beside the frame. */
+@media (max-aspect-ratio: 4/5) {
+  .side {
+    display: none;
+  }
+}
