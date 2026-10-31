@@ -2,6 +2,7 @@ import './style.css';
 import { parseConfig, rawConfig } from '../data/load';
 import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
+import { createInput } from '../input';
 import { createSim, Team } from '../sim/sim';
 import { startLoop } from './loop';
 
@@ -14,6 +15,7 @@ const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, cham
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config);
+const input = createInput(container, () => config.input, 0, localTeam);
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
@@ -21,7 +23,7 @@ let lastFrame = performance.now();
 
 startLoop({
   step: () => {
-    sim.step([]);
+    sim.step([input.sample(sim.tick)]);
     view.capture(sim.snapshot());
   },
   draw: (alpha) => {
