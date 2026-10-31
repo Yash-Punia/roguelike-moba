@@ -24,17 +24,17 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[c]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | cdcd569 |
-| `[c]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | af81c9e |
-| `[c]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | 6fe7991 |
-| `[c]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | 9c068f0 |
-| `[c]` | Three.js scene: flat-shaded Lambert, sun + hemisphere light, greybox ground | d7ebdae |
-| `[c]` | Camera: 35° FOV, 60° pitch, 16 m wide view, 40% framing, smooth follow + look-ahead, own HQ at bottom | 09da5f3 |
-| `[c]` | Portrait game frame (9:21–9:16) with letterbox side panels | e03e36c |
-| `[c]` | Input: keyboard (WASD/arrows), mouse-drag and touch floating joystick → quantised `Command` | 62db699 |
-| `[c]` | Movement + circle collision against map edges and static obstacle grid | 9c1a8c6 |
-| `[c]` | Debug panel skeleton (lil-gui, F1) with live config edits and FPS overlay | bcd174c |
-| `[c]` | Determinism test: same seed + commands → same state hash | eef056a |
+| `[p]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | cdcd569 |
+| `[p]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | af81c9e |
+| `[p]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | 6fe7991 |
+| `[p]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | 9c068f0 |
+| `[p]` | Three.js scene: flat-shaded Lambert, sun + hemisphere light, greybox ground | d7ebdae |
+| `[p]` | Camera: 35° FOV, 60° pitch, 16 m wide view, 40% framing, smooth follow + look-ahead, own HQ at bottom | 09da5f3 |
+| `[p]` | Portrait game frame (9:21–9:16) with letterbox side panels | e03e36c |
+| `[p]` | Input: keyboard (WASD/arrows), mouse-drag and touch floating joystick → quantised `Command` | 62db699 |
+| `[p]` | Movement + circle collision against map edges and static obstacle grid | 9c1a8c6 |
+| `[p]` | Debug panel skeleton (lil-gui, F1) with live config edits and FPS overlay | bcd174c |
+| `[p]` | Determinism test: same seed + commands → same state hash | eef056a |
 
 **Exit criteria:** a primitive champion moves smoothly with keyboard and touch on a desktop and a phone browser; determinism test passes.
 
