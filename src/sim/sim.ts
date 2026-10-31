@@ -26,6 +26,7 @@ export interface PlayerSetup {
   championId: string;
 }
 
+/** facing: radians, atan2(dy, dx) in sim space (0 = +x, PI/2 = towards Red). */
 export interface Transform {
   x: number;
   y: number;
@@ -84,7 +85,7 @@ export function createSim(config: Config, seed: number, players: PlayerSetup[]) 
     if (!def) throw new Error(`Unknown champion "${p.championId}"`);
     const spawn = p.team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red;
     const e = world.create();
-    transforms.add(e, { x: spawn.x, y: spawn.y, facing: p.team === Team.Blue ? 0 : Math.PI });
+    transforms.add(e, { x: spawn.x, y: spawn.y, facing: p.team === Team.Blue ? Math.PI / 2 : -Math.PI / 2 });
     motions.add(e, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0 });
     colliders.add(e, { radius: def.radius });
     teams.add(e, p.team);
