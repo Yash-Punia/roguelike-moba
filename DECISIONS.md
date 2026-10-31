@@ -128,3 +128,17 @@ From TDD §13:
 - Decision: TypeScript 6.0.3 (not 7.0) with `moduleResolution: "bundler"`. All dependencies pinned exactly. Preact, Howler, Playwright and vite-plugin-pwa are added in the milestone that first uses them, not up front.
 - Why: typescript-eslint 8.72 supports TypeScript `<6.1`, and lint carries the determinism rules for `src/sim/**`. Unused libraries add install weight and upgrade churn.
 - Alternatives: TypeScript 7 without type-aware lint (rejected: loses the determinism lint).
+
+## D-012 — Joystick dead zone default 3 mm
+- Date: 2026-10-31
+- Source: made during development
+- Decision: `data/input.json` defaults to a 3 mm (~11 px) dead zone, 60 px ring radius, full speed at 60% of the ring, 3.8 px/mm. All tunable live.
+- Why: the GDD's 8 mm (~30 px) dead zone with the TDD's 60 px ring and 60% full-speed point (36 px) leaves ~6 px of analog range, so the stick would act like an on/off switch and undermine the Gate 1 movement-feel test.
+- Alternatives: GDD's 8 mm with a larger ring (changes the TDD's ring size instead). Revisit after phone playtests.
+
+## D-013 — Tick rate is a code constant; camera and input numbers live in data
+- Date: 2026-10-31
+- Source: made during development
+- Decision: `TICK_HZ = 30` is a constant in `src/data/schema.ts`, not a config value. Camera (`data/camera.json`) and input (`data/input.json`) numbers are config so they can be tuned live. Camera timing stays in seconds because it runs in real time, not ticks.
+- Why: the tick length is architecture (replays, conversions); changing it at runtime is not supported. Camera and joystick feel are exactly what playtests tune.
+- Alternatives: tick rate in `match.json` (rejected: implies it is safely tunable).

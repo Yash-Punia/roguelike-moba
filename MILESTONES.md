@@ -24,8 +24,8 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[c]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | |
-| `[ ]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | |
+| `[c]` | Vite + TypeScript strict scaffold, lint, Vitest wired, npm scripts | cdcd569 |
+| `[c]` | `data` module: config loaders, zod schemas, seconds→ticks and %→fraction conversion | |
 | `[ ]` | `sim` core: sparse-set ECS, seeded PRNG with named streams, `math.ts` trig wrapper, event emitter | |
 | `[ ]` | Fixed 30 Hz main loop with interpolation alpha, tab-hidden pause, debug time scale | |
 | `[ ]` | Three.js scene: flat-shaded Lambert, sun + hemisphere light, greybox ground | |

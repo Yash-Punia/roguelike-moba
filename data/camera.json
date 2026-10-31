@@ -1,0 +1,8 @@
+{
+  "fovDeg": 35,
+  "pitchDeg": 60,
+  "viewWidth": 16,
+  "playerFramePct": 40,
+  "followSeconds": 0.15,
+  "lookAhead": 2
+}
