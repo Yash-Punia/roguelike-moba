@@ -6,6 +6,7 @@ Project Warfront: a 3v3 portrait mobile MOBA with auto-fire combat and an in-mat
 - Architecture and implementation detail: [docs/TDD.md](docs/TDD.md)
 - Progress by phase: [MILESTONES.md](MILESTONES.md)
 - Decisions log: [DECISIONS.md](DECISIONS.md)
+- Art and map layout (source of truth for look and coordinates): [concept_arts/](concept_arts/): style guide `warfront_00_style_guide.png` (palette, scale, shape rules, tri budgets), map spec [warfront_map_layouts.md](concept_arts/warfront_map_layouts.md), and one sheet per hero, unit group, structure set and prop set (D-017)
 
 Read the relevant GDD/TDD section before building a feature. Do not copy numbers into code: they belong in `/data`.
 
@@ -45,6 +46,8 @@ Layout follows TDD §13 with the repo root as the project root: `data/`, `assets
 - Degrees in config, radians in code.
 - Distances in metres. Sim axes: x = left/right, y = towards the Red HQ. Render: sim x → world x, sim y → world −z, height on world y.
 - Every gameplay number lives in `/data` and is tunable live from the debug panel.
+- Map geometry comes from the concept map spec into `data/map-*.json`; colours come from the style guide palette. Terrain heights are render-only: the sim stays 2D, walkable or blocked (D-018).
+- Models are built from Three.js primitives with flat colours, matching the concept sheet's silhouette and scale (D-020).
 
 ## Commands
 
@@ -65,4 +68,5 @@ TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (
 - **Never `git push` without the user's explicit go-ahead in that turn.** The user tests each feature before it is pushed.
 - Push only up to the last user-tested commit: `git push origin <hash>:main`. Plain `git push` only when every local commit is tested (`[t]`).
 - If a feature fails the user's testing, fix it in a follow-up commit. Do not rewrite history unless asked.
+- **Cloud sessions** (claude.ai/code) cannot run the user's local dev server. There, commit features on branch `wip/<milestone>` (for example `wip/m2`) and push that branch; never push `main`. The user checks the branch out locally to test, and only tested commits reach `main`, on the user's go-ahead (D-021).
 - In the same commit as the feature, mark it `[c]` in [MILESTONES.md](MILESTONES.md) and add a [DECISIONS.md](DECISIONS.md) entry for any non-obvious decision made along the way. Backfill the hash in the next commit that touches MILESTONES.md (a commit cannot contain its own hash).

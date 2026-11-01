@@ -46,13 +46,14 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Centre lane, one Sub-base per team, both HQs | |
+| `[ ]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | |
+| `[ ]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | |
 | `[ ]` | Health, `TargetClass`, `Weapon`, `Targeting` components | |
 | `[ ]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | |
 | `[ ]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | |
 | `[ ]` | Damage pipeline in fixed order (TDD §6.4) + unit tests | |
-| `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool | |
-| `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help | |
+| `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet | |
+| `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |
 | `[ ]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen | |
 | `[ ]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache | |
 | `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
@@ -70,16 +71,16 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | `map-3lane.json`: 3 lanes with splines and bends, 6 Sub-bases, no-man's land, Crater split | |
-| `[ ]` | `map-2lane.json`: 2-lane layout designed and logged in DECISIONS (D-009) | |
+| `[ ]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01 | |
+| `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice | |
 | `[ ]` | Match config: team size 2v2–5v5 and lane count 2/3 via URL params + debug panel; map chosen by lane count; duplicate champions allowed (D-009) | |
-| `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit crates | |
-| `[ ]` | Line-of-sight ray march for shots | |
+| `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms | |
+| `[ ]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018) | |
 | `[ ]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010) | |
-| `[ ]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow | |
-| `[ ]` | Gamma: Flamethrower cone, Charge, Heat Wave aura | |
-| `[ ]` | Bazooka Tank (rocket splash, structure bonuses), wave composition by time, +6%/min scaling | |
-| `[ ]` | Shock Troops lane upgrade when a Sub-base falls | |
+| `[ ]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow; model per the Beta sheet | |
+| `[ ]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet | |
+| `[ ]` | Bazooka Tank (rocket splash, structure bonuses), wave composition by time, +6%/min scaling; model per the minions sheet | |
+| `[ ]` | Shock Troops lane upgrade when a Sub-base falls; model per the minions sheet | |
 | `[ ]` | Full v1 power catalogue as effect records + generic effect systems | |
 | `[ ]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation | |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
@@ -95,10 +96,11 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads, Sniper Nests | |
-| `[ ]` | Telegraph events and ground markers | |
-| `[ ]` | Halftrack (Supply Drop) and Field Gun (Artillery Support) | |
-| `[ ]` | Behemoth: spawn at 6:00, capture, pushes centre lane | |
+| `[ ]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads (3 or 4 per camp), Sniper Nests, in the spec's dugout rooms; models per the neutrals sheet | |
+| `[ ]` | Telegraph events and ground markers (danger red #FF3B30 only) | |
+| `[ ]` | Halftrack (Supply Drop) and Field Gun (Artillery Support) in their 13 m sunken arenas; models per the bosses sheet | |
+| `[ ]` | Behemoth: spawn at 6:00, capture, pushes centre lane; in The Crater (Front) and on the river island (Bridgehead); model per the bosses sheet | |
+| `[ ]` | Environment dressing per the props and environment sheets: base tents, flags, searchlights, telegraph poles, sandbag revetments, barbed wire, tank traps, craters, wrecked biplanes, edge ruins, river reeds; within SG-01 tri budgets | |
 | `[ ]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid | |
 | `[ ]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard) | |
 | `[ ]` | Bounties, level catch-up, underdog charge, HQ last line | |
@@ -115,7 +117,7 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 | Status | Feature | Hash |
 | --- | --- | --- |
 | `[ ]` | GPU particle pool, `vfx.json`, tracers, explosions, smoke, fire, decals | |
-| `[ ]` | Placeholder low-poly models via `assets.json` (primitives → glTF swap), damage states | |
+| `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[ ]` | Audio: Howler sprites, event mapping, voice limits, music + Sudden Death crossfade | |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay | |

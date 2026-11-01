@@ -120,7 +120,7 @@ From TDD §13:
 - Add a minimal online 1v1/3v3 test (Node server running `sim`) after M5, or is bot play enough?
 - Telemetry: automatic capture (needs a backend and consent screen) or manual JSON export?
 - Production engine choice, and whether sim math should move to fixed-point now.
-- Models: in-house Blender or CC0 stand-ins first?
+- ~~Models: in-house Blender or CC0 stand-ins first?~~ Resolved for the prototype in D-020.
 
 ## D-011 — TypeScript pinned to 6.0; libraries added only when used
 - Date: 2026-10-31
@@ -163,3 +163,45 @@ From TDD §13:
 - Decision: the camera keeps the TDD rule (35° vertical FOV, 60° pitch, distance solved each frame so the view is 16 m wide at the framed point, which sits 40% up the screen). Visible ground depth is whatever that produces: roughly 32 m at 9:16 and 40 m at 9:19.5, not the GDD's 26 m. Smoothing is exponential (first-order, critically damped) with a 0.15 s time constant; look-ahead is 2 m along the move direction. All values in `data/camera.json`.
 - Why: 16 × 26 m only fits a ~3:4 frame at this FOV; width is what keeps every phone fair. The deeper view also matters for the D-010 fog radii (10 m champion vision covers a small part of the screen).
 - Alternatives: lower FOV or steeper pitch to hit 26 m depth (changes the GDD look); tune live once fog exists.
+
+## D-017 — Concept art is the source of truth for look and map layout
+- Date: 2026-11-01
+- Source: user instruction
+- Decision: everything in `concept_arts/` is followed for the prototype: the style guide SG-01 (palette, scale, shape and colour rules, tri budgets), the hero, unit, structure and prop sheets, and the map spec `warfront_map_layouts.md` with plan sheets MP-01 (The Front, 3 lanes) and MP-02 (The Bridgehead, 2 lanes).
+  - It supersedes the M1 greybox data: the map grows from 36 × 110 m to 68 × 164 m, lanes from 6 m straight strips to 8 m Catmull-Rom curves, HQs move to (0, ∓72), spawn pads to (0, ∓66.5), Sub-bases to y ∓40. Palette hexes in `src/render/palette.ts` follow SG-01 where they differ.
+  - Map geometry comes from the spec; gameplay numbers (damage, ranges, timings) still come from the GDD. Conflicts are logged here as they are found.
+  - The 2-lane layout D-009 left open is The Bridgehead from MP-02.
+- Why: the user designed the look and layout and wants the prototype to follow it.
+- Alternatives: keep the greybox layout until after Gate 1 (rejected: Gate 1 tests lane feel, which depends on lane width and bends).
+
+## D-018 — Walkability is built from map shapes; heights are render-only
+- Date: 2026-11-01
+- Source: made during development
+- Decision: the jungle is raised ground that units cannot enter; movement off the lanes happens only in trenches, rooms and sunken arenas. The map file describes walkable shapes, which are rasterised into the existing 0.5 m grid (`src/sim/grid.ts`, 136 × 328 cells on The Front); every other cell is blocked.
+  - Lanes: spline control points swept to the lane width. Trenches: polylines swept to 4 m (5 m ramps). Aprons and bases: ellipses. Rooms and arenas: circles. Bridges: rectangles. Fords: polylines tagged as water (−20% move speed). The river is blocked.
+  - Splines are sampled at load with plain arithmetic, so the grid is identical on every machine.
+  - Terrain heights (trenches −0.85 m, arenas −0.5 m, jungle +0.3 to +1.4 m) exist only in render. Raised jungle ground blocks line of sight for shots and fog (M3).
+  - Trenches still act as LoL-style brush for fog (D-010).
+- Why: the concept jungle is a trench network, not open ground with boxes. A 2D grid keeps the sim simple and deterministic.
+- Alternatives: obstacle rectangles placed by hand (rejected: curved lanes would need hundreds); navmesh (unneeded at this map size).
+
+## D-019 — Map sheet team sizes are recommendations
+- Date: 2026-11-01
+- Source: made during development
+- Decision: the map spec lists The Front for 3v3 or 5v5 and The Bridgehead for 2v2 or 3v3. D-009 stands: any team size can be played on either map. The listed sizes are the intended modes.
+- Why: the user asked for every combination to be playable for testing.
+- Alternatives: restrict team sizes per map (revisit after playtests).
+
+## D-020 — Prototype models are built from primitives in code
+- Date: 2026-11-01
+- Source: made during development
+- Decision: heroes, units, structures and props are low-poly models assembled from Three.js primitives with flat SG-01 colours and no textures. Each model keeps its sheet's top-down silhouette cue (Alpha's square cap; Beta's round cap and scarf; Gamma's barrel and tanks) and SG-01 scale: heroes about 1.9 m and 3 heads tall, soldiers about 1.15 m. Team colour sits on the top half only. Models are built in the milestone that adds the unit, and stay within the SG-01 tri budgets. A glTF file can replace any model later through `assets.json` (M5).
+- Why: matches the flat-shaded, untextured style exactly, needs no asset pipeline, and keeps the download small.
+- Alternatives: Blender models (better fidelity, slower to iterate); CC0 stand-ins (would not match the sheets).
+
+## D-021 — Cloud sessions work on a pushed branch
+- Date: 2026-11-01
+- Source: user request (continue work in a cloud session)
+- Decision: a cloud session commits features on `wip/<milestone>` and pushes that branch. It never pushes `main`. The user tests by checking the branch out locally (`npm run dev`, LAN URL for the phone) and says which commits passed; those reach `main` on the user's go-ahead. Local sessions keep D-007 unchanged.
+- Why: a cloud session's commits are lost unless pushed, and the user can't test from the cloud machine. Pushing a non-main branch keeps `main` limited to tested work.
+- Alternatives: pull requests per feature (heavier than needed now).
