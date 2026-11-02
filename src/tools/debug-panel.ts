@@ -14,13 +14,15 @@ export interface DebugHooks {
   sim: Sim;
   /** The local player's champion, for the modifier cheats. */
   localEntity: Entity | undefined;
+  /** The bot opponent, if any: its current goal is shown read-only. */
+  bot?: { readonly goal: string };
 }
 
 /**
  * Dev tuning panel (TDD §11). Every value in the raw JSON configs is editable; each edit is
  * re-validated and applied to the running match. F1 or a three-finger tap toggles it.
  */
-export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity }: DebugHooks) {
+export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity, bot }: DebugHooks) {
   const gui = new GUI({ title: 'Warfront debug' });
   gui.hide();
   let visible = false;
@@ -42,6 +44,10 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
+  if (bot) {
+    const botFolder = gui.addFolder('Bot');
+    botFolder.add(bot, 'goal').name('goal').disable().listen();
+  }
   const structuresFolder = gui.addFolder('Structures').close();
   const killEnemySub = () => {
     const local = localEntity === undefined ? undefined : sim.stores.teams.get(localEntity);
@@ -119,7 +125,7 @@ function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
     const d = sim.entityOf(1);
     if (d !== undefined) sim.debug.kill(d);
   };
-  folder.add({ killDummy }, 'killDummy').name('Kill dummy');
+  folder.add({ killDummy }, 'killDummy').name('Kill enemy (bot or dummy)');
 }
 
 function download(name: string, data: unknown) {

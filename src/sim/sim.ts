@@ -228,6 +228,8 @@ export interface EntitySnapshot {
   /** Champions: Ultimate charge 0–100, whether it has a target now, and Steady Hand active. */
   ultCharge: number;
   ultTargetable: boolean;
+  /** What the Ultimate would hit right now (0 = nothing in range). */
+  ultTargetId: Entity;
   steady: boolean;
 }
 
@@ -559,7 +561,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -596,6 +598,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
+        s.ultTargetId = c?.ultTargetId ?? 0;
         s.steady = (c?.steadyPct ?? 0) > 0;
       }
       let n = 0;

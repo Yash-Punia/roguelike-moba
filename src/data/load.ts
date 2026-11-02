@@ -8,11 +8,12 @@ import units from '../../data/units.json';
 import waves from '../../data/waves.json';
 import progression from '../../data/progression.json';
 import powers from '../../data/powers.json';
+import bots from '../../data/bots.json';
 import combat from '../../data/combat.json';
 import camera from '../../data/camera.json';
 import input from '../../data/input.json';
 
-export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, combat, camera, input } as RawConfig;
+export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, bots, combat, camera, input } as RawConfig;
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {
@@ -24,6 +25,7 @@ export const configFiles: Record<keyof RawConfig, string> = {
   waves: 'waves.json',
   progression: 'progression.json',
   powers: 'powers.json',
+  bots: 'bots.json',
   combat: 'combat.json',
   camera: 'camera.json',
   input: 'input.json',

@@ -271,31 +271,45 @@ function avoidStructures(ctx: MinionContext, t: Transform, m: Motion, radius: nu
   for (let k = 0; k < ids.length; k++) {
     const s = ids[k]!;
     const st = ctx.transforms.get(s)!;
-    const cx = st.x - t.x;
-    const cy = st.y - t.y;
-    const along = cx * m.intentX + cy * m.intentY;
-    if (along <= 0) continue; // behind
-    const clear = ctx.footprintRadius(s) + radius + AVOID_MARGIN;
-    const dist = len(cx, cy);
-    if (dist - clear > goalDist) continue; // the goal comes first
-    const perpX = cx - m.intentX * along;
-    const perpY = cy - m.intentY * along;
-    if (len(perpX, perpY) >= clear) continue; // the path misses it
-    // The two tangent lines from us to the clearance circle: the centre direction turned by
-    // ±asin(clear / dist) (no trig needed). Inside the clearance, slide perpendicular instead.
-    const ux = cx / dist;
-    const uy = cy / dist;
-    const sin = dist > clear ? clear / dist : 1;
-    const cos = Math.sqrt(1 - sin * sin);
-    const ax = ux * cos - uy * sin; // turned left
-    const ay = uy * cos + ux * sin;
-    const bx = ux * cos + uy * sin; // turned right
-    const by = uy * cos - ux * sin;
-    const left = ax * m.intentX + ay * m.intentY >= bx * m.intentX + by * m.intentY;
-    m.intentX = left ? ax : bx;
-    m.intentY = left ? ay : by;
-    return;
+    if (steerAround(t.x, t.y, m.intentX, m.intentY, goalDist, st.x, st.y, ctx.footprintRadius(s) + radius + AVOID_MARGIN, steer)) {
+      m.intentX = steer.x;
+      m.intentY = steer.y;
+      return;
+    }
   }
+}
+
+const steer = { x: 0, y: 0 };
+
+/**
+ * Steering round one circle (shared by minions and bots): if the straight line from (x, y)
+ * along unit (dx, dy), up to `goalDist`, passes within `clear` of (cx, cy), writes into `out`
+ * the tangent direction round its nearer side and returns true. The tangent is the centre
+ * direction turned by ±asin(clear / dist), with no trig; inside the clearance it slides
+ * perpendicular.
+ */
+export function steerAround(x: number, y: number, dx: number, dy: number, goalDist: number, cx: number, cy: number, clear: number, out: { x: number; y: number }): boolean {
+  const ox = cx - x;
+  const oy = cy - y;
+  const along = ox * dx + oy * dy;
+  if (along <= 0) return false; // behind
+  const dist = len(ox, oy);
+  if (dist - clear > goalDist) return false; // the goal comes first
+  const perpX = ox - dx * along;
+  const perpY = oy - dy * along;
+  if (len(perpX, perpY) >= clear) return false; // the path misses it
+  const ux = ox / dist;
+  const uy = oy / dist;
+  const sin = dist > clear ? clear / dist : 1;
+  const cos = Math.sqrt(1 - sin * sin);
+  const ax = ux * cos - uy * sin; // turned left
+  const ay = uy * cos + ux * sin;
+  const bx = ux * cos + uy * sin; // turned right
+  const by = uy * cos - ux * sin;
+  const left = ax * dx + ay * dy >= bx * dx + by * dy;
+  out.x = left ? ax : bx;
+  out.y = left ? ay : by;
+  return true;
 }
 
 /**

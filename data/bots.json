@@ -1,0 +1,12 @@
+{
+  "decisionSeconds": 0.2,
+  "commitSeconds": 1,
+  "retreatHpPct": 30,
+  "returnHpPct": 90,
+  "farmRangePct": 85,
+  "tradeRangePct": 95,
+  "tradeHpMarginPct": 0,
+  "tradeRange": 10,
+  "towerMargin": 1,
+  "ult": { "minionCluster": 3, "clusterRadius": 3 }
+}

@@ -222,6 +222,28 @@ const Powers = z.object({
   powers: z.array(Power).min(1),
 });
 
+/** The M2 lane bot (TDD §7, Normal-tier numbers; D-042). */
+const Bots = z.object({
+  /** How often it re-decides its goal, and the least time it keeps one (except retreat). */
+  decisionSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+  commitSeconds: secs(),
+  /** Goes home below this HP share; rejoins the lane at or above `returnHpPct`. */
+  retreatHpPct: pct(),
+  returnHpPct: pct(),
+  /** Farms at this share of its weapon range short of the enemy front. */
+  farmRangePct: pct(),
+  /** Trades at this share of its weapon range from the enemy champion. */
+  tradeRangePct: pct(),
+  /** Trades only when its HP share is at least the enemy's plus this. */
+  tradeHpMarginPct: pct(),
+  /** Considers trading with an enemy champion this close (m). */
+  tradeRange: positive(),
+  /** Keeps this much further out than an enemy structure's range (m). */
+  towerMargin: z.number().nonnegative(),
+  /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
+  ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),
+});
+
 /** Minion waves (GDD §5, TDD §6.6). */
 const Waves = z.object({
   enabled: z.boolean(),
@@ -302,6 +324,7 @@ export const ConfigSchema = z.object({
   waves: Waves,
   progression: Progression,
   powers: Powers,
+  bots: Bots,
   combat: Combat,
   camera: Camera,
   input: Input,

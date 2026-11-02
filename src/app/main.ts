@@ -6,6 +6,7 @@ import { createInput } from '../input';
 import { createSim, Team, type PlayerSetup } from '../sim/sim';
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
+import { createBot } from '../sim/bots/bot';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
@@ -22,14 +23,20 @@ if (params.has('curved')) raw.map.splineSamples = 16;
 if (params.has('nowaves')) raw.waves.enabled = false;
 let config = parseConfig(raw);
 const players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
-// `?dummy`: an idle, unarmed enemy Alpha in front of your Sub-base to test combat against;
-// `?dummy=armed` fires back. Until the bot (M2 feature 16).
+const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
+// The opponent (D-042): a bot Alpha by default; `?nobot` plays alone. `?dummy` replaces it
+// with an idle, unarmed Alpha in front of your Sub-base, and `?dummy=armed` fires back.
+const withBot = !params.has('dummy') && !params.has('nobot');
 if (params.has('dummy')) {
-  const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
   const spawnAt = { x: 0, y: localTeam === Team.Blue ? -50 : 50 };
   players.push({ team: enemy, championId: 'alpha', spawnAt, unarmed: params.get('dummy') !== 'armed' });
+} else if (withBot) {
+  players.push({ team: enemy, championId: 'alpha' });
 }
 const sim = createSim(config, config.match.defaultSeed, players);
+const bot = withBot ? createBot(1, enemy, () => config, () => sim.lanes) : undefined;
+const botEntity = sim.entityOf(1);
+let lastSnap = sim.snapshot();
 
 const container = document.getElementById('frame')!;
 
@@ -70,12 +77,16 @@ function endMatch(winner: Team) {
 const loop = startLoop({
   step: () => {
     const t0 = debug ? performance.now() : 0;
-    const { events } = sim.step([input.sample(sim.tick)]);
+    // The bot answers the previous snapshot (TDD §4), like a player reacting to what they saw.
+    const commands = [input.sample(sim.tick)];
+    if (bot && botEntity !== undefined) commands.push(bot.command(lastSnap, sim.tick, botEntity));
+    const { events } = sim.step(commands);
     if (debug) stats.simMs = performance.now() - t0;
     // Events first: a minion knocked out this tick is already gone from the snapshot, and its
     // model must reach the knock-out before capture drops it.
     view.addEvents(events);
     const snap = sim.snapshot();
+    lastSnap = snap;
     view.capture(snap);
     // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
     if (snap.tick % 3 === 0 || snap.match.phase === 'ended' || events.some((e) => e.type === 'draftOffered' || e.type === 'powerPicked')) {
@@ -112,7 +123,7 @@ const loop = startLoop({
 });
 
 if (debug) {
-  Object.assign(window, { warfront: { sim, view, loop, get config() { return config; } } });
+  Object.assign(window, { warfront: { sim, view, loop, bot, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
       raw,
@@ -126,6 +137,7 @@ if (debug) {
       frame: container,
       sim,
       localEntity,
+      bot,
     }),
   );
 }

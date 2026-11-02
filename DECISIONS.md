@@ -571,3 +571,36 @@ From TDD §13:
   - **Not yet (M3 "Full draft rules"):** Rare and Epic cards and rarity odds, the guaranteed Epic at 4/8/12, the signature slot, the reroll, Gamma weapon adaptation, and bot draft scoring (row 16). 3D card icons are M5.
 - Why: the roguelike half of the loop is playable: builds now diverge level by level without pausing the fight.
 - Alternatives: auto-picking slot 1 instead of a recommendation; leaving caps and the queue for M3.
+
+## D-042 — The M2 lane bot
+- Date: 2026-11-02
+- Source: user choices (a plain load is you vs the bot; the bot casts its Ultimate now); the rest made during development
+- Decision:
+  - **Shape (TDD §7):**
+    - the bot lives in `src/sim/bots/`;
+    - it reads only the previous snapshot, plus config and the lane polylines;
+    - it returns the same `Command` a human sends;
+    - it keeps its goal state outside the sim, so the sim stays commands in, snapshots out, and bot matches are deterministic.
+
+    The app (and headless tests) ask each bot for its command before every step.
+  - **Lane navigation:** a `LaneTrack` turns the centre lane's first branch into distance along it (`s`) and back. The bot aims at the lane point up to 6 m towards its target (far enough that the aim lies beyond a Sub-base the lane passes through), then steers round structures with the minions' tangent rule, now shared as `steerAround`.
+  - **Goals:** re-decided every 6 ticks; a goal is kept at least 1 s, except retreat. Numbers are in `data/bots.json` (Normal-tier, live-tunable).
+    - **Retreat** (emergency): below 30% HP it follows the lane home to its pad and heals there until 90%.
+    - **Trade:** when the enemy champion is within 10 m, its HP share is at least the enemy's, and the enemy isn't under one of its own structures (range + 1 m), it kites at 95% of its range, never stepping into the enemy tower's range.
+    - **Farm** (default):
+      - it stands behind its front-most minion, 85% of its range short of the enemy front (the enemy's front-most minion, or their tower);
+      - it never drops back past its hold point, 4 m in front of its own Sub-base, so a fresh wave walks up to it;
+      - with no wave out, it waits at that hold point.
+  - **Tower rule:** the bot enters an enemy tower's range only while that tower is shooting one of its minions, so it pushes with its wave but never dives alone.
+  - **Ultimate (user choice):** it casts when full and the Ultimate's target is a champion, or 3+ enemy minions are within 3 m of its minion target. The snapshot now carries `ultTargetId`.
+  - **Draft:** none of its own; offers time out to the recommended card.
+  - **Default match (user choice):** a plain load is your Alpha against a Red bot Alpha in the centre lane with waves:
+    - `?nobot` plays alone;
+    - `?dummy` and `?dummy=armed` replace the bot;
+    - `?team=red` makes the bot Blue.
+
+    The F1 panel shows the bot's current goal.
+  - **Checked:** a 10-minute bot-vs-bot match on The Front runs clean: both farm and trade, 21 grenades are cast, Red reaches level 12 with 4 takedowns, and the Sub-bases hold.
+  - **Not yet (M4):** A\* and Trenches, camps, bosses and ganks, dodging telegraphs, tag-weighted drafting, Easy/Normal/Hard tiers, and lane assignment for many bots.
+- Why: the single lane now has an opponent that farms, trades and backs off, which is what Gate 1 needs to judge whether positioning decides trades.
+- Alternatives: start alone unless `?bot`; no bot Ultimate until M4 (both declined by the user).

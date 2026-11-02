@@ -58,10 +58,10 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet (D-035) | f2f9bb3 |
 | `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
 | `[c]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | 2bee6ad |
-| `[c]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only; stack caps and the 2-offer queue pulled forward (D-041) | |
+| `[c]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only; stack caps and the 2-offer queue pulled forward (D-041) | 5c157f5 |
 | `[c]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button: kill charge and the brass gauge (D-040; passive and `ultTargetable` came with Alpha, D-033) | 1f0b4ec |
 | `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
-| `[ ]` | One simple bot opponent (farm / trade / retreat) | |
+| `[c]` | One simple bot opponent (farm / trade / retreat), with a simple Ultimate; the default match is you vs the bot (D-042) | |
 | `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
 | `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
 
