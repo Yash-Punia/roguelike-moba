@@ -77,16 +77,18 @@ function addFields(folder: GUI, obj: Record<string, unknown>, onChange: () => vo
  */
 function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
   const folder = gui.addFolder('Local champion').close();
-  const mods = { damagePct: 0, damageTakenPct: 0, vsChampionsPct: 0, vsStructuresPct: 0, critEvery: 0, critMult: 2, shield: 300 };
+  const mods = { damagePct: 0, damageTakenPct: 0, vsChampionsPct: 0, vsStructuresPct: 0, critChancePct: 0, shield: 300 };
   const pctStat = (key: keyof typeof mods, which: Stat, name: string) =>
     folder.add(mods, key, -90, 200, 1).name(name).onChange((v: number) => sim.debug.setStatPct(e, which, v / 100));
   pctStat('damagePct', Stat.Damage, 'damage %');
   pctStat('damageTakenPct', Stat.DamageTaken, 'damage taken %');
   pctStat('vsChampionsPct', Stat.DamageVsChampions, 'vs champions %');
   pctStat('vsStructuresPct', Stat.DamageVsStructures, 'vs structures %');
-  const crit = () => sim.debug.setCrit(e, mods.critEvery, mods.critMult);
-  folder.add(mods, 'critEvery', 0, 10, 1).name('crit every N shots').onChange(crit);
-  folder.add(mods, 'critMult', 1, 4, 0.1).name('crit ×').onChange(crit);
+  // Crit damage is combat.damage.critMultiplier, in the combat.json folder.
+  folder
+    .add(mods, 'critChancePct', 0, 100, 1)
+    .name('crit chance %')
+    .onChange((v: number) => sim.debug.setCritChance(e, v / 100));
   folder.add(mods, 'shield', 0, 1000, 50).name('shield amount');
   folder.add({ give: () => sim.debug.addShield(e, mods.shield) }, 'give').name('Give shield');
   folder.add({ arm: () => sim.debug.armLethalSave(e) }, 'arm').name('Arm lethal save');

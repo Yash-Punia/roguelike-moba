@@ -311,6 +311,7 @@ From TDD §13:
 
 
 ## D-031 — Damage pipeline: hooks before powers, damage numbers pulled forward
+- Superseded in part by D-032 (crits are random rolls, not every Nth shot).
 - Date: 2026-11-02
 - Source: user choice (damage numbers and debug modifiers to make it testable); the rest made during development
 - Decision:
@@ -327,3 +328,11 @@ From TDD §13:
   - **Debug cheats:** the F1 "Local champion" folder sets the damage %, damage taken %, vs champions % and vs structures % stats and crit every N shots, gives a shield and arms a lethal save. It writes through `sim.debug`, outside the command stream, so a match that uses it won't replay. Replays (M5) will record these as debug commands.
 - Why: later features (structures, minions, powers, assists) only add inputs to fixed stages instead of reordering damage, and the stages can be tested now.
 - Alternatives: snapshot attacker modifiers at fire time (more state per bullet for no visible difference); integer damage (breaks damage over time).
+
+## D-032 — Critical hits are random rolls with a crit chance
+- Date: 2026-11-02
+- Source: user request after testing D-031
+- Decision: a shot is a critical hit with probability `critChance` (0–1, on the runtime weapon, 0 by default), rolled at fire time on a new seeded `crit` RNG stream. The roll is skipped when the chance is 0, so matches without crits draw no random numbers, and shooters fire in ascending id order, so rolls stay deterministic. Crit damage is `combat.damage.critMultiplier` (2, live-tunable), carried by the projectile into pipeline stage 3. The debug "Local champion" folder sets "crit chance %". This replaces D-031's every-Nth-shot crit (`critEvery`, `critMult`, shot counter).
+- Open: GDD Dead Eye ("every 6th revolver shot is a critical hit") needs re-reading when powers land, for example as a crit-chance bonus. The GDD is unchanged for now.
+- Why: the user wants crits to be random.
+- Alternatives: crit chance as a `Stats` entry (flat-based, base 0), which would let powers stack chance through the stat formula; worth revisiting with the power catalogue.

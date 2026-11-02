@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DamageLog, HitFlag } from '../src/sim/damage-log';
+import { createStreams } from '../src/sim/rng';
 import type { DamageEvent } from '../src/sim/events';
 import { Team } from '../src/sim/sim';
 import { Stat } from '../src/sim/stats';
@@ -28,7 +29,7 @@ describe('damage pipeline (TDD §6.4)', () => {
     const a = duel([{ team: Red, x: 0, y: 5 }]);
     a.sim.debug.setStatPct(a.shooter, Stat.Damage, 0.12); // Hollow Points
     a.sim.debug.setStatPct(a.shooter, Stat.DamageVsChampions, 0.2); // Bounty Hunter
-    a.sim.debug.setCrit(a.shooter, 1, 2); // every shot a double-damage crit
+    a.sim.debug.setCritChance(a.shooter, 1); // every shot a double-damage crit
     a.sim.debug.setStatPct(2, Stat.DamageTaken, -0.1); // Flak Vest
     a.run(10);
     const expected = 95 * 1.12 * 1.2 * 2 * 0.9;
@@ -114,12 +115,50 @@ describe('damage pipeline (TDD §6.4)', () => {
     expect(dead.hits).toHaveLength(0);
   });
 
-  it('crits exactly every Nth shot', () => {
-    const a = duel([{ team: Red, x: 0, y: 4, structure: 'subBase' }]);
-    a.sim.debug.setCrit(a.shooter, 3, 2);
-    a.run(160);
-    expect(a.hits.map((h) => h.critical)).toEqual([false, false, true, false, false, true, false]);
-    expect(a.hits[2]!.amount).toBeCloseTo(190);
+  it('never crits at 0% and leaves the crit stream untouched', () => {
+    const a = duel([{ team: Red, x: 0, y: 3 }], everyTick);
+    a.hp(2, 1e9);
+    a.run(60);
+    expect(a.hits.length).toBeGreaterThan(30);
+    expect(a.hits.some((h) => h.critical)).toBe(false);
+    expect(a.sim.rng.crit()).toBe(createStreams(1).crit()); // the arena's seed is 1
+  });
+
+  it('crits every hit at 100%, for critMultiplier × damage', () => {
+    const a = duel([{ team: Red, x: 0, y: 3 }], (c) => {
+      everyTick(c);
+      c.combat.damage.critMultiplier = 2.5;
+    });
+    a.hp(2, 1e9);
+    a.sim.debug.setCritChance(a.shooter, 1);
+    a.run(30);
+    expect(a.hits.length).toBeGreaterThan(20);
+    for (const h of a.hits) expect(h).toMatchObject({ critical: true, amount: 95 * 2.5 });
+  });
+
+  it('crits at random, near the set chance', () => {
+    const a = duel([{ team: Red, x: 0, y: 3 }], everyTick);
+    a.hp(2, 1e9);
+    a.sim.debug.setCritChance(a.shooter, 0.25);
+    a.run(420);
+    expect(a.hits.length).toBeGreaterThanOrEqual(400);
+    const rate = a.hits.filter((h) => h.critical).length / a.hits.length;
+    expect(rate).toBeGreaterThan(0.18);
+    expect(rate).toBeLessThan(0.32);
+  });
+
+  it('rolls the same crits for the same seed', () => {
+    const pattern = () => {
+      const a = duel([{ team: Red, x: 0, y: 3 }], everyTick);
+      a.hp(2, 1e9);
+      a.sim.debug.setCritChance(a.shooter, 0.5);
+      a.run(100);
+      return a.hits.map((h) => h.critical);
+    };
+    const first = pattern();
+    expect(first).toContain(true);
+    expect(first).toContain(false);
+    expect(pattern()).toEqual(first);
   });
 
   it('logs source, target, amount and flags in tick order', () => {

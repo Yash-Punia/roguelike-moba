@@ -91,11 +91,8 @@ export interface Health {
 /** A unit's weapon (TDD §5): config values plus the ticks left until it can fire again. */
 export interface Weapon extends WeaponConfig {
   cooldown: number;
-  /** Shots fired, for every-Nth-shot effects. */
-  shotCount: number;
-  /** Every `critEvery`th shot (0 = never) is a crit for `critMult` × damage (Dead Eye). */
-  critEvery: number;
-  critMult: number;
+  /** Chance (0–1) that a shot is a critical hit for `combat.damage.critMultiplier` × damage. */
+  critChance: number;
   /** Upper-body aim (radians, like `facing`); turns towards the target at the aim turn rate. */
   aim: number;
 }
@@ -218,7 +215,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   }
 
   const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0 });
-  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, shotCount: 0, critEvery: 0, critMult: 1 });
+  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
   players.forEach((p, player) => {
@@ -264,7 +261,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const pool = new ProjectilePool();
   const hits = new HitQueue();
   const weaponsContext: WeaponsContext = {
-    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events,
+    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events, crit: rng.crit,
     rangeOf: (e) => targetingContext.rangeOf(e),
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits };
@@ -303,7 +300,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
-      weaponsSystem(champions.ids, weaponsContext, config.combat.weapons);
+      weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
       projectileSystem(projectileContext, config.combat.weapons);
       damageSystem(damageContext, config.combat.damage, tick);
       tick++;
@@ -412,12 +409,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         if (h) h.lethalSaves = 1;
       },
-      /** Every Nth shot (0 = off) crits for `mult` × damage. */
-      setCrit(e: Entity, every: number, mult: number) {
+      /** Chance (0–1) that each shot is a critical hit. */
+      setCritChance(e: Entity, chance: number) {
         const w = weapons.get(e);
-        if (!w) return;
-        w.critEvery = every;
-        w.critMult = mult;
+        if (w) w.critChance = chance;
       },
     },
 

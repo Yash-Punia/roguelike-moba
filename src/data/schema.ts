@@ -121,6 +121,8 @@ const Combat = z.object({
     logSeconds: secs(),
     /** Invulnerability after a lethal save (Last Stand: 45 ticks). */
     lethalSaveSeconds: secs(),
+    /** Damage × this on a critical hit. */
+    critMultiplier: z.number().min(1),
   }),
 });
 

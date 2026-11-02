@@ -15,6 +15,7 @@
   },
   "damage": {
     "logSeconds": 8,
-    "lethalSaveSeconds": 1.5
+    "lethalSaveSeconds": 1.5,
+    "critMultiplier": 2
   }
 }

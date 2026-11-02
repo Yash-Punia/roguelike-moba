@@ -49,7 +49,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   Object.assign(alpha.weapon, { damage: 95, interval: 25, range: 7, projectileSpeed: 25, spread: 0, targets: 1 });
   config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   config.combat.weapons = { aimTurnRate: 4 * Math.PI, fireCone: Math.PI / 18, bulletAim: 'lead', bulletRadius: 0.1, bulletOvershoot: 2 };
-  config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45 };
+  config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45, critMultiplier: 2 };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Team.Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {
