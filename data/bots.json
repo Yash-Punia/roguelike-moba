@@ -1,12 +1,27 @@
 {
   "decisionSeconds": 0.2,
-  "commitSeconds": 1,
-  "retreatHpPct": 30,
-  "returnHpPct": 90,
-  "farmRangePct": 85,
-  "tradeRangePct": 95,
-  "tradeHpMarginPct": 0,
+  "commitBonus": 0.15,
   "tradeRange": 10,
   "towerMargin": 1,
+  "personality": {
+    "aggression": [0.45, 0.95],
+    "riskTolerance": [0.3, 0.9],
+    "retreatHpPct": [18, 30],
+    "returnHpPct": [70, 90],
+    "spacingPct": [80, 100],
+    "weaveAmplitude": [0.4, 1.2],
+    "weavePeriodSeconds": [0.7, 1.4],
+    "patienceSeconds": [0.6, 1.6]
+  },
+  "confidence": {
+    "kill": 0.25,
+    "death": -0.3,
+    "towerDamagePer1000": 0.1,
+    "halfLifeSeconds": 30,
+    "min": -0.5,
+    "max": 0.5
+  },
+  "hesitation": { "chance": 0.02, "minSeconds": 0.3, "maxSeconds": 0.6 },
+  "lane": { "clashWindow": 12, "aheadOfWave": 4, "holdAhead": 4, "callForHelpRadius": 6, "allInSeconds": 2.5 },
   "ult": { "minionCluster": 3, "clusterRadius": 3 }
 }

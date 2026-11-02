@@ -13,7 +13,7 @@ import combat from '../../data/combat.json';
 import camera from '../../data/camera.json';
 import input from '../../data/input.json';
 
-export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, bots, combat, camera, input } as RawConfig;
+export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, bots, combat, camera, input } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {

@@ -573,6 +573,7 @@ From TDD §13:
 - Alternatives: auto-picking slot 1 instead of a recommendation; leaving caps and the queue for M3.
 
 ## D-042 — The M2 lane bot
+- Superseded in part by D-043 (bot v2: modes, personality, pushes).
 - Date: 2026-11-02
 - Source: user choices (a plain load is you vs the bot; the bot casts its Ultimate now); the rest made during development
 - Decision:
@@ -604,3 +605,62 @@ From TDD §13:
   - **Not yet (M4):** A\* and Trenches, camps, bosses and ganks, dodging telegraphs, tag-weighted drafting, Easy/Normal/Hard tiers, and lane assignment for many bots.
 - Why: the single lane now has an opponent that farms, trades and backs off, which is what Gate 1 needs to judge whether positioning decides trades.
 - Alternatives: start alone unless `?bot`; no bot Ultimate until M4 (both declined by the user).
+
+## D-043 — Bot v2: utility modes, wave play, personality
+- Date: 2026-11-02
+- Source: user playtest ("it never pushes my Sub-base, it just stays near its own base"); user choices (random seed per load, assertive band); research below
+- Decision:
+  - **Why v1 stayed home:**
+    - it farmed only behind its own front minion, so it fell back to its Sub-base whenever you cleared its wave;
+    - nothing ever chose to push or siege;
+    - it walked home below 30% HP and stayed until 90% (a quarter of its time in tests);
+    - it traded only when at least as healthy as you, and never near your tower.
+  - **Research applied:**
+    - Dota 2's bot API scores a desire (0–1) for every mode each think and runs the highest; push modes drop out with enemies near ([Valve wiki](https://developer.valvesoftware.com/wiki/Dota_Bot_Scripting), [push-mode example](https://github.com/furiouspuppy/Dota2_Bots/blob/master/mode_push_tower_bot_meepo.lua)).
+    - Wave play: freeze near your tower when behind; push and crash a winning wave to siege; trade when the enemy wave isn't on you ([LoL Theory](https://blog.loltheory.gg/wave-management-league-of-legends/), [Guild Order](https://guildorder.com/games/league/guides/lane-phase-wave-management)).
+    - Riot's bots fail both ways: wave-ignoring aggression feeds, passivity bores ([PBE thread](https://devtrackers.gg/leagueoflegends/p/29d572ed-pbe-bugs-feedback-thread-14-6-new-bots)).
+    - Human feel comes from a consistent personality plus a mood that shifts with success, not raw noise ([Tanks VR devlog](https://www.indiedb.com/news/tanks-vr-devlog-6-bots-progress), [arXiv 2603.05352](https://arxiv.org/html/2603.05352v1)).
+    - Macro (where to be) is separate from micro (how to fight) ([HMS, arXiv 1812.07887](https://arxiv.org/pdf/1812.07887)).
+  - **Lane read** (`src/sim/bots/lane-read.ts`), from the snapshot only:
+    - both wave fronts and the wave advantage at the clash;
+    - the enemy champion's HP, level and respawn;
+    - time-to-kill both ways, from weapon DPS and level;
+    - the enemy tower: range, whom it shoots, our minions at it;
+    - whether the enemy stands under its tower;
+    - enemy minions near us (call for help);
+    - whether our tower is threatened.
+  - **Modes** (`src/sim/bots/bot.ts`), scored every 0.2 s; the current one gets +0.15 while its patience lasts (hysteresis):
+    - **retreat**: below its personal HP threshold; it heals on the pad up to its return threshold;
+    - **backoff**: drops behind its wave or into its own tower range when losing a fight, or when the enemy tower turns on it;
+    - **defend**: back to its tower against a wave, and eager when you stand under it;
+    - **freeze**: near its own tower when 2+ levels or 30% HP behind *and* you are within 18 m;
+    - **contest**: clears your wave, up to 4 m ahead of its own (1 m when you are near);
+    - **push**: up to 4 m ahead of its winning wave, or as far as is safe while you are dead. Never back past its hold point, 4 m in front of its Sub-base, so a fresh wave walks up to it;
+    - **siege**: at its range from your tower, but only while the tower shoots its minions; out the moment it turns on the bot;
+    - **trade**: steps in to its spacing when you are within 10 m, off your tower and out of your wave. Desire rises with HP and level lead and the time-to-kill ratio;
+    - **allin**: chases when it can kill you within 2.5 s and faster than you can kill it, or when you are under 35% HP and it is healthier. It dives your tower only with risk tolerance ≥ 0.6, ≥ 60% HP and you within two shots.
+  - **Micro:**
+    - it weaves sideways while fighting (amplitude and period from its personality), dodging lead-aimed bullets;
+    - with a 2% chance per decision it hesitates for 0.3–0.6 s;
+    - structure steering is shared with minions.
+  - **Ultimate:** on a champion while fighting, when you are under 60% HP, or when confident; on 3+ bunched minions while contesting, pushing, sieging or defending.
+  - **Personality** (`src/sim/bots/personality.ts`), rolled once per match from the seeded `ai` stream within the assertive band (user choice):
+    - aggression 0.45–0.95;
+    - risk tolerance 0.3–0.9;
+    - retreat at 18–30% HP, return at 70–90%;
+    - spacing 80–100% of range;
+    - weave 0.4–1.2 m every 0.7–1.4 s;
+    - patience 0.6–1.6 s.
+  - **Confidence:**
+    - +0.25 per takedown, +0.1 per 1,000 tower damage nearby, −0.3 per death;
+    - halves every 30 s;
+    - clamped to ±0.5;
+    - added to aggression.
+  - **Seed (user choice):** each page load picks a random match seed in `app` (the sim stays deterministic for a seed); `?seed=N` replays one. The seed is logged to the console and shown in F1 → Match. F1 → Bot shows the mode, confidence, every desire and the personality.
+  - **Measured on The Front:**
+    - against an idle player the bot spends 92% of the match in your half and takes your Sub-base at 210–240 s (seeds 1–3);
+    - bot vs bot (5 seeds) gives varied results: K/D from 6/0 to 0/6, up to about 5,000 structure damage in a match where v1 did at most about 900, and one Sub-base falls;
+    - the HQ is still out of reach solo: flak and regen hold it until Shock Troops (M3).
+  - **Not yet (M4):** A\* and Trenches, camps, bosses and ganks, dodging telegraphs, tag-weighted drafting, and difficulty tiers (this is one assertive band).
+- Why: the opponent now contests, pushes and punishes, and each match feels different, which Gate 1 needs.
+- Alternatives: keep v1 and just raise its numbers (still no reason to push); a fixed seed (every match identical); a very aggressive band (feeds, per Riot's experience).

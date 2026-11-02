@@ -222,24 +222,61 @@ const Powers = z.object({
   powers: z.array(Power).min(1),
 });
 
-/** The M2 lane bot (TDD §7, Normal-tier numbers; D-042). */
+const range = () => z.tuple([z.number(), z.number()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+const pctRange = () => z.tuple([pct(), pct()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+const secsRange = () => z.tuple([z.number().nonnegative(), z.number().nonnegative()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+
+/**
+ * The lane bot (TDD §7; bot v2, D-043): utility modes over a lane read, a personality rolled
+ * per match from these ranges, and a confidence that shifts with kills and deaths.
+ */
 const Bots = z.object({
-  /** How often it re-decides its goal, and the least time it keeps one (except retreat). */
+  /** How often it re-scores its modes. */
   decisionSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
-  commitSeconds: secs(),
-  /** Goes home below this HP share; rejoins the lane at or above `returnHpPct`. */
-  retreatHpPct: pct(),
-  returnHpPct: pct(),
-  /** Farms at this share of its weapon range short of the enemy front. */
-  farmRangePct: pct(),
-  /** Trades at this share of its weapon range from the enemy champion. */
-  tradeRangePct: pct(),
-  /** Trades only when its HP share is at least the enemy's plus this. */
-  tradeHpMarginPct: pct(),
-  /** Considers trading with an enemy champion this close (m). */
+  /** Added to the current mode's desire while its patience lasts (hysteresis). */
+  commitBonus: z.number().nonnegative(),
+  /** Considers fighting an enemy champion this close (m). */
   tradeRange: positive(),
-  /** Keeps this much further out than an enemy structure's range (m). */
+  /** Keeps this much further out than an enemy structure's range when it may not go in (m). */
   towerMargin: z.number().nonnegative(),
+  personality: z.object({
+    /** Weights trading, all-ins and pushing. */
+    aggression: range(),
+    /** Accepts worse fights and near-certain tower dives. */
+    riskTolerance: range(),
+    retreatHpPct: pctRange(),
+    returnHpPct: pctRange(),
+    /** Preferred share of its weapon range to fight at. */
+    spacingPct: pctRange(),
+    /** Sideways weave while fighting (m), and its period. */
+    weaveAmplitude: range(),
+    weavePeriodSeconds: range(),
+    /** How long it commits to a mode once chosen. */
+    patienceSeconds: secsRange(),
+  }),
+  /** A mood that rises with success and falls with failure, decaying back to 0. */
+  confidence: z.object({
+    kill: z.number(),
+    death: z.number(),
+    towerDamagePer1000: z.number(),
+    halfLifeSeconds: positive(),
+    min: z.number(),
+    max: z.number(),
+  }),
+  /** Now and then it stops briefly, like a human hesitating. */
+  hesitation: z.object({ chance: z.number().min(0).max(1), minSeconds: z.number().nonnegative(), maxSeconds: z.number().nonnegative() }),
+  lane: z.object({
+    /** Minions this close to the clash count towards wave advantage (m). */
+    clashWindow: positive(),
+    /** How far ahead of its own wave it may contest or push (m). */
+    aheadOfWave: z.number().nonnegative(),
+    /** Holds this far in front of its own Sub-base with no wave (m). */
+    holdAhead: z.number().nonnegative(),
+    /** Enemy minions this close would turn on it for hitting their champion (GDD §5 call for help). */
+    callForHelpRadius: positive(),
+    /** Goes all in when it can kill the enemy champion within this long and faster than it dies (s). */
+    allInSeconds: positive(),
+  }),
   /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
   ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),
 });

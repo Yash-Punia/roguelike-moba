@@ -33,8 +33,11 @@ if (params.has('dummy')) {
 } else if (withBot) {
   players.push({ team: enemy, championId: 'alpha' });
 }
-const sim = createSim(config, config.match.defaultSeed, players);
-const bot = withBot ? createBot(1, enemy, () => config, () => sim.lanes) : undefined;
+// A fresh seed per page load, so every match plays differently; `?seed=N` replays one (D-043).
+const seed = params.has('seed') ? Number(params.get('seed')) >>> 0 : (Math.random() * 0x7fffffff) >>> 0;
+console.info(`Warfront match seed ${seed} (replay with ?seed=${seed})`);
+const sim = createSim(config, seed, players);
+const bot = withBot ? createBot(1, enemy, () => config, () => sim.lanes, sim.rng.ai) : undefined;
 const botEntity = sim.entityOf(1);
 let lastSnap = sim.snapshot();
 
@@ -138,6 +141,7 @@ if (debug) {
       sim,
       localEntity,
       bot,
+      seed,
     }),
   );
 }

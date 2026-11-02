@@ -14,15 +14,17 @@ export interface DebugHooks {
   sim: Sim;
   /** The local player's champion, for the modifier cheats. */
   localEntity: Entity | undefined;
-  /** The bot opponent, if any: its current goal is shown read-only. */
-  bot?: { readonly goal: string };
+  /** The bot opponent, if any: its mode, mood and personality are shown read-only. */
+  bot?: { readonly goal: string; readonly confidence: number; readonly personality: object; readonly desires: object };
+  /** This match's seed (replay with ?seed=N). */
+  seed?: number;
 }
 
 /**
  * Dev tuning panel (TDD §11). Every value in the raw JSON configs is editable; each edit is
  * re-validated and applied to the running match. F1 or a three-finger tap toggles it.
  */
-export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity, bot }: DebugHooks) {
+export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity, bot, seed }: DebugHooks) {
   const gui = new GUI({ title: 'Warfront debug' });
   gui.hide();
   let visible = false;
@@ -44,9 +46,16 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
+  if (seed !== undefined) match.add({ seed }, 'seed').name('seed (?seed=N)').disable();
   if (bot) {
     const botFolder = gui.addFolder('Bot');
-    botFolder.add(bot, 'goal').name('goal').disable().listen();
+    botFolder.add(bot, 'goal').name('mode').disable().listen();
+    botFolder.add(bot, 'confidence', -1, 1).name('confidence').disable().listen();
+    const desires = botFolder.addFolder('desires').close();
+    const d = bot.desires as Record<string, number>;
+    for (const k of Object.keys(d)) desires.add(d, k, 0, 1.2).disable().listen();
+    const traits = botFolder.addFolder('personality').close();
+    for (const [k, v] of Object.entries(bot.personality)) traits.add({ [k]: Math.round((v as number) * 100) / 100 }, k).disable();
   }
   const structuresFolder = gui.addFolder('Structures').close();
   const killEnemySub = () => {

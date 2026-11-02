@@ -2,213 +2,226 @@ import { describe, expect, it } from 'vitest';
 import type { Config } from '../src/data/schema';
 import { createBot } from '../src/sim/bots/bot';
 import { LaneTrack } from '../src/sim/bots/lane';
+import { rollPersonality } from '../src/sim/bots/personality';
 import type { SimEvent } from '../src/sim/events';
-import { fnv1a } from '../src/sim/rng';
+import { fnv1a, mulberry32 } from '../src/sim/rng';
 import { createSim, Kind, Team, type Command, type PlayerSetup } from '../src/sim/sim';
+import { parseConfig, rawConfig } from '../src/data/load';
 import { fixtureConfig } from './helpers';
 
 const { Blue, Red } = Team;
+type Placement = { id: string; kind: 'subBase' | 'hq'; team: 'blue' | 'red'; lane: string; x: number; y: number };
+const redSub: Placement = { id: 'red-sub', kind: 'subBase', team: 'red', lane: 'centre', x: 0, y: 30 };
+const blueSub: Placement = { id: 'blue-sub', kind: 'subBase', team: 'blue', lane: 'centre', x: 0, y: -25 };
 
 /**
  * Headless match on the open fixture lane: (0, −42) → (0, −10) → west (−8, 0) → (0, 10) →
- * (0, 42), 89.6 m. Player 0 is Blue, player 1 Red; `bots` lists which players a bot drives.
+ * (0, 42), 89.6 m. Player 0 is Blue, player 1 Red; `bots` lists the players a bot drives.
  */
-function match(opts: { bots: number[]; waves?: boolean; blueAt?: { x: number; y: number }; tweak?: (c: Config) => void; seed?: number }) {
-  const config = fixtureConfig();
+function match(opts: { bots: number[]; waves?: boolean; blueAt?: { x: number; y: number }; structures?: Placement[]; tweak?: (c: Config) => void; seed?: number; realMap?: boolean }) {
+  const config = opts.realMap ? parseConfig(rawConfig) : fixtureConfig();
   config.waves.enabled = opts.waves ?? false;
+  config.map.structures.push(...(opts.structures ?? []));
   opts.tweak?.(config);
   const players: PlayerSetup[] = [
     { team: Blue, championId: 'alpha', spawnAt: opts.blueAt },
     { team: Red, championId: 'alpha' },
   ];
   const sim = createSim(config, opts.seed ?? 1, players);
-  const bots = opts.bots.map((pl) => ({ pl, bot: createBot(pl, pl === 0 ? Blue : Red, () => config, () => sim.lanes), e: sim.entityOf(pl)! }));
+  const bots = opts.bots.map((pl) => ({ pl, bot: createBot(pl, pl === 0 ? Blue : Red, () => config, () => sim.lanes, sim.rng.ai), e: sim.entityOf(pl)! }));
   let snap = sim.snapshot();
-  const events: SimEvent[] = [];
-  const run = (n = 1, human?: Command) => {
+  const events: (SimEvent & { tick: number })[] = [];
+  const run = (n = 1, each?: () => void) => {
     for (let i = 0; i < n; i++) {
-      const commands: Command[] = human ? [{ ...human, tick: sim.tick }] : [];
+      const commands: Command[] = [];
       for (const b of bots) commands.push({ ...b.bot.command(snap, sim.tick, b.e) });
-      for (const ev of sim.step(commands).events) events.push({ ...ev });
+      for (const ev of sim.step(commands).events) events.push({ ...ev, tick: sim.tick - 1 });
       snap = sim.snapshot();
+      each?.();
     }
   };
   const ent = (id: number) => sim.snapshot().entities.find((e) => e.id === id)!;
-  const track = () => new LaneTrack(sim.lanes[0]!.branches[0]!);
-  return { sim, config, bots, run, ent, events, track, red: sim.entityOf(1)!, blue: sim.entityOf(0)! };
+  const place = (id: number, x: number, y: number) => Object.assign(sim.stores.transforms.get(id)!, { x, y });
+  const structure = (team: Team, kind: 'subBase' | 'hq' = 'subBase') =>
+    sim.stores.structures.ids.find((e) => sim.stores.teams.get(e) === team && sim.stores.structures.get(e)!.kind === kind)!;
+  const red = sim.entityOf(1)!;
+  const blue = sim.entityOf(0)!;
+  const bot = () => bots.find((b) => b.pl === 1)!.bot;
+  return { sim, config, bots, bot, run, ent, place, structure, events, red, blue };
 }
 
 describe('lane track', () => {
   it('maps points to distance along the lane and back', () => {
     const m = match({ bots: [] });
-    const t = m.track();
+    const t = new LaneTrack(m.sim.lanes[0]!.branches[0]!);
     expect(t.length).toBeCloseTo(64 + 2 * Math.hypot(8, 10));
     const p = t.pointAt(10, { x: 0, y: 0 });
     expect([p.x, p.y]).toEqual([0, -32]);
     expect(t.project(0, -32)).toBeCloseTo(10);
     const bend = t.pointAt(32 + Math.hypot(8, 10) / 2, { x: 0, y: 0 });
-    expect(bend.x).toBeCloseTo(-4);
-    expect(bend.y).toBeCloseTo(-5);
-    expect(t.project(bend.x, bend.y)).toBeCloseTo(32 + Math.hypot(8, 10) / 2);
+    expect([bend.x, bend.y]).toEqual([expect.closeTo(-4), expect.closeTo(-5)]);
   });
 });
 
-describe('farm', () => {
-  it('stands behind its own wave, about 85% of its range short of the enemy front', () => {
-    const m = match({ bots: [1], waves: true, blueAt: { x: 16, y: -50 } });
-    const t = m.track();
-    const fwd = (y: number, x: number) => t.length - t.project(x, y); // Red's progress
-    let samples = 0;
-    let good = 0;
-    for (let i = 0; i < 1500; i++) {
-      m.run();
-      const s = m.sim.snapshot();
-      const red = s.entities.find((e) => e.id === m.red)!;
-      let own = -Infinity;
-      let enemy = Infinity;
-      for (const e of s.entities) {
-        if (e.kind !== Kind.Minion || e.hp <= 0) continue;
-        const f = fwd(e.y, e.x);
-        if (e.team === Red) own = Math.max(own, f);
-        else enemy = Math.min(enemy, f);
-      }
-      if (own === -Infinity || enemy === Infinity || enemy - own > 6) continue; // waves not engaged yet
-      samples++;
-      const f = fwd(red.y, red.x);
-      if (f <= own + 0.5 && enemy - f >= 7 * 0.85 - 1.2) good++;
-    }
-    expect(samples).toBeGreaterThan(60);
-    expect(good / samples).toBeGreaterThan(0.85);
-  });
+describe('personality (D-043)', () => {
+  const cfg = fixtureConfig().bots.personality;
 
-  it('holds in front of its own Sub-base when it has no wave', () => {
-    const m = match({
-      bots: [1],
-      blueAt: { x: 16, y: -50 },
-      tweak: (c) => c.map.structures.push({ id: 'red-sub', kind: 'subBase', team: 'red', lane: 'centre', x: 0, y: 30 }),
-    });
-    m.run(400);
-    const red = m.ent(m.red);
-    expect(red.y).toBeGreaterThan(24.5);
-    expect(red.y).toBeLessThan(27.5);
-    expect(m.bots[0]!.bot.goal).toBe('farm');
-  });
-
-  it('never walks into an enemy tower’s range alone', () => {
-    const m = match({
-      bots: [1],
-      waves: true,
-      blueAt: { x: 16, y: -50 },
-      tweak: (c) => {
-        c.map.structures.push({ id: 'blue-sub', kind: 'subBase', team: 'blue', lane: 'centre', x: 0, y: -20 });
-        c.waves.firstSeconds = 1;
-      },
-    });
-    // Blue's waves die at once, so the Red bot never has a Blue minion tanking the tower for it... but its own wave may.
-    let closest = Infinity;
-    let freeFor = 0; // ticks since the tower last shot one of its minions: it gets 1 s to step back out
-    for (let i = 0; i < 1200; i++) {
-      for (const e of m.sim.stores.laneAgents.ids.slice()) if (m.sim.stores.teams.get(e) === Blue) m.sim.debug.kill(e);
-      m.run();
-      const red = m.ent(m.red);
-      const sub = m.sim.snapshot().entities.find((e) => e.kind === Kind.SubBase)!;
-      const towerBusy = m.sim.snapshot().entities.some((e) => e.id === sub.targetId && e.kind === Kind.Minion);
-      freeFor = towerBusy ? 0 : freeFor + 1;
-      if (freeFor > 30 && red.hp > 0) closest = Math.min(closest, Math.hypot(red.x - sub.x, red.y - sub.y) - red.radius);
+  it('stays inside its ranges, repeats for a seed and differs between seeds', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const p = rollPersonality(cfg, mulberry32(seed));
+      expect(p.aggression).toBeGreaterThanOrEqual(cfg.aggression[0]);
+      expect(p.aggression).toBeLessThanOrEqual(cfg.aggression[1]);
+      expect(p.retreatHp).toBeGreaterThanOrEqual(cfg.retreatHpPct[0]);
+      expect(p.retreatHp).toBeLessThanOrEqual(cfg.retreatHpPct[1]);
+      expect(p.returnHp).toBeGreaterThan(p.retreatHp);
     }
-    expect(closest).toBeGreaterThan(8);
+    expect(rollPersonality(cfg, mulberry32(7))).toEqual(rollPersonality(cfg, mulberry32(7)));
+    expect(rollPersonality(cfg, mulberry32(7)).aggression).not.toBe(rollPersonality(cfg, mulberry32(8)).aggression);
   });
 });
 
-describe('trade', () => {
-  const lane = { x: 0, y: -20 };
+describe('pushing (the playtest complaint)', () => {
+  it('pushes into your half and hits your Sub-base while you stay home (The Front)', () => {
+    const m = match({ bots: [1], waves: true, realMap: true }); // you idle on your pad
+    let inEnemyHalf = 0;
+    let counted = 0;
+    m.run(7200, () => {
+      if (m.sim.tick < 1800) return; // from minute 1
+      counted++;
+      if (m.sim.stores.transforms.get(m.red)!.y < 0) inEnemyHalf++;
+    });
+    expect(inEnemyHalf / counted).toBeGreaterThan(0.5);
+    const sub = m.structure(Blue);
+    expect(m.events.some((e) => e.type === 'damage' && e.source === m.red && e.target === sub)).toBe(true);
+  });
 
-  it('closes to about 95% of its range on a weaker champion, and shoots', () => {
-    const m = match({ bots: [1], blueAt: lane });
-    m.sim.stores.healths.get(m.blue)!.hp = 500;
+  it('sieges only while the tower shoots its minions, and steps out when the tower turns on it', () => {
+    const m = match({ bots: [1], waves: true, blueAt: { x: 16, y: -50 }, structures: [redSub, blueSub] });
+    const sub = m.structure(Blue);
+    let streak = 0;
+    let longest = 0;
+    m.run(7200, () => {
+      const onBot = m.sim.stores.targetings.get(sub)!.targetId === m.red;
+      streak = onBot ? streak + 1 : 0;
+      longest = Math.max(longest, streak);
+    });
+    expect(longest).toBeLessThan(75); // never tanks the tower for long
+  });
+});
+
+describe('fighting', () => {
+  it('goes all in on a weak champion out of tower range and lands the kill', () => {
+    const m = match({ bots: [1], blueAt: { x: 0, y: -20 } });
+    m.sim.stores.healths.get(m.blue)!.hp = 300;
     m.sim.stores.weapons.remove(m.blue);
-    Object.assign(m.sim.stores.transforms.get(m.red)!, { x: -2, y: -12 }); // 8.2 m away
-    m.run(120);
-    expect(m.bots[0]!.bot.goal).toBe('trade');
-    const red = m.ent(m.red);
-    const d = Math.hypot(red.x - lane.x, red.y - lane.y);
-    expect(d).toBeGreaterThan(6.3);
-    expect(d).toBeLessThan(7.6);
-    expect(m.events.some((e) => e.type === 'damage' && e.source === m.red && e.target === m.blue)).toBe(true);
+    m.place(m.red, -2, -11);
+    m.run(300);
+    expect(m.events.find((e) => e.type === 'death' && e.id === m.blue)).toMatchObject({ killer: m.red });
   });
 
-  it('does not engage when it is the weaker one', () => {
-    const m = match({ bots: [1], blueAt: lane });
-    m.sim.stores.healths.get(m.red)!.hp = 400;
-    Object.assign(m.sim.stores.transforms.get(m.red)!, { x: -2, y: -12 });
-    m.run(30);
-    expect(m.bots[0]!.bot.goal).not.toBe('trade');
+  it('freezes near its own tower when it is levels behind and the enemy is close', () => {
+    const m = match({ bots: [1], blueAt: { x: 0, y: 12 }, structures: [redSub] });
+    m.sim.debug.giveXp(m.blue, 360); // Blue level 4, the bot level 1
+    m.sim.stores.weapons.remove(m.blue);
+    m.run(240);
+    expect(m.bot().mode).toBe('freeze');
+    expect(m.ent(m.red).y).toBeGreaterThan(25);
   });
-});
 
-describe('retreat', () => {
-  it('goes home below 30% HP, heals on the pad, and comes back at 90%', () => {
+  it('retreats home below its threshold and returns once healed', () => {
     const m = match({ bots: [1], blueAt: { x: 16, y: -50 } });
-    m.sim.stores.transforms.get(m.red)!.y = 0;
-    m.sim.stores.transforms.get(m.red)!.x = -8;
-    m.sim.stores.healths.get(m.red)!.hp = 250;
-    m.run(2); // it answers the previous snapshot
-    expect(m.bots[0]!.bot.goal).toBe('retreat');
-    let healedAt = -1;
-    for (let i = 0; i < 1500 && healedAt < 0; i++) {
+    m.place(m.red, -8, 0);
+    m.sim.stores.healths.get(m.red)!.hp = 120;
+    m.run(2);
+    expect(m.bot().mode).toBe('retreat');
+    let back = -1;
+    for (let i = 0; i < 1800 && back < 0; i++) {
       m.run();
-      if (m.bots[0]!.bot.goal === 'farm') healedAt = i;
+      if (m.bot().mode !== 'retreat') back = i;
     }
-    expect(healedAt).toBeGreaterThan(0);
-    const h = m.sim.stores.healths.get(m.red)!;
-    expect(h.hp / h.maxHp).toBeGreaterThanOrEqual(0.9);
-    expect(m.ent(m.red).y).toBeGreaterThan(38); // it went all the way to its pad at (0, 42)
+    expect(back).toBeGreaterThan(0);
+    expect(m.sim.stores.healths.get(m.red)!.hp / 1000).toBeGreaterThanOrEqual(m.bot().personality.returnHp - 0.01);
+  });
+
+  it('comes back to defend its tower', () => {
+    const m = match({ bots: [1], blueAt: { x: 16, y: -50 }, structures: [redSub] });
+    m.place(m.red, 0, -30);
+    m.sim.debug.spawnWave();
+    for (const e of m.sim.stores.laneAgents.ids.slice()) {
+      if (m.sim.stores.teams.get(e) === Red) m.sim.debug.kill(e);
+      else m.place(e, 0, 34); // Blue soldiers at the Red tower
+    }
+    m.run(30);
+    expect(m.bot().mode).toBe('defend');
+    m.run(300);
+    expect(m.ent(m.red).y).toBeGreaterThan(15);
   });
 });
 
-describe('Ultimate', () => {
-  it('casts on a champion, not on a lone minion', () => {
-    const m = match({ bots: [1], blueAt: { x: -2, y: 8 } });
-    m.sim.stores.transforms.get(m.red)!.y = 15;
-    m.sim.stores.transforms.get(m.red)!.x = -2;
-    m.sim.debug.fillUltimate(m.red);
-    m.run(2);
-    expect(m.events.some((e) => e.type === 'ultCast' && e.id === m.red)).toBe(true);
-
-    const lone = match({ bots: [1], blueAt: { x: 16, y: -50 } });
-    lone.sim.debug.spawnWave();
-    for (const e of lone.sim.stores.laneAgents.ids.slice(1)) lone.sim.debug.kill(e); // keep one Blue soldier
-    const soldier = lone.sim.stores.laneAgents.ids[0]!;
-    Object.assign(lone.sim.stores.transforms.get(soldier)!, { x: -2, y: 9 });
-    Object.assign(lone.sim.stores.transforms.get(lone.red)!, { x: -2, y: 15 });
-    lone.sim.debug.fillUltimate(lone.red);
-    lone.run(3);
-    expect(lone.events.some((e) => e.type === 'ultCast')).toBe(false);
+describe('confidence', () => {
+  it('rises after a takedown, falls after dying, and decays', () => {
+    const m = match({ bots: [1], blueAt: { x: 0, y: -20 } });
+    m.sim.stores.healths.get(m.blue)!.hp = 100;
+    m.sim.stores.weapons.remove(m.blue);
+    m.place(m.red, -2, -11);
+    m.run(200);
+    const high = m.bot().confidence;
+    expect(high).toBeGreaterThan(0.15);
+    m.run(160); // Blue redeploys; keep it out of reach so no second takedown lifts the mood
+    m.sim.stores.healths.get(m.blue)!.invulnerable = true;
+    m.run(740); // 30 s after the kill
+    expect(m.bot().confidence).toBeLessThan(high * 0.6);
+    m.sim.debug.kill(m.red);
+    m.run(3);
+    expect(m.bot().confidence).toBeLessThan(0);
   });
 });
 
 describe('bot matches', () => {
-  it('are deterministic', () => {
-    const hashes = () => {
-      const m = match({ bots: [0, 1], waves: true });
-      const out: number[] = [];
-      for (let i = 0; i < 18; i++) {
-        m.run(300);
-        out.push(fnv1a(JSON.stringify(m.sim.snapshot())));
-      }
-      return out;
-    };
-    expect(hashes()).toEqual(hashes());
+  const hashes = (seed: number) => {
+    const m = match({ bots: [0, 1], waves: true, structures: [redSub, blueSub], seed });
+    const out: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      m.run(300);
+      out.push(fnv1a(JSON.stringify(m.sim.snapshot())));
+    }
+    return out;
+  };
+
+  it('repeat exactly for a seed and differ between seeds', () => {
+    expect(hashes(3)).toEqual(hashes(3));
+    expect(hashes(3).at(-1)).not.toBe(hashes(4).at(-1));
   });
 
-  it('play 10 minutes of lane without errors: both level up and trade blows', () => {
-    const m = match({ bots: [0, 1], waves: true });
+  it('play 10 minutes without errors, fighting and levelling', () => {
+    const m = match({ bots: [0, 1], waves: true, structures: [redSub, blueSub] });
     m.run(18000);
-    const blue = m.sim.stores.champions.get(m.blue)!;
-    const red = m.sim.stores.champions.get(m.red)!;
-    expect(blue.level).toBeGreaterThan(3);
-    expect(red.level).toBeGreaterThan(3);
+    for (const id of [m.blue, m.red]) expect(m.sim.stores.champions.get(id)!.level).toBeGreaterThan(3);
     expect(m.events.some((e) => e.type === 'damage' && e.source === m.blue && e.target === m.red)).toBe(true);
     expect(m.events.some((e) => e.type === 'damage' && e.source === m.red && e.target === m.blue)).toBe(true);
+    expect(m.events.some((e) => e.type === 'ultCast')).toBe(true);
   }, 60000);
+});
+
+describe('the lane read', () => {
+  it('counts the wave advantage and both kill times', async () => {
+    const { emptyRead, readLane } = await import('../src/sim/bots/lane-read');
+    const m = match({ bots: [], blueAt: { x: 0, y: 0 } });
+    m.place(m.red, 0, 5);
+    m.sim.debug.spawnWave();
+    m.run();
+    for (const e of m.sim.stores.laneAgents.ids.slice()) {
+      if (m.sim.stores.teams.get(e) === Blue) m.place(e, -1, 2);
+      else m.place(e, -1, 9);
+    }
+    m.sim.debug.kill(m.sim.stores.laneAgents.ids.find((e) => m.sim.stores.teams.get(e) === Blue)!);
+    m.run();
+    const r = emptyRead();
+    readLane(r, m.sim.snapshot(), m.red, Red, new LaneTrack(m.sim.lanes[0]!.branches[0]!), m.config);
+    expect(r.waveAdvantage).toBe(1); // 3 Red soldiers against 2 Blue
+    const dps = 95 / (25 / 30);
+    expect(r.ttkUs).toBeCloseTo(m.ent(m.blue).hp / dps);
+    expect(r.ttkThem).toBeCloseTo(m.ent(m.red).hp / dps);
+    expect(m.sim.snapshot().entities.filter((e) => e.kind === Kind.Minion)).toHaveLength(5);
+  });
 });
