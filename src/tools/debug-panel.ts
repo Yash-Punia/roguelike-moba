@@ -42,6 +42,18 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
+  const structuresFolder = gui.addFolder('Structures').close();
+  const killEnemySub = () => {
+    const local = localEntity === undefined ? undefined : sim.stores.teams.get(localEntity);
+    const ids = sim.stores.structures.ids;
+    for (let i = 0; i < ids.length; i++) {
+      const st = sim.stores.structures.data[i]!;
+      if (st.kind === 'subBase' && st.lane === 'centre' && sim.stores.teams.get(ids[i]!) !== local) sim.debug.kill(ids[i]!);
+    }
+  };
+  structuresFolder.add({ killEnemySub }, 'killEnemySub').name('Destroy enemy centre Sub-base');
+  const shields = { on: true };
+  structuresFolder.add(shields, 'on').name('HQ shields').onChange((v: boolean) => sim.debug.setHqShields(v));
   const waves = gui.addFolder('Waves').close();
   waves.add({ spawn: () => sim.debug.spawnWave() }, 'spawn').name('Spawn wave now');
 

@@ -42,6 +42,8 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     o.castShadow = true;
     o.receiveShadow = true;
   });
+  const shield = partsOf(root).shield;
+  if (shield) shield.castShadow = shield.receiveShadow = false;
   if (kind === Kind.Champion) addSteadyRing(root);
   return root;
 }
@@ -52,6 +54,12 @@ export interface ModelParts {
   steadyRing?: THREE.Object3D;
   /** Headgear that flies off on a knock-out (GDD §11 "bouncing helmet"). */
   cap?: THREE.Object3D;
+  /** Structure guns: each turns to the aim while the bunker stays put. */
+  aimParts?: THREE.Object3D[];
+  /** Hidden when a structure falls (flags, guns, mast). */
+  standing?: THREE.Object3D[];
+  /** Translucent dome shown while the structure is invulnerable (HQ gate). */
+  shield?: THREE.Object3D;
 }
 export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 
@@ -194,13 +202,21 @@ function pillbox(root: THREE.Object3D, team: Team) {
   part(root, cyl(1.3, 1.45, 1.9, 6), palette.concrete, 0, 0.95, 0);
   part(root, cyl(1.47, 1.48, 0.24, 6), teamColour(team), 0, 0.32, 0);
   part(root, cyl(1.15, 1.32, 0.3, 6), palette.camoNet, 0, 2.05, 0);
-  // HMG slit on the front face (a hexagon side faces +x) and the gun poking out.
+  // HMG slit on the front face (a hexagon side faces +x), and the gun on a turret ring that
+  // swings round the pillbox to its target.
   part(root, box(0.14, 0.26, 1.1), palette.gunmetal, 1.2, 1.3, 0);
-  const barrel = part(root, cyl(0.07, 0.07, 1, 6), palette.gunmetal, 1.65, 1.3, 0);
+  const turret = new THREE.Group();
+  root.add(turret);
+  part(turret, box(0.16, 0.34, 0.5), palette.gunmetal, 1.38, 1.3, 0);
+  const barrel = part(turret, cyl(0.07, 0.07, 1, 6), palette.gunmetal, 1.85, 1.3, 0);
   barrel.rotation.z = Math.PI / 2;
   // Flag on a pole at the back.
-  part(root, cyl(0.04, 0.04, 1.7, 5), palette.wood, -0.7, 2.6, 0.55);
-  part(root, box(0.05, 0.45, 0.7), teamColour(team), -0.7, 3.2, 0.92);
+  const flag = new THREE.Group();
+  root.add(flag);
+  part(flag, cyl(0.04, 0.04, 1.7, 5), palette.wood, -0.7, 2.6, 0.55);
+  part(flag, box(0.05, 0.45, 0.7), teamColour(team), -0.7, 3.2, 0.92);
+  partsOf(root).aimParts = [turret];
+  partsOf(root).standing = [turret, flag];
   // Sandbag ring, open in front of the gun.
   const bag = box(0.62, 0.34, 0.34);
   for (let i = 0; i < 12; i++) {
@@ -222,11 +238,16 @@ function commandBunker(root: THREE.Object3D, team: Team) {
   part(root, box(0.06, 0.25, 1.3), teamShade(team), 2.13, 1.9, 0);
   part(root, box(0.06, 1.1, 0.8), palette.gunmetal, 2.12, 0.55, 1.75);
   part(root, box(0.06, 0.18, 0.9), palette.gunmetal, 2.12, 1.55, -1.7);
-  // Twin flak guns on the front ledge, barrels raised towards the enemy.
+  // Twin flak guns on the front ledge, barrels raised; each mount turns to its target.
+  const mounts: THREE.Object3D[] = [];
   for (const z of [-1.4, 1.4]) {
-    part(root, cyl(0.32, 0.38, 0.3, 8), palette.olive, 1.55, 2.15, z);
+    const mount = new THREE.Group();
+    mount.position.set(1.55, 2.15, z);
+    root.add(mount);
+    mounts.push(mount);
+    part(mount, cyl(0.32, 0.38, 0.3, 8), palette.olive, 0, 0, 0);
     for (const dz of [-0.1, 0.1]) {
-      const b = part(root, cyl(0.05, 0.05, 1.1, 5), palette.gunmetal, 1.85, 2.55, z + dz);
+      const b = part(mount, cyl(0.05, 0.05, 1.1, 5), palette.gunmetal, 0.3, 0.4, dz);
       b.rotation.z = -Math.PI / 4;
     }
   }
@@ -236,8 +257,20 @@ function commandBunker(root: THREE.Object3D, team: Team) {
     light.rotation.z = Math.PI / 6;
   }
   // Radio mast with cross-bars.
-  part(root, cyl(0.04, 0.08, 4.4, 4), palette.gunmetal, -1.3, 3.4 + 2.2, 0);
-  for (const y of [4.6, 5.8, 7]) part(root, box(0.06, 0.06, 0.9), palette.gunmetal, -1.3, y, 0);
+  const mast = new THREE.Group();
+  root.add(mast);
+  part(mast, cyl(0.04, 0.08, 4.4, 4), palette.gunmetal, -1.3, 3.4 + 2.2, 0);
+  for (const y of [4.6, 5.8, 7]) part(mast, box(0.06, 0.06, 0.9), palette.gunmetal, -1.3, y, 0);
+  partsOf(root).aimParts = mounts;
+  partsOf(root).standing = [...mounts, mast];
+  // The HQ gate's shield (GDD §5): a faint team dome, shown while invulnerable.
+  const shield = new THREE.Mesh(
+    new THREE.SphereGeometry(3.7, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: teamColour(team), transparent: true, opacity: 0.16, depthWrite: false }),
+  );
+  shield.visible = false;
+  root.add(shield);
+  partsOf(root).shield = shield;
 }
 
 /** Spawn pad (ST-01): 4.6 m concrete disc with a team-colour ring and yellow hazard markers. Static map dressing. */

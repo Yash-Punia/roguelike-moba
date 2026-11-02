@@ -20,6 +20,10 @@ import {
   callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnWave, waveDue, type MinionContext,
 } from './systems/minions';
 import { buildLanes, type LanePath } from '../data/map-geometry';
+import {
+  backdoorSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, updateHqGate, warmupShot,
+  type StructureContext,
+} from './systems/structures';
 import { lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
@@ -153,6 +157,16 @@ export interface Structure {
   kind: StructureKind;
   placement: string;
   lane: string | undefined;
+  /** Warm-up (GDD §5): stacks against `warmupTarget`, reset after a pause in firing. */
+  warmupStacks: number;
+  warmupTarget: Entity;
+  ticksSinceShot: number;
+  /** No enemy minion near this tick: takes the backdoor reduction. */
+  backdoor: boolean;
+  /** Second target of a two-target weapon (HQ flak), or 0. */
+  secondaryId: Entity;
+  /** Fell this match: rubble from now on. */
+  destroyed: boolean;
 }
 
 export interface EntitySnapshot {
@@ -173,6 +187,8 @@ export interface EntitySnapshot {
   shield: number;
   /** Takes no damage right now (permanent or timed). */
   invulnerable: boolean;
+  /** Structures: fell this match (rubble). */
+  destroyed: boolean;
   /** Current auto-target, or 0. */
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
@@ -219,6 +235,8 @@ export interface ProjectileSnapshot {
   team: Team;
   /** What fired it (minion bullets draw smaller). */
   ownerKind: Kind;
+  /** Damage multiplier added at fire time (structure warm-up, 1–2): drawn brighter and bigger. */
+  boost: number;
   x: number;
   y: number;
   vx: number;
@@ -335,7 +353,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     teams.add(e, team);
     kinds.add(e, p.kind === 'hq' ? Kind.HQ : Kind.SubBase);
     models.add(e, p.kind);
-    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane });
+    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane, warmupStacks: 0, warmupTarget: 0, ticksSinceShot: 0, backdoor: true, secondaryId: 0, destroyed: false });
     const def = config.structures[p.kind];
     healths.add(e, newHealth(def.maxHp));
     weapons.add(e, newWeapon(def.weapon, transforms.get(e)!.facing));
@@ -349,6 +367,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const hits = new HitQueue();
   const weaponsContext: WeaponsContext = {
     transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events, crit: rng.crit,
+    shotMultiplier: (e, target) => {
+      const st = structures.get(e);
+      return st ? warmupShot(st, target, kinds.get(target), config.structures.rules) : 1;
+    },
+    secondaryOf: (e) => structures.get(e)?.secondaryId ?? 0,
     rangeOf: (e) => targetingContext.rangeOf(e),
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits };
@@ -371,7 +394,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events };
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures };
+  const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events };
+  updateHqGate(structureContext);
 
   const targetingContext: TargetingContext = {
     transforms, colliders, teams, healths, targetClasses, targetings, spatial,
@@ -416,19 +441,24 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       // Structures (aggro rules) and minions get their own targeting with their features.
       steadyHandSystem(champions, motions, stats, healths);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
+      backdoorSystem(structureContext, config.structures.rules);
+      structureTargetingSystem(structureContext, config.structures.rules, damageLog, tick);
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
       weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
+      weaponsSystem(structures.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
       projectileSystem(projectileContext, config.combat.weapons);
       // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
       // exactly its flight time later and a new fire pool first burns a full period after landing.
       zoneSystem(ultimateContext);
       lobSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
-      damageSystem(damageContext, config.combat.damage, tick);
+      damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
       deathSystem(lifeContext, config.match.respawn);
       minionDeathSystem(minionContext);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
+      structureDeathSystem(structureContext);
+      structureRegenSystem(structureContext, config.structures);
       tick++;
       return { tick, events };
     },
@@ -443,7 +473,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -460,6 +490,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.maxHp = h?.maxHp ?? 0;
         s.shield = h?.shield ?? 0;
         s.invulnerable = h ? isInvulnerable(h, tick) : false;
+        s.destroyed = structures.get(e)?.destroyed ?? false;
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
         const c = champions.get(e);
@@ -472,10 +503,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {
         if (!pool.active[i]) continue;
-        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, ownerKind: Kind.Champion, x: 0, y: 0, vx: 0, vy: 0 });
+        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, ownerKind: Kind.Champion, boost: 1, x: 0, y: 0, vx: 0, vy: 0 });
         p.id = pool.id[i]!;
         p.team = pool.team[i]! as Team;
         p.ownerKind = kinds.get(pool.owner[i]!) ?? Kind.Minion;
+        p.boost = pool.boost[i]!;
         p.x = pool.x[i]!;
         p.y = pool.y[i]!;
         p.vx = pool.vx[i]! * TICK_HZ;
@@ -584,6 +616,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         if (h) h.shield += amount;
       },
+      /** Forces every HQ's invulnerability on or off (the gate re-applies when a Sub-base falls). */
+      setHqShields(on: boolean) {
+        for (let i = 0; i < structures.ids.length; i++) {
+          if (structures.data[i]!.kind === 'hq') healths.get(structures.ids[i]!)!.invulnerable = on;
+        }
+      },
       /** Spawns the next wave now on every wave lane. */
       spawnWave() {
         spawnWave(minionContext, config, waveCount++);
@@ -608,7 +646,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures },
 
     /** Built lane polylines (read-only). */
     get lanes() {

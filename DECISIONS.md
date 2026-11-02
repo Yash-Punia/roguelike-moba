@@ -415,3 +415,35 @@ From TDD §13:
     - Minion tracers are 55% size at gun height (0.5 m). The snapshot's projectiles now carry `ownerKind`.
 - Why: the lane now has its rhythm and the trading-inside-the-wave risk the GDD wants. It plays on the real map: a browser run showed soldiers stuck on their own Sub-base until the tangent steering went in.
 - Alternatives: per-soldier branches, or mirrored branches per team (the user picked whole waves); a navmesh or A* for minions now (deferred to M4).
+
+## D-036 — Structures fight back
+- Date: 2026-11-02
+- Source: user choices (Sub-bases never regenerate; towers keep their target); the rest made during development
+- Decision:
+  - **Aggro (GDD §5), before the weapons fire:**
+    1. An enemy champion that hit an allied champion standing in range last tick (damage log) pulls fire onto itself at once, if it is in range too.
+    2. Otherwise the tower keeps its current target while it stays alive, targetable and in range (user choice, classic MOBA tower focus).
+    3. With no target, the nearest enemy minion, else the nearest enemy champion.
+
+    Structures never shoot structures. Range is to the collider edge.
+  - **Firing** reuses the shared weapon system: aim turn, fire cone, lead, 30 m/s bullets.
+  - **HQ flak** (D-028's open point) fires two bullets per shot: one at its target and one at a second target picked by the same order. A weapon with `targets ≥ 2` fires at `secondaryOf`.
+  - **Warm-up:** decided at fire time. Each consecutive shot at the same champion adds 25%, up to +100% (200, 250, 300, 350, 400, 400). A shot at a minion, a change of target, or 90 ticks without firing resets it. The bullet carries the warmed-up base damage; the multiplier also travels as `boost` so render can grow the tracer.
+  - **Backdoor protection:** evaluated once per tick. A structure with no living enemy minion within 10 m is flagged, and the damage pipeline's structure step takes 50% off. It applies to every source: champions, the grenade and the fire pool.
+  - **HQ gate:** an HQ is invulnerable while every Sub-base of its team stands. It is re-evaluated at spawn and whenever a Sub-base falls. A team with no Sub-bases (test maps) has no gate. Invulnerable units are already skipped by champion targeting, the Ultimate query and the damage pipeline.
+  - **Regen:** `regen` per structure in `structures.json`. The HQ heals 1% max HP per second while no living enemy champion or minion is within 12 m. Sub-bases never heal (user choice, reading the GDD's "None").
+  - **Destruction:** a structure at 0 HP is marked destroyed and emits `structureDestroyed` with its killer. It stops targeting and firing and stays as rubble: its footprint remains in the grid and minions still steer round it.
+  - **Not yet:**
+    - structure XP: M2 feature 11;
+    - winning on the HQ: feature 12;
+    - Shock Troops: M3;
+    - HQ last line, +50% fire rate below 30%: M4;
+    - damage-state art at 66% and 33%: M5.
+  - **Render:**
+    - structures no longer turn whole with their aim: the pillbox gun rides a turret ring and each HQ flak mount turns on its own (`aimParts`);
+    - an invulnerable HQ shows a faint team-colour dome;
+    - a fallen structure throws up smoke and dust, loses its gun, flag and mast, darkens towards scorched earth and sinks to 35% height as rubble;
+    - structure tracers are 1.3× size at 1.6 m and grow with warm-up.
+  - **Debug:** F1 → Structures → "Destroy enemy centre Sub-base" and an "HQ shields" toggle. Test arenas keep structures unarmed and HQs ungated unless a test asks (`armed`, `shielded`), with backdoor and regen off, so older combat tests keep their numbers.
+- Why: diving is now risky and minions matter, and the lane order (Sub-base before HQ) is enforced.
+- Alternatives: re-picking the nearest minion every tick (rejected by the user); Sub-base regen above 50% (the user read "None" literally); instant-hit flak.

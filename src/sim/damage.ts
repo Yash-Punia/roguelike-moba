@@ -3,7 +3,7 @@ import type { Store } from './ecs';
 import { DamageLog, HitFlag } from './damage-log';
 import type { DamageEvent, SimEvent } from './events';
 import type { HitQueue } from './hits';
-import { Kind, type Health } from './sim';
+import { Kind, type Health, type Structure } from './sim';
 import { Stat, stat, type Stats } from './stats';
 
 /** True while a unit takes no damage and can't be targeted: a permanent flag (HQ) or a timed window (lethal save). */
@@ -18,6 +18,7 @@ export interface DamageContext {
   stats: Store<Stats>;
   kinds: Store<Kind>;
   events: SimEvent[];
+  structures: Store<Structure>;
 }
 
 const eventPool: DamageEvent[] = [];
@@ -29,7 +30,7 @@ const eventPool: DamageEvent[] = [];
  * 1. base damage from the weapon or effect;
  * 2. attacker: damage stat, then the vs-champions or vs-structures stat by the target's kind;
  * 3. crit multiplier carried by the hit;
- * 4. target: damage-taken stat, then structure rules (the hit's structure share);
+ * 4. target: damage-taken stat, then structure rules (the hit's structure share, backdoor protection);
  * 5. shield absorbs first, then HP;
  * 6. a lethal hit on a unit with a lethal save leaves 1 HP and a short invulnerability;
  * 7. log the hit and emit a `damage` event.
@@ -37,7 +38,7 @@ const eventPool: DamageEvent[] = [];
  * Invulnerable and already-dead targets take nothing and are not logged. Damage stays a
  * float (small damage-over-time ticks would vanish if rounded); only the display rounds.
  */
-export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage'], tick: number) {
+export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage'], tick: number, backdoorPct = 0) {
   const { hits, log, healths, stats, kinds, events } = ctx;
   log.windowTicks = cfg.logSeconds;
   let pooled = 0;
@@ -63,9 +64,12 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // 4. The target's modifiers.
     const ts = stats.get(target);
     if (ts) amount *= stat(ts, Stat.DamageTaken);
-    // Structure rules: the hit's own structure share (fire pool 50%); backdoor protection
-    // (M2 feature 10) and the Bazooka Tank's resistance to structure fire (M3) join here.
-    if (kind === Kind.SubBase || kind === Kind.HQ) amount *= hits.structureMult[k]!;
+    // Structure rules: the hit's own structure share (fire pool 50%), then backdoor protection;
+    // the Bazooka Tank's resistance to structure fire (M3) joins here.
+    if (kind === Kind.SubBase || kind === Kind.HQ) {
+      amount *= hits.structureMult[k]!;
+      if (ctx.structures.get(target)?.backdoor) amount *= 1 - backdoorPct; // no enemy minion near (GDD §5)
+    }
     if (amount < 0) amount = 0;
 
     // 5. Shield, then HP.

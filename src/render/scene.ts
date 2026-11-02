@@ -15,6 +15,23 @@ import { buildSurround, buildTerrain } from './terrain';
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 /** Metres (Manhattan) moved in one tick that count as a teleport rather than movement. */
 const SNAP_DISTANCE = 5;
+/** A fallen structure sinks to this share of its height over COLLAPSE_MS, then stays as rubble. */
+const RUBBLE_HEIGHT = 0.35;
+const COLLAPSE_MS = 600;
+const rubbleTint = new THREE.Color(palette.scorched);
+
+/** Starts a structure's collapse: guns, flag and mast go, and the concrete darkens towards scorched earth. */
+function collapse(root: THREE.Object3D, s: { fellAt: number }) {
+  s.fellAt = performance.now();
+  for (const o of partsOf(root).standing ?? []) o.visible = false;
+  const shield = partsOf(root).shield;
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || o === shield || !(o.material instanceof THREE.MeshLambertMaterial)) return;
+    const m = o.material.clone();
+    m.color.lerp(rubbleTint, 0.45);
+    o.material = m;
+  });
+}
 
 interface Interp {
   /** Previous and current position, aim (pf, f) and leg facing (pl, l). */
@@ -26,6 +43,8 @@ interface Interp {
   targetId: number;
   radius: number;
   kind: Kind;
+  /** Structures: when it fell (ms), for the collapse; 0 while standing. */
+  fellAt: number;
 }
 
 const lambert = (color: number) => new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -79,7 +98,7 @@ export function createScene(container: HTMLElement, config: Config) {
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind };
+        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, fellAt: 0 };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, e.team);
@@ -103,8 +122,10 @@ export function createScene(container: HTMLElement, config: Config) {
       }
       s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
       s.x = e.x; s.y = e.y; s.f = e.aim; s.l = e.facing;
-      const ring = partsOf(meshes.get(e.id)!).steadyRing;
-      if (ring) ring.visible = e.steady && e.hp > 0;
+      const parts = partsOf(meshes.get(e.id)!);
+      if (parts.steadyRing) parts.steadyRing.visible = e.steady && e.hp > 0;
+      if (parts.shield) parts.shield.visible = e.invulnerable && !e.destroyed;
+      if (e.destroyed && s.fellAt === 0) collapse(meshes.get(e.id)!, s);
       s.vx = e.vx; s.vy = e.vy;
       s.targetId = e.targetId;
       s.radius = e.radius;
@@ -130,6 +151,11 @@ export function createScene(container: HTMLElement, config: Config) {
     const now = performance.now();
     for (const ev of events) {
       if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'structureDestroyed') {
+        // Roof caves in: a dust and smoke column (GDD §11), then rubble for the rest of the match.
+        ultFx.smoke(ev.x, ev.y, 3.2, palette.smoke, 10, now);
+        ultFx.smoke(ev.x, ev.y, 2, palette.mud, 6, now);
+      }
       if (ev.type === 'death') {
         const mesh = meshes.get(ev.id);
         if (mesh) knockouts.start(ev.id, mesh, now);
@@ -174,16 +200,17 @@ export function createScene(container: HTMLElement, config: Config) {
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
       // Minions march with a bouncy stride (UN-01).
       if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0)) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
-      // Models with an upper body turn their legs with the movement facing and the upper body
-      // with the aim; the rest turn whole with the aim.
+      // Units turn their legs with the movement facing and the upper body with the aim;
+      // structures stay put and turn only their guns.
       const aim = lerpAngle(s.pf, s.f, alpha);
-      const upper = partsOf(mesh).upper;
-      if (upper) {
-        const legs = lerpAngle(s.pl, s.l, alpha);
-        mesh.rotation.y = legs;
-        upper.rotation.y = aim - legs;
-      } else {
-        mesh.rotation.y = aim;
+      const facing = lerpAngle(s.pl, s.l, alpha);
+      const { upper, aimParts } = partsOf(mesh);
+      mesh.rotation.y = upper || aimParts ? facing : aim;
+      if (upper) upper.rotation.y = aim - facing;
+      if (aimParts && s.fellAt === 0) for (const g of aimParts) g.rotation.y = aim - facing;
+      if (s.fellAt > 0) {
+        const t = Math.min(1, (now - s.fellAt) / COLLAPSE_MS);
+        mesh.scale.y = 1 - (1 - RUBBLE_HEIGHT) * t * t;
       }
       const bar = bars.get(id);
       if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);

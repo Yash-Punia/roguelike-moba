@@ -33,7 +33,7 @@ export function reachable(g: ObstacleGrid, from: Point, to: Point): boolean {
 }
 
 /** `armed` champions fire back; by default only the shooter (player 0) fires. */
-export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq'; armed?: boolean; /** Spawn on the team pad like a real champion (respawns there too). */ atPad?: boolean };
+export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq'; armed?: boolean; /** Spawn on the team pad like a real champion (respawns there too). */ atPad?: boolean; /** HQ: keep the gate (invulnerable while its team's Sub-bases stand). */ shielded?: boolean };
 
 /**
  * Open test map with Blue Alpha (player 0) at the origin plus the given units. Champions get
@@ -59,6 +59,8 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45, critMultiplier: 2 };
   config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
+  // Structure rules: warm-up as in the GDD; backdoor protection and regen off unless a test turns them on.
+  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12 };
   // Waves off unless a test turns them on; MG Soldier pinned to the GDD numbers.
   config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
   config.units.mgSoldier = {
@@ -76,6 +78,17 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
     }
   }
   const sim = createSim(config, 1, players);
+  // Structures don't fire unless `armed`, and an HQ has no gate unless `shielded`, so the
+  // combat tests written before structures fought back keep their numbers.
+  const placed = units.filter((u) => u.structure);
+  for (let i = 0; i < sim.stores.structures.ids.length; i++) {
+    const e = sim.stores.structures.ids[i]!;
+    const n = Number(sim.stores.structures.data[i]!.placement.slice(1)) - openMap.structures.length;
+    const u = placed[n];
+    if (!u) continue;
+    if (!u.armed) sim.stores.weapons.remove(e);
+    if (u.structure === 'hq' && !u.shielded) sim.stores.healths.get(e)!.invulnerable = false;
+  }
   const shooter = sim.entityOf(0)!;
   const target = () => sim.stores.targetings.get(shooter)!.targetId;
   let shots = 0;

@@ -20,6 +20,10 @@ export interface WeaponsContext {
   events: SimEvent[];
   /** Seeded stream for critical-hit rolls. */
   crit: Rng;
+  /** Damage multiplier for a shot fired now (structure warm-up); 1 for most shooters. */
+  shotMultiplier(e: Entity, target: Entity): number;
+  /** A second target for weapons that hit two (HQ flak), or 0. */
+  secondaryOf(e: Entity): Entity;
   rangeOf(e: Entity): number;
 }
 
@@ -78,9 +82,30 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     const muzzle = colliders.get(e)?.radius ?? 0;
     const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
     const critMult = w.critChance > 0 && ctx.crit() < w.critChance ? critMultiplier : 1;
-    pool.spawn(e, teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, w.damage, critMult, life);
+    const boost = ctx.shotMultiplier(e, target);
+    const team = teams.get(e)!;
+    pool.spawn(e, team, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, w.damage * boost, critMult, life, boost);
     w.cooldown += w.interval;
     events.push({ type: 'shot', id: e, target });
+
+    // A second bullet at the second target (HQ flak hits two, TDD §6.3), aimed straight at it.
+    const second = w.targets >= 2 ? ctx.secondaryOf(e) : 0;
+    const st2 = second !== 0 ? transforms.get(second) : undefined;
+    if (st2) {
+      let bx = st2.x;
+      let by = st2.y;
+      const m2 = cfg.bulletAim === 'lead' ? motions.get(second) : undefined;
+      if (m2) {
+        const lead = interceptTime(st2.x - t.x, st2.y - t.y, m2.vx, m2.vy, w.projectileSpeed);
+        bx += m2.vx * lead;
+        by += m2.vy * lead;
+      }
+      const dir2 = atan2(by - t.y, bx - t.x);
+      const ux = cos(dir2);
+      const uy = sin(dir2);
+      pool.spawn(e, team, second, cfg.bulletAim === 'homing', t.x + ux * muzzle, t.y + uy * muzzle, ux * perTick, uy * perTick, w.damage, critMult, life, 1);
+      events.push({ type: 'shot', id: e, target: second });
+    }
   }
 }
 

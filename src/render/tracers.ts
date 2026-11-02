@@ -10,6 +10,10 @@ const LIFT = 1.0;
 /** Minion bullets: shorter, thinner and lower (their guns are at ~0.5 m). */
 const MINION_SCALE = 0.55;
 const MINION_LIFT = 0.5;
+/** Structure rounds: heavier, from gun height on the bunker; warm-up grows them further. */
+const STRUCTURE_SCALE = 1.3;
+const STRUCTURE_LIFT = 1.6;
+const BOOST_GROWTH = 0.6;
 
 /**
  * Bullet tracers (GDD §11, TDD §8): one instanced, flat, stretched quad per projectile in its
@@ -24,7 +28,8 @@ export class Tracers {
   private vxs = new Float64Array(256);
   private vys = new Float64Array(256);
   private teams = new Uint8Array(256);
-  private small = new Uint8Array(256);
+  private sizes = new Float32Array(256);
+  private lifts = new Float32Array(256);
   private readonly matrix = new THREE.Matrix4();
   private readonly position = new THREE.Vector3();
   private readonly rotation = new THREE.Quaternion();
@@ -53,7 +58,10 @@ export class Tracers {
       this.vxs[i] = p.vx / TICK_HZ;
       this.vys[i] = p.vy / TICK_HZ;
       this.teams[i] = p.team;
-      this.small[i] = p.ownerKind === Kind.Minion ? 1 : 0;
+      const structure = p.ownerKind === Kind.SubBase || p.ownerKind === Kind.HQ;
+      const base = p.ownerKind === Kind.Minion ? MINION_SCALE : structure ? STRUCTURE_SCALE : 1;
+      this.sizes[i] = base * (1 + (p.boost - 1) * BOOST_GROWTH);
+      this.lifts[i] = p.ownerKind === Kind.Minion ? MINION_LIFT : structure ? STRUCTURE_LIFT : LIFT;
     }
     this.count = n;
   }
@@ -63,10 +71,9 @@ export class Tracers {
     for (let i = 0; i < this.count; i++) {
       const x = this.xs[i]! - this.vxs[i]! * (1 - alpha);
       const y = this.ys[i]! - this.vys[i]! * (1 - alpha);
-      const small = this.small[i] === 1;
-      this.position.set(x, this.heightAt(x, y) + (small ? MINION_LIFT : LIFT), -y);
+      this.position.set(x, this.heightAt(x, y) + this.lifts[i]!, -y);
       this.rotation.setFromAxisAngle(this.up, Math.atan2(this.vys[i]!, this.vxs[i]!));
-      this.scale.setScalar(small ? MINION_SCALE : 1);
+      this.scale.setScalar(this.sizes[i]!);
       this.matrix.compose(this.position, this.rotation, this.scale);
       this.mesh.setMatrixAt(i, this.matrix);
       this.mesh.setColorAt(i, this.colours[this.teams[i] as Team]);
@@ -83,6 +90,7 @@ export class Tracers {
     this.vxs = new Float64Array(size);
     this.vys = new Float64Array(size);
     this.teams = new Uint8Array(size);
-    this.small = new Uint8Array(size);
+    this.sizes = new Float32Array(size);
+    this.lifts = new Float32Array(size);
   }
 }

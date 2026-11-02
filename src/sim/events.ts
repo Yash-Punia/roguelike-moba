@@ -26,6 +26,8 @@ export type SimEvent =
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick. */
   | { type: 'death'; id: Entity; killer: Entity; x: number; y: number }
+  /** A structure fell (it stays as rubble); `killer` landed the last hit. */
+  | { type: 'structureDestroyed'; id: Entity; kind: 'subBase' | 'hq'; team: number; killer: Entity; x: number; y: number }
   /** A minion wave spawned on every wave lane (0 = the first). */
   | { type: 'waveSpawned'; wave: number }
   /** A champion redeployed at (x, y). */

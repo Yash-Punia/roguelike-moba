@@ -121,8 +121,30 @@ const Footprint = z.discriminatedUnion('shape', [
   z.object({ shape: z.literal('circle'), r: positive() }),
   z.object({ shape: z.literal('rect'), w: positive(), h: positive() }),
 ]);
-const StructureDef = z.object({ name: z.string(), maxHp: positive(), radius: positive(), footprint: Footprint, weapon: Weapon });
-const Structures = z.object({ subBase: StructureDef, hq: StructureDef });
+const StructureDef = z.object({
+  name: z.string(),
+  maxHp: positive(),
+  radius: positive(),
+  footprint: Footprint,
+  weapon: Weapon,
+  /** Heals `rules.regenPctPerSecond` while no enemy is near (GDD §5: the HQ only, D-036). */
+  regen: z.boolean(),
+});
+/** Structure rules shared by every structure (GDD §5, TDD §6.7). */
+const StructureRules = z.object({
+  /** Extra damage per consecutive shot at the same champion, up to the max. */
+  warmupPct: pct(),
+  warmupMaxPct: pct(),
+  /** Warm-up resets after this long without firing. */
+  warmupResetSeconds: secs(),
+  /** With no enemy minion this close, the structure takes `backdoorPct` less damage. */
+  backdoorRadius: positive(),
+  backdoorPct: pct(),
+  regenPctPerSecond: pct(),
+  /** Regen pauses while any enemy unit is this close. */
+  regenClearRadius: positive(),
+});
+const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });
 
 /** Lane minions (GDD §5). Ranges in metres to collider edges; `leash` is the distance from the lane. */
 const MinionDef = z.object({
