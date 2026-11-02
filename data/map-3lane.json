@@ -2,7 +2,7 @@
   "id": "the-front",
   "bounds": { "minX": -34, "maxX": 34, "minY": -82, "maxY": 82 },
   "gridCell": 0.5,
-  "splineSamples": 16,
+  "splineSamples": 1,
   "spawn": { "blue": { "x": 0, "y": -66.5 }, "red": { "x": 0, "y": 66.5 } },
   "structures": [
     { "id": "blue-hq", "kind": "hq", "team": "blue", "x": 0, "y": -72 },

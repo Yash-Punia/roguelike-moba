@@ -10,9 +10,9 @@ const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
 const debug = import.meta.env.DEV || params.has('debug');
 
-// `?straight` draws lanes as straight segments between the spec's control points (D-026).
+// Lanes are straight segments between the spec's control points (D-027); `?curved` draws the spec's Catmull-Rom curves instead.
 const raw = structuredClone(rawConfig);
-if (params.has('straight')) raw.map.splineSamples = 1;
+if (params.has('curved')) raw.map.splineSamples = 16;
 let config = parseConfig(raw);
 const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, championId: 'alpha' }]);
 

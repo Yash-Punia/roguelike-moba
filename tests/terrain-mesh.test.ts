@@ -4,8 +4,8 @@ import { rasterise, signedDistance } from '../src/data/map-geometry';
 import type { MapConfig } from '../src/data/schema';
 import { buildTerrainGeometry, TAG_SLOPE, TAG_TOP } from '../src/render/terrain-mesh';
 
-const curved = parseConfig(rawConfig).map;
-const straight: MapConfig = { ...curved, splineSamples: 1 };
+const straight = parseConfig(rawConfig).map;
+const curved: MapConfig = { ...straight, splineSamples: 16 };
 
 function areaOf(t: Float32Array, i: number) {
   const o = i * 9;

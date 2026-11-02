@@ -256,3 +256,10 @@ From TDD §13:
 - Why: the 0.5 m grid heightfield stair-stepped every non-axis-aligned edge, whatever the lane shape; straight lanes alone would not fix it.
 - Alternatives: finer grid mesh (more triangles, still stepped); separate lane ribbon meshes with boolean cut-outs in the jungle (much more code).
 
+## D-027 — Lanes are straight segments by default
+- Date: 2026-11-02
+- Source: user choice after comparing both styles (D-026)
+- Decision: `map.splineSamples` is 1, so lanes, branches and ramps run straight between the spec's control points with angled bends, instead of the spec's Catmull-Rom curves (a deliberate deviation from D-017). Control points, widths and positions are unchanged. `?curved` draws the curves (16 samples) for comparison.
+- Why: the faceted look fits the flat-shaded low-poly style better.
+- Alternatives: the spec's curves (kept as a URL toggle).
+
