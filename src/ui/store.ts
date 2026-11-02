@@ -1,8 +1,29 @@
 import { signal } from '@preact/signals';
-import { TICK_HZ } from '../data/schema';
+import { TICK_HZ, type Config } from '../data/schema';
 import { displayTeam } from '../sim/sides';
 import type { Entity } from '../sim/ecs';
 import { Kind, Team, type Snapshot } from '../sim/sim';
+
+export interface CardView {
+  id: string;
+  name: string;
+  text: string;
+  rarity: 'common' | 'rare' | 'epic';
+  /** Stacks already owned, and the cap. */
+  owned: number;
+  cap: number;
+}
+
+/** The live draft offer for the local champion (GDD §8). */
+export interface DraftView {
+  cards: CardView[];
+  /** Seconds left before the recommended card is taken. */
+  secondsLeft: number;
+  totalSeconds: number;
+  recommended: number;
+  /** Offers waiting behind this one ("+1"). */
+  queued: number;
+}
 
 export interface StructureView {
   id: Entity;
@@ -32,6 +53,11 @@ export const hud = {
   /** Structures by side, in a stable order (HQ first, then Sub-bases by id). */
   ours: signal<StructureView[]>([]),
   theirs: signal<StructureView[]>([]),
+  draft: signal<DraftView | null>(null),
+  /** Show keyboard plates (1/2/3) on cards: the last input was a keyboard. */
+  keyHints: signal(false),
+  /** The match is over: the tray hides. */
+  ended: signal(false),
 };
 
 const order = (a: StructureView, b: StructureView) => (a.kind === b.kind ? a.id - b.id : a.kind === 'hq' ? -1 : 1);
@@ -39,7 +65,8 @@ const same = (a: StructureView[], b: StructureView[]) =>
   a.length === b.length && a.every((s, i) => s.id === b[i]!.id && s.hp === b[i]!.hp && s.shielded === b[i]!.shielded && s.destroyed === b[i]!.destroyed);
 
 /** Copies the HUD's values from a snapshot, for the champion `localId` on team `localTeam`. */
-export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam: Team) {
+export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam: Team, powers?: Config['powers']) {
+  hud.ended.value = snap.match.phase === 'ended';
   hud.seconds.value = Math.floor((snap.match.phase === 'ended' ? snap.match.endTick : snap.tick) / TICK_HZ);
   let ours = 0;
   let theirs = 0;
@@ -58,6 +85,7 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
         hud.xpFraction.value = band > 0 ? Math.min(1, (e.xp - e.xpLevelStart) / band) : 1;
         hud.kills.value = e.kills;
         hud.deaths.value = e.deaths;
+        hud.draft.value = powers ? draftView(e.draftCards, e.draftTicksLeft, e.draftRecommended, e.draftQueued, e.powers, powers) : null;
       }
     } else if (e.kind === Kind.SubBase || e.kind === Kind.HQ) {
       const view: StructureView = {
@@ -76,4 +104,25 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
   enemy.sort(order);
   if (!same(hud.ours.value, mine)) hud.ours.value = mine;
   if (!same(hud.theirs.value, enemy)) hud.theirs.value = enemy;
+}
+
+function draftView(
+  cards: readonly string[],
+  ticksLeft: number,
+  rec: number,
+  queued: number,
+  owned: Readonly<Record<string, number>>,
+  powers: Config['powers'],
+): DraftView | null {
+  if (cards.length === 0) return null;
+  const views: CardView[] = [];
+  for (const id of cards) {
+    const def = powers.powers.find((p) => p.id === id);
+    if (!def) continue;
+    views.push({ id, name: def.name, text: def.text, rarity: def.rarity, owned: owned[id] ?? 0, cap: powers.draft.stackCaps[def.rarity] });
+  }
+  const prev = hud.draft.value;
+  const secondsLeft = Math.ceil((ticksLeft / TICK_HZ) * 10) / 10;
+  if (prev && prev.recommended === rec && prev.queued === queued && prev.secondsLeft === secondsLeft && prev.cards.map((c) => c.id).join() === cards.join()) return prev;
+  return { cards: views, secondsLeft, totalSeconds: powers.draft.autoPickSeconds / TICK_HZ, recommended: rec, queued };
 }

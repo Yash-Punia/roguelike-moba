@@ -549,3 +549,135 @@ body {
 .ult-gauge.keys .key-hint {
   display: block;
 }
+
+/* Draft tray (ui/draft-tray.tsx, D-041): "field orders" cards above the thumbs (GDD §10, §11). */
+.draft-tray {
+  position: absolute;
+  left: 3cqw;
+  right: 3cqw;
+  bottom: calc(37cqw + env(safe-area-inset-bottom)); /* clear of the Ultimate gauge and its key plate */
+  display: flex;
+  flex-direction: column;
+  gap: 1.2cqw;
+  animation: tray-in 0.22s ease-out;
+}
+
+.draft-head {
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+}
+
+.draft-title {
+  padding: 0.6cqw 2cqw;
+  border-radius: 0.6cqw;
+  background: rgb(27 26 23 / 0.7);
+  color: #e9ddd0;
+  font-size: max(12px, 3cqw);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.draft-queued {
+  padding: 0.4cqw 1.6cqw;
+  border-radius: 99px;
+  background: #d8a64a;
+  color: #1b1a17;
+  font-size: max(12px, 3cqw);
+  font-weight: 900;
+}
+
+.draft-timer {
+  height: 1.1cqw;
+  border-radius: 0.5cqw;
+  background: rgb(27 26 23 / 0.7);
+  overflow: hidden;
+}
+
+.draft-timer .fill {
+  height: 100%;
+  background: #d8a64a;
+  transition: width 0.1s linear;
+}
+
+.draft-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2cqw;
+}
+
+.draft-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqw;
+  min-height: 44px;
+  padding: 2.4cqw 1.6cqw 2.6cqw;
+  border: 0.8cqw solid #9a6a3a; /* bronze: Common */
+  border-radius: 1.4cqw;
+  background: #d9cfae; /* khaki field paper */
+  color: #2a2620;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  box-shadow: 0 1cqw 2cqw rgb(0 0 0 / 0.35);
+}
+
+.draft-card.rare {
+  border-color: #b8bcc2;
+}
+
+.draft-card.epic {
+  border-color: #d8a64a;
+}
+
+.draft-card.recommended {
+  box-shadow: 0 0 0 0.7cqw #ffd45c, 0 1cqw 2.4cqw rgb(255 212 92 / 0.55);
+}
+
+.draft-name {
+  font-size: max(13px, 3.4cqw);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.draft-text {
+  font-size: max(11px, 2.7cqw);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.draft-owned {
+  position: absolute;
+  right: 1cqw;
+  bottom: 0.6cqw;
+  font-size: max(10px, 2.3cqw);
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+.draft-key {
+  position: absolute;
+  top: -1.6cqw;
+  left: -1.6cqw;
+  width: 5cqw;
+  height: 5cqw;
+  display: grid;
+  place-items: center;
+  border-radius: 1cqw;
+  background: #3c4147;
+  color: #e9ddd0;
+  font-size: max(11px, 2.8cqw);
+  font-weight: 900;
+}
+
+@keyframes tray-in {
+  from {
+    opacity: 0;
+    transform: translateY(4cqw);
+  }
+}

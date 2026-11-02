@@ -17,6 +17,7 @@ import { ZonePool } from './zones';
 import { steadyHandSystem } from './systems/traits';
 import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
+import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
   callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnWave, waveDue, type MinionContext,
 } from './systems/minions';
@@ -108,6 +109,14 @@ export interface Champion {
   steadyPct: number;
   /** Ticks until redeploying; 0 while alive. */
   respawnTicks: number;
+  /** Owned powers: stacks per power id (read through the catalogue's order, never iterated). */
+  powers: Record<string, number>;
+  /** Draft offers: the front one is live, the rest wait (TDD §6.10). */
+  draftQueue: DraftOffer[];
+  /** A `draftPick` slot from this tick's command, or −1. */
+  pickQueued: number;
+  /** Last tick it dealt or took damage (Field Medic's out-of-combat clock). */
+  lastCombatTick: number;
   /** Champion takedowns landed and times knocked out this match. */
   kills: number;
   deaths: number;
@@ -206,6 +215,13 @@ export interface EntitySnapshot {
   /** Champions: ticks until redeploying (0 = alive) and who landed the knock-out (0 = none). */
   respawnTicks: number;
   killer: Entity;
+  /** Champions: the live draft offer (empty when none), its timer, the highlighted slot and offers waiting behind it. */
+  draftCards: readonly string[];
+  draftTicksLeft: number;
+  draftRecommended: number;
+  draftQueued: number;
+  /** Champions: owned power stacks by id (read-only). */
+  powers: Readonly<Record<string, number>>;
   /** Champions: takedowns landed and times knocked out. */
   kills: number;
   deaths: number;
@@ -373,7 +389,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, kills: 0, deaths: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -431,6 +447,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     champions, transforms, healths, teams, spatial, stats, events,
     onLevelUp: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
+  const draftContext: DraftContext = {
+    champions, healths, stats, kinds, events, rng: rng.draft,
+    onStatsChanged: (e) => applyChampion(e, champions.get(e)!.def, true),
+  };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures };
@@ -451,6 +471,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const pendingXp: number[] = [];
 
 
+  const noCards: readonly string[] = [];
+  const noPowers: Readonly<Record<string, number>> = {};
   const match: MatchState = { phase: 'live', winner: undefined, endTick: 0 };
   const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [] };
 
@@ -476,6 +498,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       for (const c of commands) {
         const e = playerEntity[c.player];
         const m = e === undefined ? undefined : motions.get(e);
+        if (m && c.draftPick >= 0) champions.get(e!)!.pickQueued = c.draftPick; // drafting works while down too
         if (!m || healths.get(e!)!.hp <= 0) continue; // knocked out: input is ignored
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
@@ -518,6 +541,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         match.endTick = tick;
       }
       progressionSystem(progressionContext, config.progression, events, progressionFrom);
+      draftSystem(draftContext, config.powers, events);
+      regenSystem(draftContext, config.powers, events, tick);
       structureRegenSystem(structureContext, config.structures);
       if (match.phase === 'ended') events.push({ type: 'matchOver', winner: match.winner!, tick });
       tick++;
@@ -534,7 +559,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -560,6 +585,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.xpLevelStart = c ? xpForLevel(config.progression, c.level) : 0;
         s.xpLevelEnd = c ? xpForLevel(config.progression, c.level + 1) : 0;
         s.respawnTicks = c?.respawnTicks ?? 0;
+        const offer = c?.draftQueue[0];
+        s.draftCards = offer ? offer.cards : noCards;
+        s.draftTicksLeft = offer ? offer.ticksLeft : 0;
+        s.draftRecommended = offer && c ? recommended(config.powers, c, offer.cards) : 0;
+        s.draftQueued = c ? Math.max(0, c.draftQueue.length - 1) : 0;
+        s.powers = c ? c.powers : noPowers;
         s.kills = c?.kills ?? 0;
         s.deaths = c?.deaths ?? 0;
         s.killer = h && h.hp <= 0 ? h.killer : 0;

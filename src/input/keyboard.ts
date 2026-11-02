@@ -6,15 +6,23 @@ const LEFT = ['KeyA', 'ArrowLeft'];
 const RIGHT = ['KeyD', 'ArrowRight'];
 const MOVE_KEYS = new Set([...UP, ...DOWN, ...LEFT, ...RIGHT]);
 const ULT_KEYS = new Set(['Space', 'KeyE']);
+/** Draft cards 1–3 (TDD §8 control map). */
+const PICK_KEYS: Record<string, 0 | 1 | 2> = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 };
 
 export function createKeyboard() {
   const down = new Set<string>();
   let ultPressed = false;
+  let pick: -1 | 0 | 1 | 2 = -1;
 
   addEventListener('keydown', (e) => {
     if (ULT_KEYS.has(e.code) && !(e.target instanceof HTMLInputElement)) {
       e.preventDefault(); // Space would scroll or click a focused button
       if (!e.repeat) ultPressed = true;
+      return;
+    }
+    const slot = PICK_KEYS[e.code];
+    if (slot !== undefined && !(e.target instanceof HTMLInputElement)) {
+      if (!e.repeat) pick = slot;
       return;
     }
     if (!MOVE_KEYS.has(e.code) || e.target instanceof HTMLInputElement) return;
@@ -29,6 +37,12 @@ export function createKeyboard() {
   return {
     vector(): Vec {
       return keyVector(any(UP), any(DOWN), any(LEFT), any(RIGHT));
+    },
+    /** A draft card key (1–3) pressed since the last read, or −1. */
+    takePick(): -1 | 0 | 1 | 2 {
+      const p = pick;
+      pick = -1;
+      return p;
     },
     /** True once per Space/E press (latched until read). */
     takeUlt(): boolean {

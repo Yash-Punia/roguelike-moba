@@ -183,6 +183,45 @@ const Progression = z.object({
   }),
 });
 
+/** Stats a power's `stat` effect can raise (TDD §5 stat formula); names map to `Stat` in the sim. */
+const StatName = z.enum(['damage', 'fireRate', 'maxHp', 'moveSpeed', 'range', 'damageTaken', 'ultCharge', 'damageVsChampions', 'damageVsStructures']);
+
+/** Effect records (TDD §5): powers are data that a few generic systems understand. */
+const Effect = z.discriminatedUnion('type', [
+  /** + pct to a stat, per stack. */
+  z.object({ type: z.literal('stat'), stat: StatName, pct: pct() }),
+  /** Heal pctPerSecond of max HP while out of combat for outOfCombatSeconds (Field Medic). */
+  z.object({ type: z.literal('regen'), pctPerSecond: pct(), outOfCombatSeconds: secs() }),
+]);
+
+const Rarity = z.enum(['common', 'rare', 'epic']);
+
+const Power = z.object({
+  id: z.string(),
+  name: z.string(),
+  rarity: Rarity,
+  /** 'all', or a champion id for signature powers. */
+  pool: z.string(),
+  /** For the recommendation (tag overlap with owned powers) and bot drafting. */
+  tags: z.array(z.string()),
+  /** One line of card copy. */
+  text: z.string(),
+  effects: z.array(Effect).min(1),
+});
+
+/** The power catalogue and draft rules (GDD §8, TDD §6.10). */
+const Powers = z.object({
+  draft: z.object({
+    cards: z.number().int().min(1),
+    /** An unanswered offer takes the recommended card after this long. */
+    autoPickSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+    /** Offers waiting behind the live one; one more auto-picks the oldest. */
+    maxQueued: z.number().int().min(0),
+    stackCaps: z.object({ common: z.number().int().min(1), rare: z.number().int().min(1), epic: z.number().int().min(1) }),
+  }),
+  powers: z.array(Power).min(1),
+});
+
 /** Minion waves (GDD §5, TDD §6.6). */
 const Waves = z.object({
   enabled: z.boolean(),
@@ -262,6 +301,7 @@ export const ConfigSchema = z.object({
   units: Units,
   waves: Waves,
   progression: Progression,
+  powers: Powers,
   combat: Combat,
   camera: Camera,
   input: Input,
@@ -280,3 +320,5 @@ export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;
 export type WeaponConfig = z.output<typeof Weapon>;
 export type UltTargetClass = z.output<typeof UltTargetClass>;
+export type PowerDef = z.output<typeof Power>;
+export type StatName = z.output<typeof StatName>;

@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { hud, type StructureView } from './store';
+import { DraftTray } from './draft-tray';
 
 /** HP per segment on the HUD bar, the same rule as the world bars (GDD §11). */
 const SEGMENT_HP = 250;
@@ -84,20 +85,21 @@ function Vitals() {
   );
 }
 
-function Hud() {
+function Hud({ onPick }: { onPick: (slot: 0 | 1 | 2) => void }) {
   return (
     <>
       <TopStrip />
       <Vitals />
+      <DraftTray onPick={onPick} />
     </>
   );
 }
 
-/** Mounts the HUD layer over the canvas (TDD §10). It never takes pointer input. */
-export function mountHud(frame: HTMLElement) {
+/** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards take pointer input. */
+export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void) {
   const layer = document.createElement('div');
   layer.className = 'hud';
   frame.appendChild(layer);
-  render(<Hud />, layer);
+  render(<Hud onPick={onPick} />, layer);
   return layer;
 }

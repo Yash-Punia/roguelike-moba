@@ -544,3 +544,30 @@ From TDD §13:
     - the ready chime, haptics and sparks round the button (M5).
 - Why: fights and waves now feed the Ultimate as the GDD intends, and the button reads as the game's main action.
 - Alternatives: split minion charge like XP; re-render the gauge through the 10 Hz store (too choppy for the ring).
+
+## D-041 — Basic draft: Commons, tray, auto-pick
+- Date: 2026-11-02
+- Source: made during development
+- Decision:
+  - **Catalogue as data:** `data/powers.json` holds the 8 Commons as TDD §5 effect records with tags and one line of card text, plus the draft rules (3 cards, 10 s, 2 queued, caps 3/2/1). There are two generic effect types:
+    - `stat`: a pct per stack through the D-033 delta model, re-deriving speed and max HP. Field Rations' new max HP is gained as HP;
+    - `regen`: Field Medic.
+
+    Rares and Epics will add records, and new effect types only where needed.
+  - **Offers:** each level-up below 12 queues an offer of distinct Commons, still under their stack caps (`pool` is `all` or the champion's id), drawn from the seeded `draft` stream.
+  - **Pulled forward from M3** because they are cheap and keep the Common tier sane:
+    - the stack caps;
+    - the queue: 2 waiting behind the live offer, and a third auto-picks the oldest first.
+  - **Live offer:** only the front offer is live. It resolves on a `draftPick` (keys 1–3, or a tap on a card), or after 300 ticks with the **recommended** card: the one sharing the most tags with powers already owned, earlier slot on a tie. The tray highlights it. The next offer's timer starts when it reaches the front. Picking works while knocked out.
+  - **Field Medic:** any damage dealt or taken stamps the champion's last combat tick. After 3 s without one, it heals 2% max HP per second per stack.
+  - **Tray (GDD §10, §11):**
+    - "FIELD ORDERS" cards in khaki paper with a bronze (Common) frame, showing the name, text and owned stacks ("1/3");
+    - a brass highlight on the recommended card, a brass timer bar, and a "+1" badge for waiting offers;
+    - "1/2/3" key plates after keyboard input.
+
+    It sits above the Ultimate gauge and the HP block. Only the cards take taps, which never spawn the joystick. Play never pauses. The tray updates from the 10 Hz store, and immediately on an offer or a pick.
+  - **Pick callout:** a brass "+ Power name" callout rises over the champion when it takes a power.
+  - **Test arenas** run with an empty catalogue (`withPowers` restores it), so older tests' level-ups don't auto-pick powers.
+  - **Not yet (M3 "Full draft rules"):** Rare and Epic cards and rarity odds, the guaranteed Epic at 4/8/12, the signature slot, the reroll, Gamma weapon adaptation, and bot draft scoring (row 16). 3D card icons are M5.
+- Why: the roguelike half of the loop is playable: builds now diverge level by level without pausing the fight.
+- Alternatives: auto-picking slot 1 instead of a recommendation; leaving caps and the queue for M3.

@@ -183,6 +183,14 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     const now = clock;
     for (const ev of events) {
       if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'powerPicked') {
+        const s = interp.get(ev.id);
+        const name = config.powers.powers.find((p) => p.id === ev.power)?.name ?? ev.power;
+        if (s) {
+          const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
+          damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, `+ ${name}`, damageColours.level, false, now);
+        }
+      }
       if (ev.type === 'levelUp') {
         const s = interp.get(ev.id);
         if (s) {

@@ -28,6 +28,10 @@ export type SimEvent =
   | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number }
   /** An HQ fell: the match is over and the sim stops advancing (TDD §6.12 `Ended`). */
   | { type: 'matchOver'; winner: number; tick: number }
+  /** A draft offer was queued for a champion (power ids). */
+  | { type: 'draftOffered'; id: Entity; cards: readonly string[] }
+  /** A champion took a power: by choice, or by the timer (`auto`). */
+  | { type: 'powerPicked'; id: Entity; power: string; auto: boolean }
   /** A champion reached a new level. */
   | { type: 'levelUp'; id: Entity; level: number }
   /** A structure fell (it stays as rubble); `killer` landed the last hit. */

@@ -9,7 +9,7 @@ import { startLoop } from './loop';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
-import { updateHud } from '../ui/store';
+import { hud, updateHud } from '../ui/store';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -34,7 +34,7 @@ const sim = createSim(config, config.match.defaultSeed, players);
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam);
-mountHud(container);
+mountHud(container, (slot) => input.pickCard(slot));
 const input = createInput(container, () => config.input, 0, localTeam);
 // The Ultimate button: a 22 mm gauge (GDD §3).
 const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt);
@@ -78,7 +78,10 @@ const loop = startLoop({
     const snap = sim.snapshot();
     view.capture(snap);
     // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
-    if (snap.tick % 3 === 0 || snap.match.phase === 'ended') updateHud(snap, localEntity, localTeam);
+    if (snap.tick % 3 === 0 || snap.match.phase === 'ended' || events.some((e) => e.type === 'draftOffered' || e.type === 'powerPicked')) {
+      updateHud(snap, localEntity, localTeam, config.powers);
+      hud.keyHints.value = input.lastInput === 'keyboard';
+    }
     if (ended) return;
     for (const ev of events) {
       if (ev.type === 'structureDestroyed' && ev.kind === 'hq') cameraFocus = ev.id; // watch it fall

@@ -32,6 +32,11 @@ export function reachable(g: ObstacleGrid, from: Point, to: Point): boolean {
   return false;
 }
 
+/** Tweak for `arena`: the shipped power catalogue, for draft tests. */
+export const withPowers = (c: Config) => {
+  c.powers.powers = fixtureConfig().powers.powers;
+};
+
 /** `armed` champions fire back; by default only the shooter (player 0) fires. */
 export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq'; armed?: boolean; /** Spawn on the team pad like a real champion (respawns there too). */ atPad?: boolean; /** HQ: keep the gate (invulnerable while its team's Sub-bases stand). */ shielded?: boolean };
 
@@ -61,6 +66,8 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
   // Structure rules: warm-up as in the GDD; backdoor protection and regen off unless a test turns them on.
   config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12 };
+  // No draft offers unless a test restores the catalogue (`withPowers`), so level-ups in older tests change only stats.
+  config.powers.powers = [];
   // Waves off unless a test turns them on; MG Soldier pinned to the GDD numbers.
   config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
   config.units.mgSoldier = {
