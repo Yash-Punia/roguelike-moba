@@ -173,6 +173,14 @@ const Progression = z.object({
   championKill: z.object({ base: z.number().nonnegative(), perVictimLevel: z.number().nonnegative(), killerBonus: z.number().nonnegative() }),
   /** Whole-team XP for destroying a structure. */
   structureXp: z.object({ subBase: z.number().nonnegative() }),
+  /** Ultimate charge from kills, in points of the 0–100 meter (GDD §8). */
+  ultCharge: z.object({
+    /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
+    minion: z.object({ mgSoldier: z.number().nonnegative() }),
+    minionRadius: positive(),
+    /** The champion who lands a takedown (killer only until assists, D-024). */
+    championTakedown: z.number().nonnegative(),
+  }),
 });
 
 /** Minion waves (GDD §5, TDD §6.6). */

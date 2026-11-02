@@ -1,5 +1,17 @@
 {
-  "xpPerLevel": [100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300],
+  "xpPerLevel": [
+    100,
+    120,
+    140,
+    160,
+    180,
+    200,
+    220,
+    240,
+    260,
+    280,
+    300
+  ],
   "shareRadius": 10,
   "minionXp": {
     "mgSoldier": 30
@@ -11,5 +23,12 @@
   },
   "structureXp": {
     "subBase": 150
+  },
+  "ultCharge": {
+    "minion": {
+      "mgSoldier": 3
+    },
+    "minionRadius": 10,
+    "championTakedown": 25
   }
 }

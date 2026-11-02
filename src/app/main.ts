@@ -8,6 +8,7 @@ import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
+import { mountUltGauge } from '../ui/ult-button';
 import { updateHud } from '../ui/store';
 
 const params = new URLSearchParams(location.search);
@@ -35,6 +36,8 @@ const container = document.getElementById('frame')!;
 const view = createScene(container, config, localTeam);
 mountHud(container);
 const input = createInput(container, () => config.input, 0, localTeam);
+// The Ultimate button: a 22 mm gauge (GDD §3).
+const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt);
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
@@ -54,7 +57,7 @@ let ended = false;
 
 function endMatch(winner: Team) {
   ended = true;
-  input.ultButton.el.style.display = 'none';
+  ultGauge.hide();
   banner.classList.remove('show');
   view.setTimeScale(SLOW_MOTION_SCALE);
   setTimeout(() => {
@@ -84,7 +87,8 @@ const loop = startLoop({
     if (ended) return;
     const me = snap.entities.find((e) => e.id === localEntity);
     if (!me) return;
-    input.ultButton.show(me.ultCharge, me.ultTargetable);
+    ultGauge.set(me.ultCharge, me.ultTargetable);
+    ultGauge.keyHint(input.lastInput === 'keyboard');
     const down = me.respawnTicks > 0;
     cameraFocus = down && me.killer !== 0 && snap.entities.some((e) => e.id === me.killer) ? me.killer : localEntity;
     const seconds = down ? Math.ceil(me.respawnTicks / TICK_HZ) : 0;

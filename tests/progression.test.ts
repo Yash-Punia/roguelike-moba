@@ -143,3 +143,73 @@ describe('level effects', () => {
     expect(a.champ(2).respawnTicks).toBe(228);
   });
 });
+
+describe('Ultimate charge from kills (GDD §8)', () => {
+  it('gives +3 to each living enemy champion within 10 m of a dying minion, not split', () => {
+    const a = field([{ team: Blue, x: 3, y: 30 }, { team: Blue, x: -6, y: 30 }]);
+    a.disarm(a.shooter);
+    a.move(a.shooter, 15, -50);
+    const charge = (id: number) => a.champ(id).ultCharge;
+    const m = a.soldier(Red, 0, 30);
+    a.move(3, -10.5, 30); // 10.5 m: none
+    const [c2, c3] = [charge(2), charge(3)];
+    a.sim.debug.kill(m);
+    a.run();
+    const passive = 100 / 1500; // one tick of passive charge
+    expect(charge(2) - c2).toBeCloseTo(3 + passive);
+    expect(charge(3) - c3).toBeCloseTo(passive);
+
+    const m2 = a.soldier(Red, 0, 30);
+    a.move(3, -6, 30);
+    const [d2, d3] = [charge(2), charge(3)];
+    a.sim.debug.kill(m2);
+    a.run();
+    expect(charge(2) - d2).toBeCloseTo(3 + passive);
+    expect(charge(3) - d3).toBeCloseTo(3 + passive);
+  });
+
+  it('gives nothing to a dead champion near a minion', () => {
+    const a = field([{ team: Blue, x: 3, y: 30 }]);
+    a.disarm(a.shooter);
+    a.move(a.shooter, 15, -50);
+    a.sim.debug.kill(2);
+    a.run();
+    const before = a.champ(2).ultCharge;
+    const m = a.soldier(Red, 0, 30);
+    a.sim.debug.kill(m);
+    a.run();
+    expect(a.champ(2).ultCharge).toBe(before);
+  });
+
+  it('gives the killer +25 for a champion takedown; other kills give none', () => {
+    const a = field([{ team: Red, x: 0, y: 5 }, { team: Red, x: 10, y: 30 }]);
+    a.hp(2, 50);
+    let before = 0;
+    for (let i = 0; i < 10 && a.champ(2).respawnTicks === 0; i++) {
+      before = a.champ(a.shooter).ultCharge;
+      a.run();
+    }
+    expect(a.champ(a.shooter).ultCharge - before).toBeCloseTo(25 + 100 / 1500);
+    const b = a.champ(a.shooter).ultCharge;
+    a.sim.debug.kill(3);
+    a.run();
+    expect(a.champ(a.shooter).ultCharge - b).toBeCloseTo(100 / 1500);
+  });
+
+  it('scales with the Ult-charge stat and caps at 100', () => {
+    const a = field([{ team: Blue, x: 3, y: 30 }]);
+    a.disarm(a.shooter);
+    a.move(a.shooter, 15, -50);
+    a.sim.debug.setStatPct(2, 6, 0.5); // +50% Ult charge
+    const m = a.soldier(Red, 0, 30);
+    const before = a.champ(2).ultCharge;
+    a.sim.debug.kill(m);
+    a.run();
+    expect(a.champ(2).ultCharge - before).toBeCloseTo((3 + 100 / 1500) * 1.5);
+    a.champ(2).ultCharge = 99;
+    const m2 = a.soldier(Red, 0, 30);
+    a.sim.debug.kill(m2);
+    a.run();
+    expect(a.champ(2).ultCharge).toBe(100);
+  });
+});

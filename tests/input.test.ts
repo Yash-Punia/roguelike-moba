@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildCommand, keyVector, shapeStick } from '../src/input/command-builder';
 import { Team } from '../src/sim/sim';
+import { createLatch, inputKindOf } from '../src/input/ult-latch';
+import { ultGaugeGeometry, RING_LENGTH } from '../src/ui/ult-gauge';
 
 describe('joystick shaping', () => {
   const dead = 11;
@@ -49,5 +51,32 @@ describe('command', () => {
     const c = buildCommand(0, 0, { x: 0.5, y: 1 }, Team.Red);
     expect(c.moveY).toBe(-127);
     expect(c.moveX).toBe(-64);
+  });
+});
+
+describe('Ultimate button input', () => {
+  it('latches a press for exactly one sample', () => {
+    const l = createLatch();
+    expect(l.take()).toBe(false);
+    l.press();
+    l.press();
+    expect(l.take()).toBe(true);
+    expect(l.take()).toBe(false);
+  });
+
+  it('tells keyboard from pointer input for key hints', () => {
+    expect([inputKindOf('keydown'), inputKindOf('pointerdown'), inputKindOf('touchstart'), inputKindOf('mousemove')]).toEqual([
+      'keyboard', 'pointer', 'pointer', undefined,
+    ]);
+  });
+});
+
+describe('Ultimate gauge geometry', () => {
+  it('fills the ring and sweeps the needle 270° with the charge', () => {
+    expect(ultGaugeGeometry(0)).toEqual({ dashOffset: RING_LENGTH, needleDeg: -135 });
+    expect(ultGaugeGeometry(50).dashOffset).toBeCloseTo(RING_LENGTH / 2);
+    expect(ultGaugeGeometry(50).needleDeg).toBe(0);
+    expect(ultGaugeGeometry(100)).toEqual({ dashOffset: 0, needleDeg: 135 });
+    expect(ultGaugeGeometry(140)).toEqual(ultGaugeGeometry(100));
   });
 });

@@ -521,3 +521,26 @@ From TDD §13:
   - **Bundle:** +24 kB gzipped (208 kB total).
 - Why: progression and the push state are now readable at a glance during play, and the HUD is the base the draft tray and Ultimate gauge build on.
 - Alternatives: timer only (the user chose the fuller strip); true team colours until later (the user chose now).
+
+## D-040 — Ultimate charge from kills, and the brass Ultimate button
+- Date: 2026-11-02
+- Source: made during development
+- Decision:
+  - **Kill charge (GDD §8)**, from the same death events as XP, in points of the 0–100 meter (`progression.json` → `ultCharge`):
+    - every living enemy champion within 10 m of a dying MG Soldier gains +3 each; the table says "dies within 10 m", so it is not split like XP;
+    - the champion who lands a takedown gains +25. That is the killer only until assists (D-024); a dead killer keeps it, since charge survives death;
+    - structure and debug kills give none.
+  - **One charge path:** passive and event charge both go through `addUltCharge`, which multiplies by the Ult-charge stat (Quick Charge's "+15% from all sources" will feed it) and caps at 100.
+  - **The button (GDD §3, §11; TDD §10):** a 22 mm SVG brass pressure gauge at the bottom right, sized with `input.pxPerMm` (84 px today, never under 64), replacing D-033's placeholder:
+    - a brass bezel, a dark face and 12 ticks;
+    - a blue ring that fills clockwise from 12 o'clock, and a brass needle sweeping 270° (7:30 empty → 4:30 full);
+    - when ready, the ring turns gold and the gauge pulses with a brass glow;
+    - with no target it is greyed with a crossed-circle icon, still showing the charge, and a tap does nothing (matching the sim);
+    - a small "Space" plate above it while the last input was a keyboard; a touch or click hides it.
+  - **Fast path (TDD §10):** rendered once with Preact, then the dash offset, needle angle and state classes are written straight into the DOM each tick, with no re-renders.
+  - **Module boundaries:** the press latch and last-input tracking stay in `input` (`pressUlt`, `lastInput`), and `app` wires the gauge to them, so `ui` never imports `input`.
+  - **Not yet:**
+    - charge from damage dealt and taken, camps, bosses and assists; Overcharge and Underdog (M3);
+    - the ready chime, haptics and sparks round the button (M5).
+- Why: fights and waves now feed the Ultimate as the GDD intends, and the button reads as the game's main action.
+- Alternatives: split minion charge like XP; re-render the gauge through the 10 Hz store (too choppy for the ring).

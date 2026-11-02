@@ -59,10 +59,10 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
 | `[c]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | 2bee6ad |
 | `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
-| `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button (passive charge, `ultTargetable` and a temporary button already in with Alpha, D-033) | |
+| `[c]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button: kill charge and the brass gauge (D-040; passive and `ultTargetable` came with Alpha, D-033) | |
 | `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
 | `[ ]` | One simple bot opponent (farm / trade / retreat) | |
-| `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | |
+| `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
 | `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
 
 **Gate 1 exit criteria:** the user plays the single lane and confirms positioning decides trades; holds 60 fps on desktop and a mid-range phone. If the gate fails, fix the core before M3.

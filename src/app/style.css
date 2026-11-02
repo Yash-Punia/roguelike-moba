@@ -125,49 +125,6 @@ body {
   will-change: transform, opacity;
 }
 
-/* Temporary Ultimate button (input/ult-button.ts) until the HUD gauge: charge fills the ring clockwise. */
-.ult-button {
-  --charge: 0%;
-  position: absolute;
-  right: calc(18px + env(safe-area-inset-right));
-  bottom: calc(28px + env(safe-area-inset-bottom));
-  width: 76px;
-  height: 76px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: conic-gradient(#d8a64a var(--charge), rgb(0 0 0 / 0.35) 0);
-  color: #fff;
-  font: 800 15px/1 system-ui, sans-serif;
-  letter-spacing: 0.06em;
-  touch-action: none;
-  cursor: pointer;
-  isolation: isolate;
-}
-
-.ult-button::before {
-  content: '';
-  position: absolute;
-  inset: 6px;
-  border-radius: 50%;
-  background: #3c4147;
-  z-index: -1;
-}
-
-.ult-button.ready {
-  box-shadow: 0 0 0 3px #ffd45c, 0 0 18px 4px rgb(255 212 92 / 0.7);
-  animation: ult-pulse 0.9s ease-in-out infinite alternate;
-}
-
-.ult-button.no-target {
-  filter: grayscale(1) brightness(0.75);
-}
-
-@keyframes ult-pulse {
-  to {
-    box-shadow: 0 0 0 3px #ffd45c, 0 0 26px 8px rgb(255 212 92 / 0.9);
-  }
-}
 
 /* Minimal respawn countdown (app/main.ts) until the M4 respawn overlay. */
 .respawn-banner {
@@ -480,4 +437,115 @@ body {
   position: absolute;
   inset: 0 auto 0 0;
   background: var(--hud-brass);
+}
+
+/* Ultimate button (ui/ult-button.tsx, D-040): a brass pressure gauge, 22 mm across (GDD §3, §11). */
+.ult-gauge {
+  position: absolute;
+  right: calc(4cqw + env(safe-area-inset-right));
+  bottom: calc(4cqw + env(safe-area-inset-bottom));
+  width: var(--gauge-size);
+  height: var(--gauge-size);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ult-gauge svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ult-gauge .bezel {
+  fill: #d8a64a;
+  stroke: #8a6a2e;
+  stroke-width: 1.5;
+}
+
+.ult-gauge .face {
+  fill: #2a2d31;
+}
+
+.ult-gauge .ticks line {
+  stroke: #e9ddd0;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.ult-gauge .track {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.12);
+  stroke-width: 6;
+}
+
+.ult-gauge .ring {
+  fill: none;
+  stroke: #2f6bd6;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.ult-gauge .label {
+  fill: #e9ddd0;
+  font: 900 15px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+}
+
+.ult-gauge .needle {
+  fill: #d8a64a;
+}
+
+.ult-gauge .no-target-icon {
+  display: none;
+  fill: #3c4147;
+  stroke: #e9ddd0;
+  stroke-width: 2.5;
+}
+
+.ult-gauge.no-target {
+  filter: grayscale(1) brightness(0.72);
+}
+
+.ult-gauge.no-target .no-target-icon {
+  display: inline;
+}
+
+.ult-gauge.ready {
+  animation: ult-ready 0.9s ease-in-out infinite alternate;
+}
+
+.ult-gauge.ready .ring {
+  stroke: #ffd45c;
+}
+
+@keyframes ult-ready {
+  from {
+    box-shadow: 0 0 0 2px rgb(255 212 92 / 0.9), 0 0 14px 4px rgb(255 212 92 / 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 3px rgb(255 212 92 / 1), 0 0 28px 10px rgb(255 212 92 / 0.85);
+  }
+}
+
+.ult-gauge .key-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  transform: translate(-50%, -100%);
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: #3c4147;
+  color: #e9ddd0;
+  font: 800 11px/1.3 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+.ult-gauge.keys .key-hint {
+  display: block;
 }

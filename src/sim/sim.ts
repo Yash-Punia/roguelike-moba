@@ -428,7 +428,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
   };
   const progressionContext: ProgressionContext = {
-    champions, transforms, healths, teams, spatial, events,
+    champions, transforms, healths, teams, spatial, stats, events,
     onLevelUp: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };

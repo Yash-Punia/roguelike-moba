@@ -7,8 +7,9 @@ import type { LobPool } from '../lobs';
 import { len } from '../math';
 import { TargetClass, type Champion, type Collider, type Health, type Team, type Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
-import { Stat, stat, type Stats } from '../stats';
+import type { Stats } from '../stats';
 import type { ZonePool } from '../zones';
+import { addUltCharge } from './charge';
 
 export interface UltimateContext {
   champions: Store<Champion>;
@@ -103,11 +104,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
       c.ultTargetId = 0;
       continue;
     }
-    if (c.ultCharge < 100) {
-      const st = stats.get(e);
-      c.ultCharge += (100 / Math.max(1, c.def.ultChargeSeconds)) * (st ? stat(st, Stat.UltCharge) : 1);
-      if (c.ultCharge > 100 - 1e-9) c.ultCharge = 100; // float sums land a hair short
-    }
+    addUltCharge(c, stats.get(e), 100 / Math.max(1, c.def.ultChargeSeconds));
     c.ultTargetId = ultTarget(e, ctx, tick, reach);
     if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0) continue;
 

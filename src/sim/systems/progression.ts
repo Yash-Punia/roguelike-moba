@@ -4,6 +4,8 @@ import type { SimEvent } from '../events';
 import { len } from '../math';
 import type { Champion, Health, Team, Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
+import type { Stats } from '../stats';
+import { addUltCharge } from './charge';
 
 type Progression = Config['progression'];
 
@@ -13,6 +15,7 @@ export interface ProgressionContext {
   healths: Store<Health>;
   teams: Store<Team>;
   spatial: SpatialIndex;
+  stats: Store<Stats>;
   events: SimEvent[];
   /** Re-derives a champion's stats after its level changed (growth is part of `base`, TDD §5). */
   onLevelUp(e: Entity): void;
@@ -51,6 +54,8 @@ const sharers: Entity[] = [];
  * - a minion's XP is split evenly between the living enemy champions within `shareRadius` of
  *   where it fell, whoever landed the last hit;
  * - a champion kill pays the killing champion (no assists until M3, D-024);
+ * Ultimate charge follows the same deaths: each living enemy champion near a dying minion,
+ * and the killing champion of a takedown (D-040).
  * - a destroyed Sub-base pays every champion of the other team, alive or not.
  * Events are read in the order they happened, so grants are deterministic.
  */
@@ -67,18 +72,22 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
         if (killer && teams.get(ev.killer) !== teams.get(ev.id)) {
           const k = p.championKill;
           grantXp(ctx, p, ev.killer, k.base + k.perVictimLevel * victim.level + k.killerBonus);
+          addUltCharge(killer, ctx.stats.get(ev.killer), p.ultCharge.championTakedown);
         }
         continue;
       }
       // A minion: shared by presence.
       const team = ev.team;
-      spatial.query(ev.x, ev.y, p.shareRadius + 1, nearby);
+      spatial.query(ev.x, ev.y, Math.max(p.shareRadius, p.ultCharge.minionRadius) + 1, nearby);
       sharers.length = 0;
       for (let k = 0; k < nearby.length; k++) {
         const o = nearby[k]!;
         if (!champions.has(o) || teams.get(o) === team || healths.get(o)!.hp <= 0) continue;
         const t = transforms.get(o)!;
-        if (len(t.x - ev.x, t.y - ev.y) <= p.shareRadius) sharers.push(o);
+        const d = len(t.x - ev.x, t.y - ev.y);
+        if (d <= p.shareRadius) sharers.push(o);
+        // Ultimate charge: each champion near a dying minion, not split (GDD §8).
+        if (d <= p.ultCharge.minionRadius) addUltCharge(champions.get(o)!, ctx.stats.get(o), p.ultCharge.minion.mgSoldier);
       }
       const xp = p.minionXp.mgSoldier;
       for (let k = 0; k < sharers.length; k++) grantXp(ctx, p, sharers[k]!, xp / sharers.length);
