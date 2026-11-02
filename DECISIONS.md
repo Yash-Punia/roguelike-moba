@@ -471,3 +471,22 @@ From TDD §13:
   - **Debug:** F1 → Local champion → "+100 XP" and "Level up". Debug grants are queued to the start of the next step so their `levelUp` events reach render.
 - Why: kills and pushing now pay, and levels make the respawn timer, the grenade and the stats grow as the GDD intends. The draft (row 13) hooks onto `levelUp`.
 - Alternatives: keep the HP fraction on a level-up; floating "+XP" numbers.
+
+## D-038 — Win and lose on HQ destruction
+- Date: 2026-11-02
+- Source: user choice (minimal banner, sim stops); the rest made during development
+- Decision:
+  - **Match state:** the sim keeps `{ phase: 'live' | 'ended', winner, endTick }` (TDD §6.12's `Ended`; Deploy and Sudden Death join in M3). After the structure deaths each tick, the first HQ in event order that fell this tick ends the match, and the other team wins. A same-tick double fall therefore resolves deterministically. A `matchOver` event fires once.
+  - **Frozen after the end:** `step()` returns at once with no events and no tick advance, so the final state stays put and replays stay bit-identical.
+  - **Kills and deaths** per champion: a death counts on every knock-out; a kill counts only for an enemy champion who landed the lethal hit (no assists until M3). They are in the snapshot for the banner now and the M4 scoreboard.
+  - **HQ fall, render:**
+    - the camera moves to the fallen HQ;
+    - 5 staggered explosions go off across the bunker, 120 ms apart;
+    - the radio mast leaves the bunker and topples over 0.8 s;
+    - the bunker collapses to rubble as before.
+  - **Slow motion:** 1 s of real time at ×0.25. The sim is already frozen, so this scales a render clock that every effect now runs on (blasts, smoke, knock-outs, the collapse, damage numbers), rather than the loop's tick rate.
+  - **Banner (user choice):** a brass VICTORY pennant or a torn muted-red DEFEAT banner, with the match time, the local champion's level and K/D, and "Play again", which reloads the page. The ULT button and respawn countdown hide. The full Results screen stays in M4.
+  - **Debug:** F1 → Structures → "Win now (destroy enemy HQ)" and "Lose now" (`sim.debug.destroyHq(team)` drops the gate and lands a lethal hit through the pipeline).
+  - **Not yet:** the 13:00 time-out, Sudden Death and Surrender (M3); the Results screen and telemetry (M4/M5); victory and defeat poses (M5).
+- Why: a pushed lane now ends the match, which completes the core loop for Gate 1.
+- Alternatives: keep simulating behind the banner; build the Results screen now (both declined by the user).

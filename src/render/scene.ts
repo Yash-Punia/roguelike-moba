@@ -20,9 +20,15 @@ const RUBBLE_HEIGHT = 0.35;
 const COLLAPSE_MS = 600;
 const rubbleTint = new THREE.Color(palette.scorched);
 
-/** Starts a structure's collapse: guns, flag and mast go, and the concrete darkens towards scorched earth. */
-function collapse(root: THREE.Object3D, s: { fellAt: number }) {
-  s.fellAt = performance.now();
+/** The HQ's mast falls over this long after the HQ does (GDD §11 "mast topples"). */
+const MAST_FALL_MS = 800;
+/** HQ destruction: a chain of this many blasts over the bunker, this far apart (GDD §11). */
+const HQ_BLASTS = 5;
+const HQ_BLAST_GAP_MS = 120;
+
+/** Starts a structure's collapse: guns and flag go, and the concrete darkens towards scorched earth. */
+function collapse(root: THREE.Object3D, s: { fellAt: number }, now: number) {
+  s.fellAt = now;
   for (const o of partsOf(root).standing ?? []) o.visible = false;
   const shield = partsOf(root).shield;
   root.traverse((o) => {
@@ -84,6 +90,16 @@ export function createScene(container: HTMLElement, config: Config) {
   scene.add(ultFx.group);
   const knockouts = new Knockouts(scene, (x, z) => arena.terrain.heightAt(x, -z));
   let lastUpdate = performance.now();
+  /**
+   * Render clock (ms) for every effect timing: real time × `timeScale`. The HQ's slow motion
+   * scales it while the sim itself is frozen (D-038).
+   */
+  let clock = performance.now();
+  let timeScale = 1;
+  const blastQueue: { x: number; y: number; at: number }[] = [];
+  const toppling: { mast: THREE.Object3D; from: THREE.Quaternion; born: number }[] = [];
+  const tipAxis = new THREE.Vector3(0, 0, 1);
+  const tip = new THREE.Quaternion();
   const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
@@ -126,7 +142,16 @@ export function createScene(container: HTMLElement, config: Config) {
       const parts = partsOf(meshes.get(e.id)!);
       if (parts.steadyRing) parts.steadyRing.visible = e.steady && e.hp > 0;
       if (parts.shield) parts.shield.visible = e.invulnerable && !e.destroyed;
-      if (e.destroyed && s.fellAt === 0) collapse(meshes.get(e.id)!, s);
+      if (e.destroyed && s.fellAt === 0) {
+        const root = meshes.get(e.id)!;
+        collapse(root, s, clock);
+        // The mast leaves the bunker (so the collapse doesn't squash it) and topples on its own.
+        const mast = partsOf(root).mast;
+        if (mast) {
+          scene.attach(mast);
+          toppling.push({ mast, from: mast.quaternion.clone(), born: clock });
+        }
+      }
       s.vx = e.vx; s.vy = e.vy;
       s.targetId = e.targetId;
       s.radius = e.radius;
@@ -149,7 +174,7 @@ export function createScene(container: HTMLElement, config: Config) {
 
   /** Call after every sim tick with its events (after `capture`), for damage numbers. */
   function addEvents(events: readonly SimEvent[]) {
-    const now = performance.now();
+    const now = clock;
     for (const ev of events) {
       if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
       if (ev.type === 'levelUp') {
@@ -158,6 +183,13 @@ export function createScene(container: HTMLElement, config: Config) {
           ultFx.levelUp(s.x, s.y, now);
           const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
           damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, `LEVEL ${ev.level}`, damageColours.level, true, now);
+        }
+      }
+      if (ev.type === 'structureDestroyed' && ev.kind === 'hq') {
+        // A chain of explosions across the bunker (GDD §11).
+        for (let i = 0; i < HQ_BLASTS; i++) {
+          const a = i * 2.4;
+          blastQueue.push({ x: ev.x + Math.cos(a) * 1.6, y: ev.y + Math.sin(a) * 1.4, at: now + i * HQ_BLAST_GAP_MS });
         }
       }
       if (ev.type === 'structureDestroyed') {
@@ -197,9 +229,22 @@ export function createScene(container: HTMLElement, config: Config) {
    * target line); `focusId` is what the camera follows (the killer while knocked out).
    */
   function update(alpha: number, localId: number | undefined, focusId = localId) {
-    const now = performance.now();
-    const dt = Math.min(0.1, (now - lastUpdate) / 1000);
-    lastUpdate = now;
+    const real = performance.now();
+    const dt = Math.min(0.1, (real - lastUpdate) / 1000) * timeScale;
+    lastUpdate = real;
+    clock += dt * 1000;
+    const now = clock;
+    for (let i = blastQueue.length - 1; i >= 0; i--) {
+      const b = blastQueue[i]!;
+      if (b.at > now) continue;
+      ultFx.explode(b.x, b.y, 2.2, now);
+      blastQueue.splice(i, 1);
+    }
+    for (const t of toppling) {
+      const k = Math.min(1, (now - t.born) / MAST_FALL_MS);
+      tip.setFromAxisAngle(tipAxis, (Math.PI / 2) * 0.95 * k * k);
+      t.mast.quaternion.copy(t.from).multiply(tip);
+    }
     for (const [id, s] of interp) {
       const mesh = meshes.get(id)!;
       const x = s.px + (s.x - s.px) * alpha;
@@ -249,7 +294,7 @@ export function createScene(container: HTMLElement, config: Config) {
     // Bars face the camera; done here because the camera rig moves after update().
     for (const bar of bars.values()) bar.group.quaternion.copy(camera.quaternion);
     renderer.render(scene, camera);
-    damageNumbers.update(camera, container.clientWidth, container.clientHeight, performance.now());
+    damageNumbers.update(camera, container.clientWidth, container.clientHeight, clock);
   }
 
   function resize(width: number, height: number) {
@@ -272,7 +317,12 @@ export function createScene(container: HTMLElement, config: Config) {
     scene.add(arena.group);
   }
 
-  return { renderer, camera, focus, capture, addEvents, update, render, setMap };
+  /** Slows (or speeds) every render-side effect; 1 = real time. */
+  function setTimeScale(s: number) {
+    timeScale = s;
+  }
+
+  return { renderer, camera, focus, capture, addEvents, update, render, setMap, setTimeScale };
 }
 
 function lerpAngle(a: number, b: number, t: number) {

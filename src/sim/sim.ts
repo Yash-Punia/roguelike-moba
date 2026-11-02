@@ -108,6 +108,9 @@ export interface Champion {
   steadyPct: number;
   /** Ticks until redeploying; 0 while alive. */
   respawnTicks: number;
+  /** Champion takedowns landed and times knocked out this match. */
+  kills: number;
+  deaths: number;
   /** Debug/test spawn point to respawn at instead of the team's HQ pad. */
   spawnAt: { x: number; y: number } | undefined;
 }
@@ -203,6 +206,9 @@ export interface EntitySnapshot {
   /** Champions: ticks until redeploying (0 = alive) and who landed the knock-out (0 = none). */
   respawnTicks: number;
   killer: Entity;
+  /** Champions: takedowns landed and times knocked out. */
+  kills: number;
+  deaths: number;
   /** Champions: Ultimate charge 0–100, whether it has a target now, and Steady Hand active. */
   ultCharge: number;
   ultTargetable: boolean;
@@ -250,8 +256,18 @@ export interface ProjectileSnapshot {
   vy: number;
 }
 
+/** Match state (TDD §6.12): `live` until an HQ falls, then `ended` with the winner. */
+export interface MatchState {
+  phase: 'live' | 'ended';
+  /** The team that destroyed the other HQ; undefined while live. */
+  winner: Team | undefined;
+  /** Tick the match ended on (0 while live). */
+  endTick: number;
+}
+
 export interface Snapshot {
   tick: number;
+  match: MatchState;
   entities: EntitySnapshot[];
   projectiles: ProjectileSnapshot[];
   lobs: LobSnapshot[];
@@ -357,7 +373,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, kills: 0, deaths: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -435,7 +451,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const pendingXp: number[] = [];
 
 
-  const snap: Snapshot = { tick: 0, entities: [], projectiles: [], lobs: [], zones: [] };
+  const match: MatchState = { phase: 'live', winner: undefined, endTick: 0 };
+  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [] };
 
   return {
     world,
@@ -447,6 +464,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Advances exactly one tick. Returned events are valid until the next step. */
     step(commands: readonly Command[]): StepResult {
       if (tick > 0) events.length = 0;
+      if (match.phase === 'ended') return { tick, events }; // frozen once an HQ has fallen
       respawnSystem(lifeContext, config.map);
       for (let i = 0; i < pendingXp.length; i += 2) {
         const e = pendingXp[i]!;
@@ -491,8 +509,17 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       callForHelpSystem(minionContext, damageLog, config.units, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       structureDeathSystem(structureContext);
+      // Win and lose (GDD §2): the first HQ to fall this tick ends the match.
+      for (let i = progressionFrom; i < events.length && match.phase === 'live'; i++) {
+        const ev = events[i]!;
+        if (ev.type !== 'structureDestroyed' || ev.kind !== 'hq') continue;
+        match.phase = 'ended';
+        match.winner = ev.team === Team.Blue ? Team.Red : Team.Blue;
+        match.endTick = tick;
+      }
       progressionSystem(progressionContext, config.progression, events, progressionFrom);
       structureRegenSystem(structureContext, config.structures);
+      if (match.phase === 'ended') events.push({ type: 'matchOver', winner: match.winner!, tick });
       tick++;
       return { tick, events };
     },
@@ -507,7 +534,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -533,6 +560,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.xpLevelStart = c ? xpForLevel(config.progression, c.level) : 0;
         s.xpLevelEnd = c ? xpForLevel(config.progression, c.level + 1) : 0;
         s.respawnTicks = c?.respawnTicks ?? 0;
+        s.kills = c?.kills ?? 0;
+        s.deaths = c?.deaths ?? 0;
         s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
@@ -620,6 +649,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       rebuildGrid();
     },
 
+    /** Match state: live, or ended with a winner (read-only). */
+    match: match as Readonly<MatchState>,
+
     /** Spatial index of every unit with health, as of the last step (read-only). */
     spatial,
 
@@ -653,6 +685,15 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       addShield(e: Entity, amount: number) {
         const h = healths.get(e);
         if (h) h.shield += amount;
+      },
+      /** Drops a team's HQ gate and lands a lethal hit on it through the normal pipeline (next step). */
+      destroyHq(team: Team) {
+        for (let i = 0; i < structures.ids.length; i++) {
+          const e = structures.ids[i]!;
+          if (structures.data[i]!.kind !== 'hq' || teams.get(e) !== team) continue;
+          healths.get(e)!.invulnerable = false;
+          hits.push(0, e, 1e12);
+        }
       },
       /** Forces every HQ's invulnerability on or off (the gate re-applies when a Sub-base falls). */
       setHqShields(on: boolean) {

@@ -2,7 +2,7 @@ import GUI from 'lil-gui';
 import { configFiles, parseConfig } from '../data/load';
 import type { Config, RawConfig } from '../data/schema';
 import type { Entity } from '../sim/ecs';
-import type { Sim } from '../sim/sim';
+import { Team, type Sim } from '../sim/sim';
 import { Stat } from '../sim/stats';
 
 export interface DebugHooks {
@@ -52,6 +52,10 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
     }
   };
   structuresFolder.add({ killEnemySub }, 'killEnemySub').name('Destroy enemy centre Sub-base');
+  const localTeam = localEntity === undefined ? Team.Blue : (sim.stores.teams.get(localEntity) ?? Team.Blue);
+  const enemyTeam = localTeam === Team.Blue ? Team.Red : Team.Blue;
+  structuresFolder.add({ win: () => sim.debug.destroyHq(enemyTeam) }, 'win').name('Win now (destroy enemy HQ)');
+  structuresFolder.add({ lose: () => sim.debug.destroyHq(localTeam) }, 'lose').name('Lose now');
   const shields = { on: true };
   structuresFolder.add(shields, 'on').name('HQ shields').onChange((v: boolean) => sim.debug.setHqShields(v));
   const waves = gui.addFolder('Waves').close();

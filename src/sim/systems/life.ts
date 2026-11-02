@@ -38,6 +38,9 @@ export function deathSystem(ctx: LifeContext, cfg: Config['match']['respawn']) {
     const h = healths.get(e);
     if (!h || h.hp > 0 || c.respawnTicks > 0) continue;
     c.respawnTicks = respawnTicks(c.level, cfg);
+    c.deaths++;
+    const killer = champions.get(h.killer);
+    if (killer && ctx.teams.get(h.killer) !== ctx.teams.get(e)) killer.kills++;
     const m = motions.get(e);
     if (m) m.vx = m.vy = m.intentX = m.intentY = 0;
     const t = transforms.get(e)!;

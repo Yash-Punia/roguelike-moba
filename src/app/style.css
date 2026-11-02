@@ -189,3 +189,64 @@ body {
 .respawn-banner.show {
   display: block;
 }
+
+/* Minimal end-of-match banner (app/end-banner.ts, D-038) until the M4 Results screen. */
+.end-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgb(27 26 23 / 0.55);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  animation: end-in 0.35s ease-out;
+}
+
+.end-title {
+  padding: 14px 34px 12px;
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  /* A raised team banner: a pennant-cut cloth strip. */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
+  padding-bottom: 22px;
+}
+
+.end-banner.won .end-title {
+  background: #d8a64a;
+  color: #1b1a17;
+}
+
+.end-banner.lost .end-title {
+  background: #6b3a33;
+  color: #e9ddd0;
+  /* Torn: a ragged lower edge. */
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 88% 92%, 76% 80%, 62% 96%, 50% 82%, 36% 95%, 22% 81%, 10% 93%, 0 80%);
+}
+
+.end-line {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.end-again {
+  padding: 10px 26px;
+  border: none;
+  border-radius: 4px;
+  background: #3c4147;
+  color: #fff;
+  font: 800 16px/1 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+@keyframes end-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}

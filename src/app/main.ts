@@ -6,6 +6,7 @@ import { createInput } from '../input';
 import { createSim, Team, type PlayerSetup } from '../sim/sim';
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
+import { showEndBanner } from './end-banner';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -43,6 +44,22 @@ const banner = document.createElement('div');
 banner.className = 'respawn-banner';
 container.appendChild(banner);
 let bannerSeconds = -1;
+// The HQ falls: 1 s of slow motion on the effects (the sim is already frozen), then the banner.
+const SLOW_MOTION_MS = 1000;
+const SLOW_MOTION_SCALE = 0.25;
+let ended = false;
+
+function endMatch(winner: Team) {
+  ended = true;
+  input.ultButton.el.style.display = 'none';
+  banner.classList.remove('show');
+  view.setTimeScale(SLOW_MOTION_SCALE);
+  setTimeout(() => {
+    view.setTimeScale(1);
+    const me = sim.snapshot().entities.find((e) => e.id === localEntity);
+    showEndBanner(container, winner === localTeam, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0);
+  }, SLOW_MOTION_MS);
+}
 
 const loop = startLoop({
   step: () => {
@@ -54,6 +71,12 @@ const loop = startLoop({
     view.addEvents(events);
     const snap = sim.snapshot();
     view.capture(snap);
+    if (ended) return;
+    for (const ev of events) {
+      if (ev.type === 'structureDestroyed' && ev.kind === 'hq') cameraFocus = ev.id; // watch it fall
+      if (ev.type === 'matchOver') endMatch(ev.winner);
+    }
+    if (ended) return;
     const me = snap.entities.find((e) => e.id === localEntity);
     if (!me) return;
     input.ultButton.show(me.ultCharge, me.ultTargetable);

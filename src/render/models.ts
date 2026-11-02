@@ -56,8 +56,10 @@ export interface ModelParts {
   cap?: THREE.Object3D;
   /** Structure guns: each turns to the aim while the bunker stays put. */
   aimParts?: THREE.Object3D[];
-  /** Hidden when a structure falls (flags, guns, mast). */
+  /** Hidden when a structure falls (flags, guns). */
   standing?: THREE.Object3D[];
+  /** HQ radio mast, pivoting at its base: it topples when the HQ falls (GDD §11). */
+  mast?: THREE.Object3D;
   /** Translucent dome shown while the structure is invulnerable (HQ gate). */
   shield?: THREE.Object3D;
 }
@@ -258,11 +260,13 @@ function commandBunker(root: THREE.Object3D, team: Team) {
   }
   // Radio mast with cross-bars.
   const mast = new THREE.Group();
+  mast.position.set(-1.3, 3.4, 0); // pivot at the base
   root.add(mast);
-  part(mast, cyl(0.04, 0.08, 4.4, 4), palette.gunmetal, -1.3, 3.4 + 2.2, 0);
-  for (const y of [4.6, 5.8, 7]) part(mast, box(0.06, 0.06, 0.9), palette.gunmetal, -1.3, y, 0);
+  part(mast, cyl(0.04, 0.08, 4.4, 4), palette.gunmetal, 0, 2.2, 0);
+  for (const y of [4.6, 5.8, 7]) part(mast, box(0.06, 0.06, 0.9), palette.gunmetal, 0, y - 3.4, 0);
+  partsOf(root).mast = mast;
   partsOf(root).aimParts = mounts;
-  partsOf(root).standing = [...mounts, mast];
+  partsOf(root).standing = mounts;
   // The HQ gate's shield (GDD §5): a faint team dome, shown while invulnerable.
   const shield = new THREE.Mesh(
     new THREE.SphereGeometry(3.7, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
