@@ -67,7 +67,7 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
       }
     }
     if (hit !== 0) {
-      hits.push(pool.owner[i]!, hit, pool.damage[i]!);
+      hits.push(pool.owner[i]!, hit, pool.damage[i]!, pool.critMult[i]!);
       pool.release(i);
       continue;
     }

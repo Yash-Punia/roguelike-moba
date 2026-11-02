@@ -26,6 +26,8 @@ export interface WeaponsContext {
  * retarget pause is over. Bullets fly straight at where the target will be (lead), where it
  * is (direct), or home onto it, per `bulletAim`. The cooldown counts down by the fire-rate
  * stat each tick and carries the remainder, so +20% fire rate gives exactly 1.2× the shots.
+ * Bullets carry the weapon's base damage; every modifier is applied when they hit (TDD §6.4).
+ * With `critEvery` set, every Nth shot is a crit for `critMult` (Dead Eye).
  */
 export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, cfg: Config['combat']['weapons']) {
   const { transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events } = ctx;
@@ -71,8 +73,9 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     const dy = sin(desired);
     const muzzle = colliders.get(e)?.radius ?? 0;
     const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
-    const damage = st ? stat(st, Stat.Damage) : w.damage;
-    pool.spawn(e, teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, life);
+    w.shotCount++;
+    const critMult = w.critEvery > 0 && w.shotCount % w.critEvery === 0 ? w.critMult : 1;
+    pool.spawn(e, teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, w.damage, critMult, life);
     w.cooldown += w.interval;
     events.push({ type: 'shot', id: e, target });
   }

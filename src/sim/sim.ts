@@ -10,6 +10,8 @@ import { targetingSystem, type TargetingContext } from './systems/targeting';
 import { projectileSystem } from './systems/projectiles';
 import { weaponsSystem, type WeaponsContext } from './systems/weapons';
 import { HitQueue } from './hits';
+import { damageSystem, isInvulnerable, type DamageContext } from './damage';
+import { DamageLog } from './damage-log';
 import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
@@ -79,11 +81,21 @@ export interface Health {
   hp: number;
   maxHp: number;
   shield: number;
+  /** Permanent invulnerability (an HQ until a Sub-base falls). */
   invulnerable: boolean;
+  /** Also invulnerable while the tick is below this (after a lethal save). */
+  invulnUntil: number;
+  /** Lethal hits this unit will survive on 1 HP (Last Stand: once per life). */
+  lethalSaves: number;
 }
 /** A unit's weapon (TDD §5): config values plus the ticks left until it can fire again. */
 export interface Weapon extends WeaponConfig {
   cooldown: number;
+  /** Shots fired, for every-Nth-shot effects. */
+  shotCount: number;
+  /** Every `critEvery`th shot (0 = never) is a crit for `critMult` × damage (Dead Eye). */
+  critEvery: number;
+  critMult: number;
   /** Upper-body aim (radians, like `facing`); turns towards the target at the aim turn rate. */
   aim: number;
 }
@@ -116,6 +128,9 @@ export interface EntitySnapshot {
   /** 0 / 0 for entities without health. */
   hp: number;
   maxHp: number;
+  shield: number;
+  /** Takes no damage right now (permanent or timed). */
+  invulnerable: boolean;
   /** Current auto-target, or 0. */
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
@@ -185,13 +200,15 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   /** (Re)applies a champion's config: stat bases, then the values derived from them. */
   function applyChampion(e: Entity, def: ChampionConfig) {
     const st = stats.get(e)!;
-    st.base[Stat.Damage] = def.weapon.damage;
+    st.base[Stat.Damage] = 1;
     st.base[Stat.FireRate] = 1;
     st.base[Stat.MaxHp] = def.maxHp;
     st.base[Stat.MoveSpeed] = def.moveSpeed;
     st.base[Stat.Range] = def.weapon.range;
     st.base[Stat.DamageTaken] = 1;
     st.base[Stat.UltCharge] = 1;
+    st.base[Stat.DamageVsChampions] = 1;
+    st.base[Stat.DamageVsStructures] = 1;
     st.dirty = true;
     motions.get(e)!.speed = stat(st, Stat.MoveSpeed);
     colliders.get(e)!.radius = def.radius;
@@ -200,6 +217,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     if (w) Object.assign(w, def.weapon);
   }
 
+  const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0 });
+  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, shotCount: 0, critEvery: 0, critMult: 1 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
   players.forEach((p, player) => {
@@ -211,9 +230,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     motions.add(e, { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0 });
     colliders.add(e, { radius: 0 });
     teams.add(e, p.team);
-    healths.add(e, { hp: 0, maxHp: 0, shield: 0, invulnerable: false });
+    healths.add(e, newHealth(0));
     stats.add(e, createStats());
-    if (!p.unarmed) weapons.add(e, { ...def.weapon, cooldown: 0, aim: transforms.get(e)!.facing });
+    if (!p.unarmed) weapons.add(e, newWeapon(def.weapon, transforms.get(e)!.facing));
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
@@ -234,8 +253,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     models.add(e, p.kind);
     structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane });
     const def = config.structures[p.kind];
-    healths.add(e, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false });
-    weapons.add(e, { ...def.weapon, cooldown: 0, aim: transforms.get(e)!.facing });
+    healths.add(e, newHealth(def.maxHp));
+    weapons.add(e, newWeapon(def.weapon, transforms.get(e)!.facing));
     targetings.add(e, noTarget());
     targetClasses.add(e, p.kind === 'hq' ? TargetClass.HQ : TargetClass.SubBase);
   }
@@ -250,22 +269,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits };
 
-  /**
-   * Damage stage, raw for now: shield absorbs first, then HP, floored at 0. Invulnerable and
-   * already-dead units take nothing. The full TDD §6.4 pipeline replaces this (M2 feature 6).
-   */
-  function applyHits() {
-    for (let k = 0; k < hits.count; k++) {
-      const h = healths.get(hits.target[k]!);
-      if (!h || h.hp <= 0 || h.invulnerable) continue;
-      let amount = hits.amount[k]!;
-      const absorbed = Math.min(h.shield, amount);
-      h.shield -= absorbed;
-      amount -= absorbed;
-      h.hp = Math.max(0, h.hp - amount);
-    }
-    hits.count = 0;
-  }
+  const damageLog = new DamageLog(config.combat.damage.logSeconds);
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events };
 
   const targetingContext: TargetingContext = {
     transforms, colliders, teams, healths, targetClasses, targetings, spatial,
@@ -297,10 +302,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
-      targetingSystem(champions.ids, targetingContext, config.combat.targeting);
+      targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons);
       projectileSystem(projectileContext, config.combat.weapons);
-      applyHits();
+      damageSystem(damageContext, config.combat.damage, tick);
       tick++;
       return { tick, events };
     },
@@ -315,7 +320,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, targetId: 0, aim: 0,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -330,6 +335,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         s.hp = h?.hp ?? 0;
         s.maxHp = h?.maxHp ?? 0;
+        s.shield = h?.shield ?? 0;
+        s.invulnerable = h ? isInvulnerable(h, tick) : false;
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
       }
@@ -377,6 +384,42 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
     /** Bullets in flight (read-only). */
     projectiles: pool,
+
+    /** Every hit through the damage pipeline, at least the last `combat.damage.logSeconds` (read-only). */
+    damageLog,
+
+    /**
+     * Dev-only cheats for the debug panel, applied between steps. They bypass commands, so a
+     * match using them won't replay; replays (M5) will record them as debug commands.
+     */
+    debug: {
+      /** Sets a stat's additive percentage (0.2 = +20%) on a unit with stats. */
+      setStatPct(e: Entity, which: Stat, pct: number) {
+        const st = stats.get(e);
+        if (!st) return;
+        st.pct[which] = pct;
+        st.dirty = true;
+        const m = motions.get(e);
+        if (m) m.speed = stat(st, Stat.MoveSpeed);
+        const h = healths.get(e);
+        if (h) setMaxHp(h, stat(st, Stat.MaxHp));
+      },
+      addShield(e: Entity, amount: number) {
+        const h = healths.get(e);
+        if (h) h.shield += amount;
+      },
+      armLethalSave(e: Entity) {
+        const h = healths.get(e);
+        if (h) h.lethalSaves = 1;
+      },
+      /** Every Nth shot (0 = off) crits for `mult` × damage. */
+      setCrit(e: Entity, every: number, mult: number) {
+        const w = weapons.get(e);
+        if (!w) return;
+        w.critEvery = every;
+        w.critMult = mult;
+      },
+    },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
     stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds },

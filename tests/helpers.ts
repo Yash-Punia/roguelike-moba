@@ -39,7 +39,8 @@ export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure
  * Open test map with Blue Alpha (player 0) at the origin plus the given units. Champions get
  * ids 1..n in order (player = id − 1), then structures. Tuning is pinned to the values the
  * combat tests are written against, so retuning data/ never breaks them: Alpha has a 7 m
- * range, 0.5 m radius, 95 damage every 25 ticks, 25 m/s bullets, 5 m/s move speed.
+ * range, 0.5 m radius, 95 damage every 25 ticks, 25 m/s bullets, 5 m/s move speed; lethal
+ * saves last 45 ticks.
  */
 export function arena(units: Unit[], tweak?: (c: Config) => void) {
   const config = fixtureConfig();
@@ -48,6 +49,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   Object.assign(alpha.weapon, { damage: 95, interval: 25, range: 7, projectileSpeed: 25, spread: 0, targets: 1 });
   config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   config.combat.weapons = { aimTurnRate: 4 * Math.PI, fireCone: Math.PI / 18, bulletAim: 'lead', bulletRadius: 0.1, bulletOvershoot: 2 };
+  config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45 };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Team.Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {

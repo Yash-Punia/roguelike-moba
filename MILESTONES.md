@@ -52,8 +52,8 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[t]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | f346375 |
 | `[c]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
 | `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
-| `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | |
-| `[ ]` | Damage pipeline in fixed order (TDD §6.4) + unit tests | |
+| `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
+| `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031) | |
 | `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet | |
 | `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |
 | `[ ]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen | |

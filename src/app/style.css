@@ -101,3 +101,26 @@ body {
   border-radius: 3px;
   pointer-events: none;
 }
+
+/* Floating damage numbers (render/damage-numbers.ts), positioned every frame over the canvas. */
+.damage-numbers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.damage-number {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font: 800 17px/1 system-ui, sans-serif;
+  white-space: nowrap;
+  text-shadow:
+    0 0 2px #1b1a17,
+    1px 1px 0 #1b1a17,
+    -1px -1px 0 #1b1a17,
+    1px -1px 0 #1b1a17,
+    -1px 1px 0 #1b1a17;
+  will-change: transform, opacity;
+}

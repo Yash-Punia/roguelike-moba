@@ -4,15 +4,21 @@
  * powers and debuffs. Stored in small typed arrays so nothing allocates per tick.
  */
 export enum Stat {
+  /** Multiplier on base damage (base 1 plus level growth): Hollow Points, Heat Wave, Supply Drop. */
   Damage = 0,
   FireRate = 1,
   MaxHp = 2,
   MoveSpeed = 3,
   Range = 4,
+  /** Multiplier on damage taken (base 1): Flak Vest, Dug In, Tracer mark. */
   DamageTaken = 5,
   UltCharge = 6,
+  /** Multiplier on damage vs enemy champions (base 1): Bounty Hunter. */
+  DamageVsChampions = 7,
+  /** Multiplier on damage vs structures (base 1): Demolition Expert, Bazooka Tank. */
+  DamageVsStructures = 8,
 }
-const COUNT = 7;
+const COUNT = 9;
 
 export interface Stats {
   base: Float64Array;

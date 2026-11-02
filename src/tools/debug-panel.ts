@@ -1,6 +1,9 @@
 import GUI from 'lil-gui';
 import { configFiles, parseConfig } from '../data/load';
 import type { Config, RawConfig } from '../data/schema';
+import type { Entity } from '../sim/ecs';
+import type { Sim } from '../sim/sim';
+import { Stat } from '../sim/stats';
 
 export interface DebugHooks {
   raw: RawConfig;
@@ -8,13 +11,16 @@ export interface DebugHooks {
   loop: { paused: boolean; timeScale: number };
   stats: { simMs: number };
   frame: HTMLElement;
+  sim: Sim;
+  /** The local player's champion, for the modifier cheats. */
+  localEntity: Entity | undefined;
 }
 
 /**
  * Dev tuning panel (TDD §11). Every value in the raw JSON configs is editable; each edit is
  * re-validated and applied to the running match. F1 or a three-finger tap toggles it.
  */
-export function createDebugPanel({ raw, apply, loop, stats, frame }: DebugHooks) {
+export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity }: DebugHooks) {
   const gui = new GUI({ title: 'Warfront debug' });
   gui.hide();
   let visible = false;
@@ -34,6 +40,8 @@ export function createDebugPanel({ raw, apply, loop, stats, frame }: DebugHooks)
   const match = gui.addFolder('Match');
   match.add(loop, 'paused');
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
+
+  if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
 
   const edits = structuredClone(raw);
   const onChange = () => {
@@ -61,6 +69,27 @@ function addFields(folder: GUI, obj: Record<string, unknown>, onChange: () => vo
       addFields(folder.addFolder(label).close(), v as Record<string, unknown>, onChange);
     }
   }
+}
+
+/**
+ * Damage-pipeline modifiers on the local champion (D-031), standing in for powers until the
+ * draft exists. Percentages as in the GDD (20 = +20%); they write through `sim.debug`.
+ */
+function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
+  const folder = gui.addFolder('Local champion').close();
+  const mods = { damagePct: 0, damageTakenPct: 0, vsChampionsPct: 0, vsStructuresPct: 0, critEvery: 0, critMult: 2, shield: 300 };
+  const pctStat = (key: keyof typeof mods, which: Stat, name: string) =>
+    folder.add(mods, key, -90, 200, 1).name(name).onChange((v: number) => sim.debug.setStatPct(e, which, v / 100));
+  pctStat('damagePct', Stat.Damage, 'damage %');
+  pctStat('damageTakenPct', Stat.DamageTaken, 'damage taken %');
+  pctStat('vsChampionsPct', Stat.DamageVsChampions, 'vs champions %');
+  pctStat('vsStructuresPct', Stat.DamageVsStructures, 'vs structures %');
+  const crit = () => sim.debug.setCrit(e, mods.critEvery, mods.critMult);
+  folder.add(mods, 'critEvery', 0, 10, 1).name('crit every N shots').onChange(crit);
+  folder.add(mods, 'critMult', 1, 4, 0.1).name('crit ×').onChange(crit);
+  folder.add(mods, 'shield', 0, 1000, 50).name('shield amount');
+  folder.add({ give: () => sim.debug.addShield(e, mods.shield) }, 'give').name('Give shield');
+  folder.add({ arm: () => sim.debug.armLethalSave(e) }, 'arm').name('Arm lethal save');
 }
 
 function download(name: string, data: unknown) {

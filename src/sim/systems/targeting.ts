@@ -1,5 +1,6 @@
 import type { Config } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
+import { isInvulnerable } from '../damage';
 import { len } from '../math';
 import type { Collider, Health, TargetClass, Targeting, Team, Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
@@ -31,7 +32,7 @@ const candidates: Entity[] = [];
  * Shooters are processed in ascending id order and candidates come back sorted, so ties
  * resolve the same way every run.
  */
-export function targetingSystem(shooters: readonly Entity[], ctx: TargetingContext, cfg: Config['combat']['targeting']) {
+export function targetingSystem(shooters: readonly Entity[], ctx: TargetingContext, cfg: Config['combat']['targeting'], tick: number) {
   const { transforms, colliders, teams, healths, targetClasses, targetings, spatial } = ctx;
 
   let maxRadius = 0;
@@ -43,7 +44,7 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
   };
   const targetable = (e: Entity, team: Team) => {
     const h = healths.get(e);
-    return h !== undefined && h.hp > 0 && !h.invulnerable && teams.get(e) !== team;
+    return h !== undefined && h.hp > 0 && !isInvulnerable(h, tick) && teams.get(e) !== team;
   };
 
   for (let i = 0; i < shooters.length; i++) {

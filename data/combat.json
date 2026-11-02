@@ -12,5 +12,9 @@
     "bulletAim": "lead",
     "bulletRadius": 0.1,
     "bulletOvershoot": 2
+  },
+  "damage": {
+    "logSeconds": 8,
+    "lethalSaveSeconds": 1.5
   }
 }

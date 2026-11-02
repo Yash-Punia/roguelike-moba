@@ -37,9 +37,10 @@ let lastFrame = performance.now();
 const loop = startLoop({
   step: () => {
     const t0 = debug ? performance.now() : 0;
-    sim.step([input.sample(sim.tick)]);
+    const { events } = sim.step([input.sample(sim.tick)]);
     if (debug) stats.simMs = performance.now() - t0;
     view.capture(sim.snapshot());
+    view.addEvents(events);
   },
   draw: (alpha) => {
     const now = performance.now();
@@ -64,6 +65,8 @@ if (debug) {
       loop,
       stats,
       frame: container,
+      sim,
+      localEntity,
     }),
   );
 }

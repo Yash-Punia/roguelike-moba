@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Config, MapConfig } from '../data/schema';
+import type { SimEvent } from '../sim/events';
 import { Team, type Snapshot } from '../sim/sim';
+import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad } from './models';
 import { TargetLine } from './target-line';
@@ -56,6 +58,9 @@ export function createScene(container: HTMLElement, config: Config) {
   const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
+  const damageNumbers = new DamageNumbers(container);
+  /** Team of the followed champion: damage to it and its allies shows white, to enemies gold. */
+  let localTeam: Team | undefined;
 
   /** Call after every sim tick: shifts current → previous. */
   function capture(snap: Snapshot) {
@@ -97,6 +102,22 @@ export function createScene(container: HTMLElement, config: Config) {
     }
   }
 
+  /** Call after every sim tick with its events (after `capture`), for damage numbers. */
+  function addEvents(events: readonly SimEvent[]) {
+    const now = performance.now();
+    for (const ev of events) {
+      if (ev.type !== 'damage') continue;
+      const s = interp.get(ev.target);
+      if (!s) continue;
+      const lift = bars.get(ev.target)?.lift ?? 2;
+      const ally = teams.get(ev.target) === localTeam;
+      const hpLost = ev.amount - ev.absorbed;
+      const text = ev.saved ? 'SAVED' : `${Math.round(ev.amount)}${ev.critical ? '!' : ''}`;
+      const colour = hpLost <= 0 && !ev.saved ? damageColours.absorbed : ally ? damageColours.ally : damageColours.enemy;
+      damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift + 0.5, -s.y, text, colour, ev.critical || ev.saved, now);
+    }
+  }
+
   // The followed champion's target line, coloured for its team on first sight.
   let targetLine: TargetLine | undefined;
 
@@ -120,6 +141,7 @@ export function createScene(container: HTMLElement, config: Config) {
     tracers.update(alpha);
     const me = focusId === undefined ? undefined : interp.get(focusId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
+    if (me) localTeam = teams.get(focusId!);
     if (me && !targetLine) {
       targetLine = new TargetLine(teams.get(focusId!) ?? Team.Blue);
       scene.add(targetLine.group);
@@ -138,6 +160,7 @@ export function createScene(container: HTMLElement, config: Config) {
     // Bars face the camera; done here because the camera rig moves after update().
     for (const bar of bars.values()) bar.group.quaternion.copy(camera.quaternion);
     renderer.render(scene, camera);
+    damageNumbers.update(camera, container.clientWidth, container.clientHeight, performance.now());
   }
 
   function resize(width: number, height: number) {
@@ -160,7 +183,7 @@ export function createScene(container: HTMLElement, config: Config) {
     scene.add(arena.group);
   }
 
-  return { renderer, camera, focus, capture, update, render, setMap };
+  return { renderer, camera, focus, capture, addEvents, update, render, setMap };
 }
 
 function lerpAngle(a: number, b: number, t: number) {

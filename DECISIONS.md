@@ -309,3 +309,21 @@ From TDD §13:
 - Why: positioning stays the core skill while bullets remain readable and fair; lead aim keeps auto-fire reliable against steady movement.
 - Alternatives: homing bullets (no dodging or blocking); direct aim (moving targets mostly missed).
 
+
+## D-031 — Damage pipeline: hooks before powers, damage numbers pulled forward
+- Date: 2026-11-02
+- Source: user choice (damage numbers and debug modifiers to make it testable); the rest made during development
+- Decision:
+  - **Stages:** `src/sim/damage.ts` runs every hit through TDD §6.4 in queue order: base → attacker (`Damage`, then `DamageVsChampions` or `DamageVsStructures` by the target's kind) → the hit's crit multiplier → target (`DamageTaken`, then structure rules) → shield, then HP → lethal check → log and `damage` event. Named powers feed these generic stats and hooks when they arrive: Hollow Points, Heat Wave and Supply Drop feed `Damage`; Bounty Hunter feeds vs champions; Demolition Expert and the Bazooka bonus feed vs structures; Flak Vest, Dug In and Tracer Rounds feed `DamageTaken`. Backdoor protection and the Bazooka's resistance plug into the marked structure-rules step.
+  - **Multiplier stats:** `Damage` is now a multiplier with base 1 (level growth goes into its base), like FireRate and DamageTaken. Bullets carry the weapon's base damage. The two "vs" stats are also multipliers with base 1, because a base-0 stat stays 0 under `(base + flat) × (1 + Σpct)`. So Hollow Points and Bounty Hunter multiply together (1.12 × 1.2), as separate modifiers in the TDD list.
+  - **Read at hit time:** attacker modifiers are read when the bullet lands, not when it is fired; a missing attacker counts as ×1. Flights last at most about 0.4 s.
+  - **Crit** is a per-hit multiplier carried by the projectile (1 = none). The runtime weapon has `critEvery` / `critMult` and a shot counter, which Dead Eye will set.
+  - **Floats:** damage stays a float and only the display rounds. Rounding each hit would erase small damage-over-time ticks (burn at 20/s is 0.67 per tick).
+  - **Lethal save:** a generic `Health.lethalSaves` counter. A save leaves 1 HP and makes the unit invulnerable until `tick + combat.damage.lethalSaveSeconds` (45 ticks). The deadline is stored as a tick (`invulnUntil`) rather than a countdown, so targeting and damage agree on the same tick. Timed invulnerability also makes the unit untargetable, like the HQ flag. Last Stand will arm the save once per life.
+  - **No damage, no log:** invulnerable and dead targets take nothing and aren't logged; they still stop bullets (D-030). A hit the shield fully absorbs is logged and announced.
+  - **Damage log:** a struct-of-arrays ring (`src/sim/damage-log.ts`) that keeps at least `combat.damage.logSeconds` (8 s, the assist window). It overwrites entries older than the window and doubles in size instead of dropping in-window entries. Readers: structure aggro, call-for-help, assists, Ult charge and telemetry.
+  - **Events:** `damage` events are pooled objects, valid until the next step. The snapshot now carries `shield` and effective `invulnerable`.
+  - **Damage numbers** (pulled forward from the HUD, GDD §10): a pooled DOM layer over the canvas. Damage to your team shows in white, to enemies in hazard gold; a fully absorbed hit shows in grey. A crit is 1.4× larger with a "!", and a lethal save reads "SAVED". The numbers rise 1 m and fade over 0.8 s.
+  - **Debug cheats:** the F1 "Local champion" folder sets the damage %, damage taken %, vs champions % and vs structures % stats and crit every N shots, gives a shield and arms a lethal save. It writes through `sim.debug`, outside the command stream, so a match that uses it won't replay. Replays (M5) will record these as debug commands.
+- Why: later features (structures, minions, powers, assists) only add inputs to fixed stages instead of reordering damage, and the stages can be tested now.
+- Alternatives: snapshot attacker modifiers at fire time (more state per bullet for no visible difference); integer damage (breaks damage over time).

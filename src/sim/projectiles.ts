@@ -23,7 +23,9 @@ export class ProjectilePool {
   vx = new Float64Array(0);
   vy = new Float64Array(0);
   speed = new Float64Array(0);
+  /** Base damage (before the pipeline's modifiers) and crit multiplier (1 = none). */
   damage = new Float64Array(0);
+  critMult = new Float64Array(0);
   life = new Int32Array(0);
   private free: number[] = [];
   private nextId = 1;
@@ -32,7 +34,7 @@ export class ProjectilePool {
     this.grow(initial);
   }
 
-  spawn(owner: Entity, team: number, target: Entity, homing: boolean, x: number, y: number, vx: number, vy: number, damage: number, life: number): number {
+  spawn(owner: Entity, team: number, target: Entity, homing: boolean, x: number, y: number, vx: number, vy: number, damage: number, critMult: number, life: number): number {
     if (this.free.length === 0) this.grow(this.capacity * 2);
     const i = this.free.pop()!;
     this.active[i] = 1;
@@ -47,6 +49,7 @@ export class ProjectilePool {
     this.vy[i] = vy;
     this.speed[i] = Math.sqrt(vx * vx + vy * vy);
     this.damage[i] = damage;
+    this.critMult[i] = critMult;
     this.life[i] = life;
     this.live++;
     return i;
@@ -78,6 +81,7 @@ export class ProjectilePool {
     this.vy = copy(this.vy, (n) => new Float64Array(n));
     this.speed = copy(this.speed, (n) => new Float64Array(n));
     this.damage = copy(this.damage, (n) => new Float64Array(n));
+    this.critMult = copy(this.critMult, (n) => new Float64Array(n));
     this.life = copy(this.life, (n) => new Int32Array(n));
     // Push new slots highest first so the lowest index is handed out first.
     for (let i = size - 1; i >= old; i--) this.free.push(i);

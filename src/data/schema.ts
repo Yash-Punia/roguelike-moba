@@ -115,6 +115,13 @@ const Combat = z.object({
     /** A bullet flies the shooter's range plus this far before it expires (m). */
     bulletOvershoot: nonneg(),
   }),
+  /** Damage pipeline (TDD §6.4). */
+  damage: z.object({
+    /** Keep at least this much damage history (assists look back 8 s, GDD §7). */
+    logSeconds: secs(),
+    /** Invulnerability after a lethal save (Last Stand: 45 ticks). */
+    lethalSaveSeconds: secs(),
+  }),
 });
 
 // Camera runs in real time (render), so its seconds stay seconds.
