@@ -664,3 +664,32 @@ From TDD §13:
   - **Not yet (M4):** A\* and Trenches, camps, bosses and ganks, dodging telegraphs, tag-weighted drafting, and difficulty tiers (this is one assertive band).
 - Why: the opponent now contests, pushes and punishes, and each match feels different, which Gate 1 needs.
 - Alternatives: keep v1 and just raise its numbers (still no reason to push); a fixed seed (every match identical); a very aggressive band (feeds, per Riot's experience).
+
+## D-044 — Gate 1 performance pass
+- Date: 2026-11-02
+- Source: user choice (Gate 1 perf pass before M3); made during development
+- Decision:
+  - **Measured:** the busy single-lane scene is seed 11 at 0:50, both waves at the Crater, 15 units on the map, same camera.
+    - Before: **444 draw calls and 201k triangles** per frame, shadow pass included, against TDD §12's mobile budget of ≤ 120 calls and ≤ 150k triangles.
+    - Causes: the terrain was one 96,752-triangle mesh that was never culled and was drawn in both passes. Models were primitives, one draw each (Alpha 44 meshes, MG Soldier 22, Sub-base 19, HQ 21), mostly drawn twice for shadows. HP bars were 3–7 meshes each.
+  - **Baked models** (`src/render/bake.ts`):
+    - each model is built once per (kind, id, team), then every mesh is merged into the moving part that owns it (root, upper body, cap, each gun, mast, falling parts), with its material colour stored as a vertex colour and one shared flat-shaded Lambert material;
+    - the shield dome and Steady Hand ring keep their own materials;
+    - instances are clones sharing the template's geometry, with their animated parts found again by name (Three's `clone` JSON-copies `userData`, so templates hold no object references);
+    - mesh counts: Alpha 3 + ring, MG Soldier 3, Sub-base 3, HQ 4 + dome, spawn pad 1, all sandbag blocks 1;
+    - triangles are unchanged, and knock-out fades and rubble tinting work as before (the tint now multiplies the vertex colours).
+  - **Terrain tiles:** the same triangles regrouped by centroid into 12 m tiles (about 80 on The Front), so frustum culling drops off-screen tiles in both passes. No seams, since no vertex moves.
+  - **Instanced HP bars:**
+    - all backs, fills (team colour per instance) and 250/1,000 HP ticks draw as three `InstancedMesh`es;
+    - one update per frame faces them to the camera;
+    - level badges stay as a few small meshes.
+  - **Soldier shadows:** soldiers cast no shadow-map shadows. One instanced soft dark disc sits under each instead (a common mobile trick). Champions, structures and terrain keep real shadows.
+  - **Allocations:**
+    - the app's per-tick `find`/`some` calls and the bot's `for…of` loops are now indexed loops;
+    - the sim already pools units, projectiles, lobs, zones and events.
+  - **Perf overlay (dev, pulled from the M5 debug row):** fps, worst frame, sim time per tick, render CPU time, and the last frame's draw calls and triangles.
+  - **After**, in the same scene: **91 draw calls and 76k triangles**. At the rubble view it's 79 calls and 70k triangles; at the base, 83 and 59k. Screenshots before and after match, apart from soldier shadows becoming discs.
+  - **Sim:** a 10-minute headless bot-vs-bot match on The Front averages 0.06 ms per tick (p99 0.23 ms, a single 5 ms JIT warm-up tick), well inside 4 ms.
+  - **Left for M5:** adaptive pixel ratio, GPU particles, and instancing whole soldiers (needed only if M3's ~50 minions push past the budget).
+- Why: Gate 1 needs 60 fps on a mid-range phone, and M3 roughly quadruples the units; the per-unit cost had to drop now.
+- Alternatives: lower the shadow map or drop shadows (visible quality loss); instance every soldier now (needs per-instance animation and fading; deferred until M3 shows it's needed).

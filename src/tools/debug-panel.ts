@@ -9,7 +9,9 @@ export interface DebugHooks {
   raw: RawConfig;
   apply(config: Config): void;
   loop: { paused: boolean; timeScale: number };
-  stats: { simMs: number };
+  stats: { simMs: number; renderMs: number };
+  /** For draw-call and triangle counts on the perf overlay. */
+  renderInfo?: { render: { calls: number; triangles: number } };
   frame: HTMLElement;
   sim: Sim;
   /** The local player's champion, for the modifier cheats. */
@@ -24,7 +26,7 @@ export interface DebugHooks {
  * Dev tuning panel (TDD §11). Every value in the raw JSON configs is editable; each edit is
  * re-validated and applied to the running match. F1 or a three-finger tap toggles it.
  */
-export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity, bot, seed }: DebugHooks) {
+export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEntity, bot, seed, renderInfo }: DebugHooks) {
   const gui = new GUI({ title: 'Warfront debug' });
   gui.hide();
   let visible = false;
@@ -90,7 +92,7 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
     folder.add({ export: () => download(configFiles[key], edits[key]) }, 'export').name(`Export ${configFiles[key]}`);
   }
 
-  createFpsOverlay(frame, stats);
+  createFpsOverlay(frame, stats, renderInfo);
 }
 
 function addFields(folder: GUI, obj: Record<string, unknown>, onChange: () => void) {
@@ -144,7 +146,11 @@ function download(name: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
-function createFpsOverlay(frame: HTMLElement, stats: { simMs: number }) {
+/**
+ * Dev perf overlay (TDD §12 budgets; D-044): fps, worst frame, sim time per tick, render CPU
+ * time, and the last frame's draw calls and triangles (mobile budget: ≤ 120 calls, ≤ 150k tris).
+ */
+function createFpsOverlay(frame: HTMLElement, stats: { simMs: number; renderMs: number }, info?: { render: { calls: number; triangles: number } }) {
   const el = document.createElement('div');
   el.className = 'perf-overlay';
   frame.appendChild(el);
@@ -158,7 +164,8 @@ function createFpsOverlay(frame: HTMLElement, stats: { simMs: number }) {
     last = now;
     if (now - windowStart >= 500) {
       const fps = (frames * 1000) / (now - windowStart);
-      el.textContent = `${fps.toFixed(0)} fps · worst ${worst.toFixed(1)} ms · sim ${stats.simMs.toFixed(2)} ms`;
+      const draw = info ? ` · ${info.render.calls} calls · ${(info.render.triangles / 1000).toFixed(0)}k tris` : '';
+      el.textContent = `${fps.toFixed(0)} fps · worst ${worst.toFixed(1)} ms · sim ${stats.simMs.toFixed(2)} · render ${stats.renderMs.toFixed(2)} ms${draw}`;
       frames = 0;
       worst = 0;
       windowStart = now;

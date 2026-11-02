@@ -3,7 +3,7 @@ import { parseConfig, rawConfig } from '../data/load';
 import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
 import { createInput } from '../input';
-import { createSim, Team, type PlayerSetup } from '../sim/sim';
+import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot } from '../sim/sim';
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
@@ -51,7 +51,7 @@ const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.press
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
-const stats = { simMs: 0 };
+const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();
 // While knocked out the camera follows the killer (D-034); otherwise the local champion.
 let cameraFocus = localEntity;
@@ -77,6 +77,13 @@ function endMatch(winner: Team) {
   }, SLOW_MOTION_MS);
 }
 
+/** The snapshot entity with this id (a plain loop: nothing allocated per tick). */
+function entityIn(snap: Snapshot, id: number | undefined): EntitySnapshot | undefined {
+  if (id === undefined) return undefined;
+  for (let i = 0; i < snap.entities.length; i++) if (snap.entities[i]!.id === id) return snap.entities[i];
+  return undefined;
+}
+
 const loop = startLoop({
   step: () => {
     const t0 = debug ? performance.now() : 0;
@@ -92,7 +99,9 @@ const loop = startLoop({
     lastSnap = snap;
     view.capture(snap);
     // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
-    if (snap.tick % 3 === 0 || snap.match.phase === 'ended' || events.some((e) => e.type === 'draftOffered' || e.type === 'powerPicked')) {
+    let draftNews = false;
+    for (let i = 0; i < events.length; i++) if (events[i]!.type === 'draftOffered' || events[i]!.type === 'powerPicked') draftNews = true;
+    if (snap.tick % 3 === 0 || snap.match.phase === 'ended' || draftNews) {
       updateHud(snap, localEntity, localTeam, config.powers);
       hud.keyHints.value = input.lastInput === 'keyboard';
     }
@@ -102,12 +111,12 @@ const loop = startLoop({
       if (ev.type === 'matchOver') endMatch(ev.winner);
     }
     if (ended) return;
-    const me = snap.entities.find((e) => e.id === localEntity);
+    const me = entityIn(snap, localEntity);
     if (!me) return;
     ultGauge.set(me.ultCharge, me.ultTargetable);
     ultGauge.keyHint(input.lastInput === 'keyboard');
     const down = me.respawnTicks > 0;
-    cameraFocus = down && me.killer !== 0 && snap.entities.some((e) => e.id === me.killer) ? me.killer : localEntity;
+    cameraFocus = down && me.killer !== 0 && entityIn(snap, me.killer) ? me.killer : localEntity;
     const seconds = down ? Math.ceil(me.respawnTicks / TICK_HZ) : 0;
     if (seconds !== bannerSeconds) {
       bannerSeconds = seconds;
@@ -121,7 +130,9 @@ const loop = startLoop({
     lastFrame = now;
     view.update(alpha, localEntity, cameraFocus);
     rig.update(view.focus, config.camera, dt);
+    const r0 = debug ? performance.now() : 0;
     view.render();
+    if (debug) stats.renderMs = performance.now() - r0;
   },
 });
 
@@ -142,6 +153,7 @@ if (debug) {
       localEntity,
       bot,
       seed,
+      renderInfo: view.renderer.info,
     }),
   );
 }

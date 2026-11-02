@@ -4,9 +4,10 @@ import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
-import { HpBar } from './hp-bars';
+import { HpBars, type HpBar } from './hp-bars';
 import { createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
+import { bake } from './bake';
 import { Knockouts } from './knockout';
 import { TargetLine } from './target-line';
 import { Tracers } from './tracers';
@@ -16,6 +17,8 @@ import { buildSurround, buildTerrain } from './terrain';
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 /** Metres (Manhattan) moved in one tick that count as a teleport rather than movement. */
 const SNAP_DISTANCE = 5;
+/** Ground blob under each soldier, in place of a shadow-map shadow (D-044). */
+const BLOB_RADIUS = 0.42;
 /** A fallen structure sinks to this share of its height over COLLAPSE_MS, then stays as rubble. */
 const RUBBLE_HEIGHT = 0.35;
 const COLLAPSE_MS = 600;
@@ -90,6 +93,20 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
 
   const meshes = new Map<number, THREE.Object3D>();
   const bars = new Map<number, HpBar>();
+  // Soldiers cast no shadow-map shadows; one instanced soft disc sits under each instead (D-044).
+  const blobs = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(BLOB_RADIUS, 16).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }),
+    128,
+  );
+  blobs.count = 0;
+  blobs.frustumCulled = false;
+  blobs.renderOrder = 1;
+  scene.add(blobs);
+  const blobMatrix = new THREE.Matrix4();
+  // Every HP bar in three instanced draws (D-044).
+  const barLayer = new HpBars();
+  scene.add(barLayer.group);
   const tracers = new Tracers((x, y) => arena.terrain.heightAt(x, y));
   scene.add(tracers.mesh);
   const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
@@ -129,13 +146,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       let bar = bars.get(e.id);
       if (!bar && e.maxHp > 0) {
-        bar = new HpBar(e.kind, side(e.team));
-        scene.add(bar.group);
+        bar = barLayer.create(e.kind, side(e.team));
         bars.set(e.id, bar);
       }
       bar?.set(e.hp, e.maxHp);
       if (bar && e.kind === Kind.Champion) bar.setLevel(e.level);
-      if (bar) bar.group.visible = e.hp > 0;
+      if (bar) bar.visible = e.hp > 0;
       // A jump this big in one tick is a teleport (respawn): don't streak across the map.
       if (Math.abs(e.x - s.x) + Math.abs(e.y - s.y) > SNAP_DISTANCE) {
         s.x = e.x;
@@ -172,8 +188,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       meshes.delete(id);
       interp.delete(id);
       teams.delete(id);
-      const bar = bars.get(id);
-      if (bar) scene.remove(bar.group);
+      bars.get(id)?.dispose();
       bars.delete(id);
     }
   }
@@ -248,6 +263,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     lastUpdate = real;
     clock += dt * 1000;
     const now = clock;
+    let blobCount = 0;
     for (let i = blastQueue.length - 1; i >= 0; i--) {
       const b = blastQueue[i]!;
       if (b.at > now) continue;
@@ -266,6 +282,10 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.ix = x;
       s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
+      if (s.kind === Kind.Minion && blobCount < blobs.instanceMatrix.count) {
+        blobMatrix.makeTranslation(x, mesh.position.y + 0.03, -y);
+        blobs.setMatrixAt(blobCount++, blobMatrix);
+      }
       // Minions march with a bouncy stride (UN-01).
       if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0)) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
       // Units turn their legs with the movement facing and the upper body with the aim;
@@ -281,9 +301,11 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         mesh.scale.y = 1 - (1 - RUBBLE_HEIGHT) * t * t;
       }
       const bar = bars.get(id);
-      if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
+      if (bar) bar.setPosition(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
+    blobs.count = blobCount;
+    blobs.instanceMatrix.needsUpdate = true;
     knockouts.update(now, dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
@@ -306,7 +328,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
 
   function render() {
     // Bars face the camera; done here because the camera rig moves after update().
-    for (const bar of bars.values()) bar.group.quaternion.copy(camera.quaternion);
+    barLayer.update(camera);
     renderer.render(scene, camera);
     damageNumbers.update(camera, container.clientWidth, container.clientHeight, clock);
   }
@@ -357,11 +379,18 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     group.add(pad);
   }
 
-  for (const o of map.obstacles) {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1, o.h), lambert(palette.sandbag));
-    box.position.set(o.x, 0.5, -o.y);
-    box.castShadow = box.receiveShadow = true;
-    group.add(box);
+  // Sandbag blocks, baked into one mesh (D-044).
+  if (map.obstacles.length > 0) {
+    const blocks = new THREE.Group();
+    const sandbag = lambert(palette.sandbag);
+    for (const o of map.obstacles) {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1, o.h), sandbag);
+      box.position.set(o.x, 0.5, -o.y);
+      blocks.add(box);
+    }
+    bake(blocks, [blocks]);
+    blocks.traverse((m) => (m.castShadow = m.receiveShadow = true));
+    group.add(blocks);
   }
   return { group, terrain };
 }

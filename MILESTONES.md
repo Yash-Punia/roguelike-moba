@@ -65,6 +65,8 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
 | `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
 
+**Gate 1 performance pass (D-044, committed `[c]`):** busy single-lane scene (seed 11, 15 units) went from 444 draw calls / 201k triangles to 91 / 76k (mobile budget ≤ 120 / ≤ 150k); sim 0.06 ms average, 0.23 ms p99 per tick. The dev perf overlay (`?debug`) shows fps, frame times, draw calls and triangles for the on-device check.
+
 **Gate 1 exit criteria:** the user plays the single lane and confirms positioning decides trades; holds 60 fps on desktop and a mid-range phone. If the gate fails, fix the core before M3.
 
 ---
@@ -122,7 +124,7 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[ ]` | Audio: Howler sprites, event mapping, voice limits, music + Sudden Death crossfade | |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |
-| `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay | |
+| `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
 | `[ ]` | Telemetry recorder + JSON export from Results screen | |
 | `[ ]` | Replays: command log, keyframes, scrubbing | |
 | `[ ]` | `npm run soak` headless bot matches with report | |

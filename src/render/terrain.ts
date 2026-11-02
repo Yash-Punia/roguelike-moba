@@ -15,40 +15,72 @@ const surfaceColour: Record<SurfaceKind, number> = {
 const slopeColour = palette.mud;
 
 export interface Terrain {
-  mesh: THREE.Mesh;
+  /** The terrain as square tiles (one mesh each), so the camera and shadow passes skip what is off screen (D-044). */
+  mesh: THREE.Group;
   /** Ground height (m) at sim (x, y), for standing units on the floor. */
   heightAt(x: number, y: number): number;
 }
 
-/** Faceted terrain mesh (D-018 heights are render-only; D-026 contour-cut edges). */
+/** Terrain tile size (m): about a screen width, so a frame draws ~9–12 tiles. */
+export const TERRAIN_TILE = 12;
+
+const terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+
+/**
+ * Faceted terrain (D-018 heights are render-only; D-026 contour-cut edges), split into
+ * `TERRAIN_TILE` square tiles by triangle centroid. Triangles are unchanged, only regrouped,
+ * so tiles meet without seams.
+ */
 export function buildTerrain(map: MapConfig): Terrain {
   const { triangles, tags, heightAt } = buildTerrainGeometry(map);
-  const count = tags.length * 3;
-  const positions = new Float32Array(count * 3);
-  const colours = new Float32Array(count * 3);
   const surfaces = map.walkable.map((s) => new THREE.Color(surfaceColour[s.surface]));
   const top = new THREE.Color(palette.jungle);
   const slope = new THREE.Color(slopeColour);
+  const { minX, minY, maxX } = map.bounds;
+  const cols = Math.max(1, Math.ceil((maxX - minX) / TERRAIN_TILE));
+  const tileOf = (t: number) => {
+    const cx = (triangles[t * 9]! + triangles[t * 9 + 3]! + triangles[t * 9 + 6]!) / 3;
+    const cy = (triangles[t * 9 + 1]! + triangles[t * 9 + 4]! + triangles[t * 9 + 7]!) / 3;
+    const col = Math.min(cols - 1, Math.max(0, Math.floor((cx - minX) / TERRAIN_TILE)));
+    const row = Math.max(0, Math.floor((cy - minY) / TERRAIN_TILE));
+    return row * cols + col;
+  };
+  // Count triangles per tile, then fill each tile's buffers.
+  const counts = new Map<number, number>();
+  for (let t = 0; t < tags.length; t++) counts.set(tileOf(t), (counts.get(tileOf(t)) ?? 0) + 1);
+  const buffers = new Map<number, { positions: Float32Array; colours: Float32Array; used: number }>();
+  for (const [tile, n] of counts) buffers.set(tile, { positions: new Float32Array(n * 9), colours: new Float32Array(n * 9), used: 0 });
   for (let t = 0; t < tags.length; t++) {
     const tag = tags[t]!;
     const colour = tag >= 0 ? surfaces[tag]! : tag === TAG_SLOPE ? slope : top;
-    for (let v = t * 3; v < t * 3 + 3; v++) {
+    const b = buffers.get(tileOf(t))!;
+    for (let k = 0; k < 3; k++) {
+      const v = t * 3 + k;
+      const o = b.used * 3;
       // Sim (x, y, height) → world (x, height, −y).
-      positions[v * 3] = triangles[v * 3]!;
-      positions[v * 3 + 1] = triangles[v * 3 + 2]!;
-      positions[v * 3 + 2] = -triangles[v * 3 + 1]!;
-      colours[v * 3] = colour.r;
-      colours[v * 3 + 1] = colour.g;
-      colours[v * 3 + 2] = colour.b;
+      b.positions[o] = triangles[v * 3]!;
+      b.positions[o + 1] = triangles[v * 3 + 2]!;
+      b.positions[o + 2] = -triangles[v * 3 + 1]!;
+      b.colours[o] = colour.r;
+      b.colours[o + 1] = colour.g;
+      b.colours[o + 2] = colour.b;
+      b.used++;
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-  mesh.castShadow = mesh.receiveShadow = true;
-  return { mesh, heightAt };
+  const group = new THREE.Group();
+  for (const tile of [...buffers.keys()].sort((a, b) => a - b)) {
+    const b = buffers.get(tile)!;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(b.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(b.colours, 3));
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, terrainMaterial);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.name = `terrain-tile-${tile}`;
+    group.add(mesh);
+  }
+  return { mesh: group, heightAt };
 }
 
 /** Flat ground outside the map at embankment height, so the camera never sees the void at the edges. */

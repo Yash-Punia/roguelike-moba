@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Kind, Team } from '../sim/sim';
 import { palette } from './palette';
+import { bake } from './bake';
 
 /**
  * Primitive models (D-020): flat SG-01 colours, no textures. Every model faces local +x,
@@ -31,20 +32,73 @@ function part(parent: THREE.Object3D, geo: THREE.BufferGeometry, color: number, 
 const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
 const cyl = (top: number, bottom: number, h: number, sides: number) => new THREE.CylinderGeometry(top, bottom, h, sides);
 
-export function createModel(kind: Kind, modelId: string, team: Team): THREE.Object3D {
+/** Baked templates, one per model and team; instances are clones that share geometry (D-044). */
+const templates = new Map<string, { root: THREE.Object3D; names: PartNames }>();
+
+/** Part slots by object name, so a clone can find its own copies of the animated parts. */
+interface PartNames {
+  upper?: string;
+  cap?: string;
+  aimParts?: string[];
+  standing?: string[];
+  mast?: string;
+  shield?: string;
+  steadyRing?: string;
+}
+
+/** Builds a model from primitives, then bakes it to one mesh per moving part. */
+function buildTemplate(kind: Kind, modelId: string, team: Team) {
   const root = new THREE.Group();
   if (kind === Kind.SubBase) pillbox(root, team);
   else if (kind === Kind.HQ) commandBunker(root, team);
   else if (modelId === 'alpha') alpha(root, team);
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
   else championPlaceholder(root, team);
+  if (kind === Kind.Champion) addSteadyRing(root);
+  const parts = partsOf(root);
+  // Name every part object (once, even when it fills two slots: a Sub-base's turret both aims and falls).
+  let next = 0;
+  const nameOf = (o: THREE.Object3D) => (o.name ||= `part${next++}`);
+  const names: PartNames = {
+    upper: parts.upper && nameOf(parts.upper),
+    cap: parts.cap && nameOf(parts.cap),
+    aimParts: parts.aimParts?.map(nameOf),
+    standing: parts.standing?.map(nameOf),
+    mast: parts.mast && nameOf(parts.mast),
+    shield: parts.shield && nameOf(parts.shield),
+    steadyRing: parts.steadyRing && nameOf(parts.steadyRing),
+  };
+  const owners = [root, parts.upper, parts.cap, parts.mast, ...(parts.aimParts ?? []), ...(parts.standing ?? [])].filter((o): o is THREE.Object3D => !!o);
+  bake(root, owners, new Set([parts.shield, parts.steadyRing].filter((o): o is THREE.Object3D => !!o)));
+  root.userData = {}; // clone() JSON-copies userData: no object references in templates
+  return { root, names };
+}
+
+export function createModel(kind: Kind, modelId: string, team: Team): THREE.Object3D {
+  const key = `${kind}:${modelId}:${team}`;
+  let t = templates.get(key);
+  if (!t) templates.set(key, (t = buildTemplate(kind, modelId, team)));
+  const root = t.root.clone(true);
+  const find = (name: string | undefined) => (name ? root.getObjectByName(name) : undefined);
+  const { names } = t;
+  Object.assign(partsOf(root), {
+    upper: find(names.upper),
+    cap: find(names.cap),
+    aimParts: names.aimParts?.map((n) => find(n)!),
+    standing: names.standing?.map((n) => find(n)!),
+    mast: find(names.mast),
+    shield: find(names.shield),
+    steadyRing: find(names.steadyRing),
+  } satisfies ModelParts);
+  // Real shadows for champions and structures; soldiers get a cheap ground blob instead (D-044).
+  const casts = kind !== Kind.Minion;
   root.traverse((o) => {
-    o.castShadow = true;
+    o.castShadow = casts;
     o.receiveShadow = true;
   });
-  const shield = partsOf(root).shield;
+  const { shield, steadyRing } = partsOf(root);
   if (shield) shield.castShadow = shield.receiveShadow = false;
-  if (kind === Kind.Champion) addSteadyRing(root);
+  if (steadyRing) steadyRing.castShadow = steadyRing.receiveShadow = false;
   return root;
 }
 
@@ -288,6 +342,7 @@ export function createSpawnPad(team: Team): THREE.Object3D {
     const m = part(root, box(0.55, 0.02, 0.18), palette.hazard, Math.cos(a) * 1.45, 0.09, Math.sin(a) * 1.45);
     m.rotation.y = -a;
   }
+  bake(root, [root]);
   root.traverse((o) => (o.receiveShadow = true));
   return root;
 }

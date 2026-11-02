@@ -15,16 +15,16 @@ const sizes: Record<Kind, { width: number; height: number; lift: number }> = {
   [Kind.Minion]: { width: 0.8, height: 0.12, lift: 1.45 },
 };
 
+const DARK = 0x1b1a17;
+const fillColour: Record<Team, THREE.Color> = {
+  [Team.Blue]: new THREE.Color(palette.blue),
+  [Team.Red]: new THREE.Color(palette.red),
+  [Team.Neutral]: new THREE.Color(palette.hazard),
+};
+
 // Left-anchored unit quad (x 0..1), so scaling x fills the bar from the left.
 const unitQuad = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0);
-const flat = (color: number) => new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
-const backMat = flat(0x1b1a17);
-const tickMat = flat(0x1b1a17);
-const fillMat: Record<Team, THREE.MeshBasicMaterial> = {
-  [Team.Blue]: flat(palette.blue),
-  [Team.Red]: flat(palette.red),
-  [Team.Neutral]: flat(palette.hazard),
-};
+const overlay = (color: number) => new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
 
 /** One shared texture per level number: white digits on the bar's dark back. */
 const levelTextures = new Map<number, THREE.CanvasTexture>();
@@ -48,69 +48,174 @@ function levelTexture(level: number): THREE.CanvasTexture {
 }
 const badgeQuad = new THREE.PlaneGeometry(1, 1);
 
-/** A world-space HP bar: dark back, team-colour fill and a tick every 250 HP. Billboarded by the scene. */
+/** One unit's bar: dark back, team-colour fill and a tick every 250 HP. Drawn by `HpBars`. */
 export class HpBar {
-  readonly group = new THREE.Group();
   readonly lift: number;
-  private readonly fill: THREE.Mesh;
-  private readonly ticks = new THREE.Group();
-  private readonly width: number;
-  private readonly height: number;
-  private readonly segmentHp: number;
+  readonly width: number;
+  readonly height: number;
+  readonly segmentHp: number;
+  readonly colour: THREE.Color;
+  visible = true;
+  x = 0;
+  y = 0;
+  z = 0;
+  /** Filled share 0..1. */
+  fill = 1;
+  /** Tick positions as shares of the bar width (rebuilt when max HP changes). */
+  ticks: number[] = [];
+  badge: THREE.Mesh | undefined;
   private maxHp = -1;
-  private badge: THREE.Mesh | undefined;
   private level = 0;
 
-  constructor(kind: Kind, team: Team) {
+  constructor(kind: Kind, team: Team, private readonly layer: HpBars) {
     const { width, height, lift } = sizes[kind];
     this.width = width;
     this.height = height;
     this.lift = lift;
+    this.colour = fillColour[team];
     this.segmentHp = kind === Kind.Champion || kind === Kind.Minion ? UNIT_SEGMENT_HP : STRUCTURE_SEGMENT_HP;
-    const back = new THREE.Mesh(unitQuad, backMat);
-    back.scale.set(width + BORDER * 2, height + BORDER * 2, 1);
-    back.position.x = -width / 2 - BORDER;
-    back.renderOrder = 10;
-    this.fill = new THREE.Mesh(unitQuad, fillMat[team]);
-    this.fill.scale.set(width, height, 1);
-    this.fill.position.x = -width / 2;
-    this.fill.renderOrder = 11;
-    this.group.add(back, this.fill, this.ticks);
+  }
+
+  setPosition(x: number, y: number, z: number) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
   }
 
   /** Shows the level in a square badge at the bar's left end (champions). */
   setLevel(level: number) {
     if (level === this.level) return;
     this.level = level;
-    if (!this.badge) {
-      const size = this.height * 2.4;
-      this.badge = new THREE.Mesh(badgeQuad, new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false }));
-      this.badge.scale.set(size, size, 1);
-      this.badge.position.x = -this.width / 2 - BORDER - size / 2;
-      this.badge.renderOrder = 12;
-      this.group.add(this.badge);
-    }
+    if (!this.badge) this.badge = this.layer.addBadge();
     (this.badge.material as THREE.MeshBasicMaterial).map = levelTexture(level);
     (this.badge.material as THREE.MeshBasicMaterial).needsUpdate = true;
   }
 
   set(hp: number, maxHp: number) {
-    const f = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
-    this.fill.visible = f > 0;
-    this.fill.scale.x = Math.max(1e-3, this.width * f);
-    if (maxHp !== this.maxHp) this.rebuildTicks(maxHp);
+    this.fill = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
+    if (maxHp !== this.maxHp) {
+      this.maxHp = maxHp;
+      this.ticks.length = 0;
+      for (let at = this.segmentHp; at < maxHp; at += this.segmentHp) this.ticks.push(at / maxHp);
+    }
   }
 
-  private rebuildTicks(maxHp: number) {
-    this.maxHp = maxHp;
-    this.ticks.clear();
-    for (let hp = this.segmentHp; hp < maxHp; hp += this.segmentHp) {
-      const tick = new THREE.Mesh(unitQuad, tickMat);
-      const w = this.segmentHp > UNIT_SEGMENT_HP ? 0.04 : 0.022;
-      tick.scale.set(w, this.height, 1);
-      tick.position.x = -this.width / 2 + (this.width * hp) / maxHp - w / 2;
-      tick.renderOrder = 12;
-      this.ticks.add(tick);
+  dispose() {
+    this.layer.remove(this);
+  }
+}
+
+const base = new THREE.Matrix4();
+const part = new THREE.Matrix4();
+const one = new THREE.Vector3(1, 1, 1);
+const pos = new THREE.Vector3();
+
+/**
+ * Every world HP bar in three instanced draw calls (D-044): backs, fills (team colour per
+ * instance) and segment ticks. Each frame `update` faces them to the camera and writes the
+ * instance matrices; level badges are a few small meshes of their own.
+ */
+export class HpBars {
+  readonly group = new THREE.Group();
+  private readonly bars: HpBar[] = [];
+  private backs!: THREE.InstancedMesh;
+  private fills!: THREE.InstancedMesh;
+  private tickMesh!: THREE.InstancedMesh;
+  private readonly backMat = overlay(DARK);
+  private readonly fillMat = overlay(0xffffff);
+  private readonly tickMat = overlay(DARK);
+
+  constructor(private capacity = 64, private tickCapacity = 256) {
+    this.build();
+  }
+
+  create(kind: Kind, team: Team): HpBar {
+    const bar = new HpBar(kind, team, this);
+    this.bars.push(bar);
+    if (this.bars.length > this.capacity) {
+      this.capacity *= 2;
+      this.build();
     }
+    return bar;
+  }
+
+  remove(bar: HpBar) {
+    const i = this.bars.indexOf(bar);
+    if (i >= 0) this.bars.splice(i, 1);
+    if (bar.badge) {
+      this.group.remove(bar.badge);
+      (bar.badge.material as THREE.Material).dispose();
+    }
+  }
+
+  addBadge(): THREE.Mesh {
+    const badge = new THREE.Mesh(badgeQuad, new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false }));
+    badge.matrixAutoUpdate = false;
+    badge.renderOrder = 12;
+    badge.frustumCulled = false;
+    this.group.add(badge);
+    return badge;
+  }
+
+  /** Faces every bar to the camera and writes the instances (call after the camera moved). */
+  update(camera: THREE.Camera): void {
+    let backs = 0;
+    let fills = 0;
+    let ticks = 0;
+    for (const bar of this.bars) {
+      if (bar.badge) bar.badge.visible = bar.visible;
+      if (!bar.visible) continue;
+      pos.set(bar.x, bar.y, bar.z);
+      base.compose(pos, camera.quaternion, one);
+      const left = -bar.width / 2;
+      part.makeScale(bar.width + BORDER * 2, bar.height + BORDER * 2, 1).setPosition(left - BORDER, 0, 0);
+      this.backs.setMatrixAt(backs++, part.premultiply(base));
+      if (bar.fill > 0) {
+        part.makeScale(Math.max(1e-3, bar.width * bar.fill), bar.height, 1).setPosition(left, 0, 0);
+        this.fills.setMatrixAt(fills, part.premultiply(base));
+        this.fills.setColorAt(fills++, bar.colour);
+      }
+      const tw = bar.segmentHp > UNIT_SEGMENT_HP ? 0.04 : 0.022;
+      for (const t of bar.ticks) {
+        if (ticks >= this.tickCapacity) {
+          this.tickCapacity *= 2;
+          this.build();
+          this.update(camera);
+          return;
+        }
+        part.makeScale(tw, bar.height, 1).setPosition(left + bar.width * t - tw / 2, 0, 0);
+        this.tickMesh.setMatrixAt(ticks++, part.premultiply(base));
+      }
+      if (bar.badge) {
+        const size = bar.height * 2.4;
+        part.makeScale(size, size, 1).setPosition(left - BORDER - size / 2, 0, 0);
+        bar.badge.matrix.multiplyMatrices(base, part);
+        bar.badge.matrixWorldNeedsUpdate = true;
+      }
+    }
+    this.backs.count = backs;
+    this.fills.count = fills;
+    this.tickMesh.count = ticks;
+    this.backs.instanceMatrix.needsUpdate = true;
+    this.fills.instanceMatrix.needsUpdate = true;
+    if (this.fills.instanceColor) this.fills.instanceColor.needsUpdate = true;
+    this.tickMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** (Re)creates the instanced meshes at the current capacities. */
+  private build() {
+    for (const m of [this.backs, this.fills, this.tickMesh]) if (m) this.group.remove(m);
+    const make = (mat: THREE.Material, n: number, order: number) => {
+      const m = new THREE.InstancedMesh(unitQuad, mat, n);
+      m.count = 0;
+      m.frustumCulled = false;
+      m.renderOrder = order;
+      this.group.add(m);
+      return m;
+    };
+    this.backs = make(this.backMat, this.capacity, 10);
+    this.fills = make(this.fillMat, this.capacity, 11);
+    this.fills.setColorAt(0, fillColour[Team.Blue]); // allocates the colour buffer
+    this.tickMesh = make(this.tickMat, this.tickCapacity, 12);
   }
 }

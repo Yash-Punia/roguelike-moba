@@ -220,7 +220,8 @@ export function createBot(player: PlayerId, team: Team, getConfig: () => Config,
         state.nextDecision = tick + b.decisionSeconds;
         let best: Exclude<BotMode, 'dead'> = 'contest';
         let bestScore = -1;
-        for (const m of MODES) {
+        for (let mi = 0; mi < MODES.length; mi++) {
+          const m = MODES[mi]!;
           const s = desires[m] + (m === state.mode && tick < state.committedUntil ? b.commitBonus : 0);
           if (s > bestScore) {
             best = m;
@@ -283,7 +284,8 @@ export function createBot(player: PlayerId, team: Team, getConfig: () => Config,
         dx /= d;
         dy /= d;
         // Round structures, not through them (shared with minions).
-        for (const e of snap.entities) {
+        for (let i = 0; i < snap.entities.length; i++) {
+          const e = snap.entities[i]!;
           if (e.kind !== Kind.SubBase && e.kind !== Kind.HQ) continue;
           const fp = cfg.structures[e.kind === Kind.HQ ? 'hq' : 'subBase'].footprint;
           const rad = fp.shape === 'circle' ? fp.r : Math.max(fp.w, fp.h) / 2;
@@ -303,7 +305,8 @@ export function createBot(player: PlayerId, team: Team, getConfig: () => Config,
         if (target?.kind === Kind.Champion) cmd.ult = FIGHTING.has(mode) || target.hp / target.maxHp < 0.6 || state.confidence > 0.2;
         else if (target?.kind === Kind.Minion && (mode === 'push' || mode === 'siege' || mode === 'contest' || mode === 'defend')) {
           let near = 0;
-          for (const e of snap.entities) {
+          for (let i = 0; i < snap.entities.length; i++) {
+            const e = snap.entities[i]!;
             if (e.kind === Kind.Minion && e.team !== team && e.hp > 0 && len(e.x - target.x, e.y - target.y) <= b.ult.clusterRadius) near++;
           }
           cmd.ult = near >= b.ult.minionCluster;
