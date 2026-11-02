@@ -12,25 +12,325 @@ const positive = () => z.number().positive();
 
 const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
+  /** Respawn timer (GDD §9): base + perLevel × level, capped. Stays in seconds: level is runtime. */
+  respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive() }),
+  /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9). */
+  spawnPad: z.object({ radius: positive(), healPctPerSecond: pct() }),
+});
+
+/** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */
+const Weapon = z.object({
+  kind: z.enum(['bullet', 'flak']),
+  damage: positive(),
+  interval: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
+  range: positive(),
+  projectileSpeed: positive(),
+  spread: deg().default(0),
+  /** Targets hit per shot (HQ flak hits 2). */
+  targets: z.number().int().min(1).default(1),
+});
+
+/** Auto-target classes in the order an Ultimate prefers them (GDD §6). */
+const UltTargetClass = z.enum(['champion', 'hq', 'subBase', 'minion', 'neutral']);
+
+/** Alpha's Frag Grenade (GDD §7, TDD §6.5): a lob to the target's spot, a blast, then a fire pool. */
+const FragGrenade = z.object({
+  id: z.literal('fragGrenade'),
+  castRange: positive(),
+  targetOrder: z.array(UltTargetClass).min(1),
+  flightSeconds: secs().refine((t) => t >= 1, 'flight must be at least one tick'),
+  /** Apex height of the lob (render only). */
+  arcHeight: z.number().nonnegative(),
+  radius: positive(),
+  damage: z.number().nonnegative(),
+  damagePerLevel: z.number().nonnegative(),
+  zone: z.object({
+    radius: positive(),
+    seconds: secs(),
+    dps: z.number().nonnegative(),
+    dpsPerLevel: z.number().nonnegative(),
+    /** Share of the fire's damage structures take. */
+    structurePct: pct(),
+    /** The pool hits every this often for dps × tickSeconds (readable damage numbers). */
+    tickSeconds: secs().refine((t) => t >= 1, 'tick must be at least one tick'),
+  }),
 });
 
 const Champion = z.object({
   id: z.string(),
   name: z.string(),
+  maxHp: positive(),
   moveSpeed: positive(),
   radius: positive(),
+  /** Seconds for the Ultimate to charge 0 → 100% from the passive gain alone. */
+  ultChargeSeconds: secs(),
+  /** Per-level growth on top of level 1 (GDD §7). */
+  growth: z.object({ hpPct: pct(), damagePct: pct() }),
+  weapon: Weapon,
+  /** Alpha's Steady Hand (GDD §7): still this long → + fire rate until moving again. */
+  trait: z.object({ id: z.literal('steadyHand'), stillSeconds: secs(), fireRatePct: pct() }),
+  ultimate: FragGrenade,
 });
 
+/** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
+const Surface = z.enum(['dirt', 'grass', 'trench', 'arena', 'crater']);
+
+// Walkable shapes from the concept map spec (D-018). Painted in array order: where shapes
+// overlap, the later one decides the surface and render height. `height` is render-only.
+const shapeBase = { id: z.string(), surface: Surface, height: z.number().default(0) };
+const WalkShape = z.discriminatedUnion('shape', [
+  // Catmull-Rom curve through `points`, swept to `width`. `endHeight` slopes the floor (ramps).
+  z.object({ shape: z.literal('path'), ...shapeBase, width: positive(), points: z.array(vec).min(2), endHeight: z.number().optional() }),
+  // w, h are full sizes, not semi-axes.
+  z.object({ shape: z.literal('ellipse'), ...shapeBase, x: z.number(), y: z.number(), w: positive(), h: positive() }),
+  // `centreHeight` makes a bowl: `height` at the rim, `centreHeight` in the middle.
+  z.object({ shape: z.literal('circle'), ...shapeBase, x: z.number(), y: z.number(), r: positive(), centreHeight: z.number().optional() }),
+  z.object({ shape: z.literal('rect'), ...shapeBase, x: z.number(), y: z.number(), w: positive(), h: positive() }),
+]);
+
+const TeamName = z.enum(['blue', 'red']);
+const StructureKind = z.enum(['subBase', 'hq']);
+
 const MapConfig = z.object({
+  id: z.string(),
   bounds: z.object({ minX: z.number(), maxX: z.number(), minY: z.number(), maxY: z.number() }),
   gridCell: positive(),
-  laneWidth: positive(),
-  lanes: z.array(z.object({ x: z.number() })),
-  hq: z.object({ blue: vec, red: vec }),
+  /** Catmull-Rom samples per control-point segment. */
+  splineSamples: z.number().int().min(1),
   spawn: z.object({ blue: vec, red: vec }),
-  obstacles: z.array(
-    z.object({ kind: z.enum(['hq', 'sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
+  /** Structure placements from the map spec; their stats and footprints are in `structures`. */
+  structures: z.array(
+    z.object({ id: z.string(), kind: StructureKind, team: TeamName, lane: z.string().optional(), x: z.number(), y: z.number() }),
   ),
+  /** Everything not covered by a walkable shape is raised jungle ground: blocked. */
+  walkable: z.array(WalkShape).min(1),
+  /**
+   * Minion lanes: route steps from the Blue end to the Red end, each listing the `path` shapes
+   * that can be taken there (two at a branch). Red walks the same routes reversed.
+   */
+  lanes: z.array(z.object({ id: z.string(), route: z.array(z.array(z.string()).min(1)).min(1) })).default([]),
+  /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
+  obstacles: z.array(
+    z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
+  ),
+});
+
+// Footprint is stamped into the obstacle grid (units walk round it); `radius` is the
+// collider used for targeting and hits, measured to its edge (GDD §6).
+const Footprint = z.discriminatedUnion('shape', [
+  z.object({ shape: z.literal('circle'), r: positive() }),
+  z.object({ shape: z.literal('rect'), w: positive(), h: positive() }),
+]);
+const StructureDef = z.object({
+  name: z.string(),
+  maxHp: positive(),
+  radius: positive(),
+  footprint: Footprint,
+  weapon: Weapon,
+  /** Heals `rules.regenPctPerSecond` while no enemy is near (GDD §5: the HQ only, D-036). */
+  regen: z.boolean(),
+});
+/** Structure rules shared by every structure (GDD §5, TDD §6.7). */
+const StructureRules = z.object({
+  /** Extra damage per consecutive shot at the same champion, up to the max. */
+  warmupPct: pct(),
+  warmupMaxPct: pct(),
+  /** Warm-up resets after this long without firing. */
+  warmupResetSeconds: secs(),
+  /** With no enemy minion this close, the structure takes `backdoorPct` less damage. */
+  backdoorRadius: positive(),
+  backdoorPct: pct(),
+  regenPctPerSecond: pct(),
+  /** Regen pauses while any enemy unit is this close. */
+  regenClearRadius: positive(),
+});
+const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });
+
+/** Lane minions (GDD §5). Ranges in metres to collider edges; `leash` is the distance from the lane. */
+const MinionDef = z.object({
+  name: z.string(),
+  maxHp: positive(),
+  radius: positive(),
+  moveSpeed: positive(),
+  weapon: Weapon,
+  /** Notices and walks to targets this close. */
+  acquireRange: positive(),
+  /** Gives up a chase that would take it this far from its lane. */
+  leash: positive(),
+  /** An enemy champion hitting an allied champion within `radius` pulls these minions onto it for `seconds`. */
+  callForHelp: z.object({ radius: positive(), seconds: secs() }),
+});
+const Units = z.object({ mgSoldier: MinionDef });
+
+/** XP and levels (GDD §8). */
+const Progression = z.object({
+  /** XP from each level to the next: [1→2, 2→3, …]. The max level is its length + 1. */
+  xpPerLevel: z.array(positive()).min(1),
+  /** A minion's XP is split between allied champions within this distance of where it fell. */
+  shareRadius: positive(),
+  minionXp: z.object({ mgSoldier: z.number().nonnegative() }),
+  /** Champion takedown: base + perVictimLevel × victim level, plus a bonus for the killer. */
+  championKill: z.object({ base: z.number().nonnegative(), perVictimLevel: z.number().nonnegative(), killerBonus: z.number().nonnegative() }),
+  /** Whole-team XP for destroying a structure. */
+  structureXp: z.object({ subBase: z.number().nonnegative() }),
+  /** Ultimate charge from kills, in points of the 0–100 meter (GDD §8). */
+  ultCharge: z.object({
+    /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
+    minion: z.object({ mgSoldier: z.number().nonnegative() }),
+    minionRadius: positive(),
+    /** The champion who lands a takedown (killer only until assists, D-024). */
+    championTakedown: z.number().nonnegative(),
+  }),
+});
+
+/** Stats a power's `stat` effect can raise (TDD §5 stat formula); names map to `Stat` in the sim. */
+const StatName = z.enum(['damage', 'fireRate', 'maxHp', 'moveSpeed', 'range', 'damageTaken', 'ultCharge', 'damageVsChampions', 'damageVsStructures']);
+
+/** Effect records (TDD §5): powers are data that a few generic systems understand. */
+const Effect = z.discriminatedUnion('type', [
+  /** + pct to a stat, per stack. */
+  z.object({ type: z.literal('stat'), stat: StatName, pct: pct() }),
+  /** Heal pctPerSecond of max HP while out of combat for outOfCombatSeconds (Field Medic). */
+  z.object({ type: z.literal('regen'), pctPerSecond: pct(), outOfCombatSeconds: secs() }),
+]);
+
+const Rarity = z.enum(['common', 'rare', 'epic']);
+
+const Power = z.object({
+  id: z.string(),
+  name: z.string(),
+  rarity: Rarity,
+  /** 'all', or a champion id for signature powers. */
+  pool: z.string(),
+  /** For the recommendation (tag overlap with owned powers) and bot drafting. */
+  tags: z.array(z.string()),
+  /** One line of card copy. */
+  text: z.string(),
+  effects: z.array(Effect).min(1),
+});
+
+/** The power catalogue and draft rules (GDD §8, TDD §6.10). */
+const Powers = z.object({
+  draft: z.object({
+    cards: z.number().int().min(1),
+    /** An unanswered offer takes the recommended card after this long. */
+    autoPickSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+    /** Offers waiting behind the live one; one more auto-picks the oldest. */
+    maxQueued: z.number().int().min(0),
+    stackCaps: z.object({ common: z.number().int().min(1), rare: z.number().int().min(1), epic: z.number().int().min(1) }),
+  }),
+  powers: z.array(Power).min(1),
+});
+
+const range = () => z.tuple([z.number(), z.number()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+const pctRange = () => z.tuple([pct(), pct()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+const secsRange = () => z.tuple([z.number().nonnegative(), z.number().nonnegative()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+
+/**
+ * The lane bot (TDD §7; bot v2, D-043): utility modes over a lane read, a personality rolled
+ * per match from these ranges, and a confidence that shifts with kills and deaths.
+ */
+const Bots = z.object({
+  /** How often it re-scores its modes. */
+  decisionSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+  /** Added to the current mode's desire while its patience lasts (hysteresis). */
+  commitBonus: z.number().nonnegative(),
+  /** Considers fighting an enemy champion this close (m). */
+  tradeRange: positive(),
+  /** Keeps this much further out than an enemy structure's range when it may not go in (m). */
+  towerMargin: z.number().nonnegative(),
+  personality: z.object({
+    /** Weights trading, all-ins and pushing. */
+    aggression: range(),
+    /** Accepts worse fights and near-certain tower dives. */
+    riskTolerance: range(),
+    retreatHpPct: pctRange(),
+    returnHpPct: pctRange(),
+    /** Preferred share of its weapon range to fight at. */
+    spacingPct: pctRange(),
+    /** Sideways weave while fighting (m), and its period. */
+    weaveAmplitude: range(),
+    weavePeriodSeconds: range(),
+    /** How long it commits to a mode once chosen. */
+    patienceSeconds: secsRange(),
+  }),
+  /** A mood that rises with success and falls with failure, decaying back to 0. */
+  confidence: z.object({
+    kill: z.number(),
+    death: z.number(),
+    towerDamagePer1000: z.number(),
+    halfLifeSeconds: positive(),
+    min: z.number(),
+    max: z.number(),
+  }),
+  /** Now and then it stops briefly, like a human hesitating. */
+  hesitation: z.object({ chance: z.number().min(0).max(1), minSeconds: z.number().nonnegative(), maxSeconds: z.number().nonnegative() }),
+  lane: z.object({
+    /** Minions this close to the clash count towards wave advantage (m). */
+    clashWindow: positive(),
+    /** How far ahead of its own wave it may contest or push (m). */
+    aheadOfWave: z.number().nonnegative(),
+    /** Holds this far in front of its own Sub-base with no wave (m). */
+    holdAhead: z.number().nonnegative(),
+    /** Enemy minions this close would turn on it for hitting their champion (GDD §5 call for help). */
+    callForHelpRadius: positive(),
+    /** Goes all in when it can kill the enemy champion within this long and faster than it dies (s). */
+    allInSeconds: positive(),
+  }),
+  /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
+  ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),
+});
+
+/** Minion waves (GDD §5, TDD §6.6). */
+const Waves = z.object({
+  enabled: z.boolean(),
+  firstSeconds: secs(),
+  intervalSeconds: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
+  soldiers: z.number().int().min(0),
+  /** Gap between soldiers in a wave's row (m). */
+  spacing: z.number().nonnegative(),
+  /** Lane ids (from `map.lanes`) that get waves. */
+  lanes: z.array(z.string()),
+});
+
+const nonneg = () => z.number().nonnegative();
+
+/** Auto-targeting tuning (GDD §6, TDD §6.2). Distances in metres, measured to collider edges. */
+const Combat = z.object({
+  targeting: z.object({
+    /** Keep the current target while within weapon range + this. */
+    stickyRange: nonneg(),
+    /** Within the same class, switch only to a unit this much nearer. */
+    sameClassSwitch: nonneg(),
+    /** Units this close to the nearest count as tied; the lowest HP% wins. */
+    tieBand: nonneg(),
+    /** A higher class must stay in range this long before it overrides the current target. */
+    overrideSeconds: secs(),
+    /** Hold fire this long after the current target dies. */
+    retargetPauseSeconds: secs(),
+  }),
+  /** Aiming and bullets (TDD §6.3). */
+  weapons: z.object({
+    /** Upper-body aim turn speed, degrees per second. */
+    aimTurnRate: deg(),
+    /** Fire only when the aim is within this many degrees of the target. */
+    fireCone: deg(),
+    /** lead: straight, aimed where the target will be; direct: straight at where it is; homing: curves onto its target and ignores everything else (D-030). */
+    bulletAim: z.enum(['lead', 'direct', 'homing']),
+    /** Bullet collision radius (m), added to each unit's collider in the swept hit test. */
+    bulletRadius: positive(),
+    /** A bullet flies the shooter's range plus this far before it expires (m). */
+    bulletOvershoot: nonneg(),
+  }),
+  /** Damage pipeline (TDD §6.4). */
+  damage: z.object({
+    /** Keep at least this much damage history (assists look back 8 s, GDD §7). */
+    logSeconds: secs(),
+    /** Invulnerability after a lethal save (Last Stand: 45 ticks). */
+    lethalSaveSeconds: secs(),
+    /** Damage × this on a critical hit. */
+    critMultiplier: z.number().min(1),
+  }),
 });
 
 // Camera runs in real time (render), so its seconds stay seconds.
@@ -56,6 +356,13 @@ export const ConfigSchema = z.object({
   match: Match,
   champions: z.array(Champion).min(1),
   map: MapConfig,
+  structures: Structures,
+  units: Units,
+  waves: Waves,
+  progression: Progression,
+  powers: Powers,
+  bots: Bots,
+  combat: Combat,
   camera: Camera,
   input: Input,
 });
@@ -63,5 +370,15 @@ export const ConfigSchema = z.object({
 export type RawConfig = z.input<typeof ConfigSchema>;
 export type Config = z.output<typeof ConfigSchema>;
 export type MapConfig = Config['map'];
+export type WalkShape = MapConfig['walkable'][number];
+export type SurfaceKind = z.output<typeof Surface>;
+export type StructureKind = z.output<typeof StructureKind>;
+export type StructureDef = z.output<typeof StructureDef>;
+export type MinionDef = z.output<typeof MinionDef>;
+export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;
+export type WeaponConfig = z.output<typeof Weapon>;
+export type UltTargetClass = z.output<typeof UltTargetClass>;
+export type PowerDef = z.output<typeof Power>;
+export type StatName = z.output<typeof StatName>;

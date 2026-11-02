@@ -24,7 +24,7 @@ export function fnv1a(text: string): number {
 /** Independent named streams, so a new random call in one system never shifts another. */
 export function createStreams(seed: number) {
   const stream = (name: string) => mulberry32(fnv1a(`${seed}:${name}`));
-  return { draft: stream('draft'), ai: stream('ai'), spread: stream('spread') };
+  return { draft: stream('draft'), ai: stream('ai'), spread: stream('spread'), crit: stream('crit') };
 }
 
 export type Streams = ReturnType<typeof createStreams>;

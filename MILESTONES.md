@@ -44,24 +44,28 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (GDD §13).
 
+Build order (D-024), so each commit is playable: map v2 → centre lane and structures → Health/TargetClass/Weapon/Targeting → auto-targeting → projectiles → damage pipeline → Alpha → death and respawn → MG Soldier waves → structure rules → XP and levels → win/lose → minimal HUD → Ultimate charge → basic draft → bot. Pulled in from M3 in minimal form: respawn formula, solo champion-kill XP and charge, spawn-pad heal. Work happens on `wip/m2` (D-021).
+
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | |
-| `[ ]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | |
-| `[ ]` | Health, `TargetClass`, `Weapon`, `Targeting` components | |
-| `[ ]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | |
-| `[ ]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | |
-| `[ ]` | Damage pipeline in fixed order (TDD §6.4) + unit tests | |
-| `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet | |
-| `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |
-| `[ ]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen | |
-| `[ ]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache | |
-| `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
-| `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button | |
-| `[ ]` | Death and respawn at HQ | |
-| `[ ]` | One simple bot opponent (farm / trade / retreat) | |
-| `[ ]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars | |
-| `[ ]` | Win/lose on HQ destruction | |
+| `[t]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | 280dada |
+| `[t]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | f346375 |
+| `[c]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
+| `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
+| `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
+| `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
+| `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | 64691d5 |
+| `[c]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet (D-035) | f2f9bb3 |
+| `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
+| `[c]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | 2bee6ad |
+| `[c]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only; stack caps and the 2-offer queue pulled forward (D-041) | 5c157f5 |
+| `[c]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button: kill charge and the brass gauge (D-040; passive and `ultTargetable` came with Alpha, D-033) | 1f0b4ec |
+| `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
+| `[c]` | One simple bot opponent (farm / trade / retreat), with a simple Ultimate; the default match is you vs the bot (D-042); v2 after playtest: utility modes, wave play and pushes, per-match personality and confidence, random seed per load (D-043) | 5b1b973 |
+| `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
+| `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
+
+**Gate 1 performance pass (D-044, committed `[c]`):** busy single-lane scene (seed 11, 15 units) went from 444 draw calls / 201k triangles to 91 / 76k (mobile budget ≤ 120 / ≤ 150k); sim 0.06 ms average, 0.23 ms p99 per tick. The dev perf overlay (`?debug`) shows fps, frame times, draw calls and triangles for the on-device check.
 
 **Gate 1 exit criteria:** the user plays the single lane and confirms positioning decides trades; holds 60 fps on desktop and a mid-range phone. If the gate fails, fix the core before M3.
 
@@ -84,7 +88,7 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 | `[ ]` | Full v1 power catalogue as effect records + generic effect systems | |
 | `[ ]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation | |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
-| `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) | |
+| `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
 | `[ ]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count | |
 
@@ -120,7 +124,7 @@ Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (G
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[ ]` | Audio: Howler sprites, event mapping, voice limits, music + Sudden Death crossfade | |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |
-| `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay | |
+| `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
 | `[ ]` | Telemetry recorder + JSON export from Results screen | |
 | `[ ]` | Replays: command log, keyframes, scrubbing | |
 | `[ ]` | `npm run soak` headless bot matches with report | |

@@ -2,7 +2,7 @@ import type { MapConfig } from '../../data/schema';
 import type { Store } from '../ecs';
 import { isBlocked, type ObstacleGrid } from '../grid';
 import { atan2, len } from '../math';
-import type { Collider, Motion, Transform } from '../sim';
+import type { Collider, Health, Motion, Transform } from '../sim';
 
 const RESOLVE_PASSES = 3;
 
@@ -15,6 +15,7 @@ export function movementSystem(
   motions: Store<Motion>,
   transforms: Store<Transform>,
   colliders: Store<Collider>,
+  healths: Store<Health>,
   grid: ObstacleGrid,
   bounds: MapConfig['bounds'],
   dt: number,
@@ -24,6 +25,11 @@ export function movementSystem(
     const m = motions.data[i]!;
     const t = transforms.get(e);
     if (!t) continue;
+    const h = healths.get(e);
+    if (h && h.hp <= 0) {
+      m.vx = m.vy = 0; // knocked out: stays where it fell
+      continue;
+    }
     const r = colliders.get(e)?.radius ?? 0;
 
     let ix = m.intentX;

@@ -1,0 +1,26 @@
+{
+  "draft": {
+    "cards": 3,
+    "autoPickSeconds": 10,
+    "maxQueued": 2,
+    "stackCaps": { "common": 3, "rare": 2, "epic": 1 }
+  },
+  "powers": [
+    { "id": "rapidFire", "name": "Rapid Fire", "rarity": "common", "pool": "all", "tags": ["damage", "fireRate"], "text": "+12% fire rate",
+      "effects": [{ "type": "stat", "stat": "fireRate", "pct": 12 }] },
+    { "id": "hollowPoints", "name": "Hollow Points", "rarity": "common", "pool": "all", "tags": ["damage"], "text": "+12% damage",
+      "effects": [{ "type": "stat", "stat": "damage", "pct": 12 }] },
+    { "id": "fieldRations", "name": "Field Rations", "rarity": "common", "pool": "all", "tags": ["hp"], "text": "+15% max HP",
+      "effects": [{ "type": "stat", "stat": "maxHp", "pct": 15 }] },
+    { "id": "lightBoots", "name": "Light Boots", "rarity": "common", "pool": "all", "tags": ["speed"], "text": "+8% move speed",
+      "effects": [{ "type": "stat", "stat": "moveSpeed", "pct": 8 }] },
+    { "id": "longBarrel", "name": "Long Barrel", "rarity": "common", "pool": "all", "tags": ["range"], "text": "+8% weapon range",
+      "effects": [{ "type": "stat", "stat": "range", "pct": 8 }] },
+    { "id": "flakVest", "name": "Flak Vest", "rarity": "common", "pool": "all", "tags": ["defence"], "text": "−10% damage taken",
+      "effects": [{ "type": "stat", "stat": "damageTaken", "pct": -10 }] },
+    { "id": "fieldMedic", "name": "Field Medic", "rarity": "common", "pool": "all", "tags": ["hp", "sustain"], "text": "Heal 2% max HP/s after 3 s out of combat",
+      "effects": [{ "type": "regen", "pctPerSecond": 2, "outOfCombatSeconds": 3 }] },
+    { "id": "quickCharge", "name": "Quick Charge", "rarity": "common", "pool": "all", "tags": ["ultimate"], "text": "+15% Ultimate charge",
+      "effects": [{ "type": "stat", "stat": "ultCharge", "pct": 15 }] }
+  ]
+}

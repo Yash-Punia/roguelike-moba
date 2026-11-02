@@ -1,0 +1,21 @@
+{
+  "mgSoldier": {
+    "name": "MG Soldier",
+    "maxHp": 300,
+    "radius": 0.35,
+    "moveSpeed": 2.6,
+    "weapon": {
+      "kind": "bullet",
+      "damage": 8,
+      "interval": 0.333,
+      "range": 5,
+      "projectileSpeed": 25
+    },
+    "acquireRange": 7,
+    "leash": 6,
+    "callForHelp": {
+      "radius": 6,
+      "seconds": 3
+    }
+  }
+}

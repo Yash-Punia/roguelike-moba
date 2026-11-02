@@ -3,16 +3,30 @@ import { ConfigSchema, type Config, type RawConfig } from './schema';
 import match from '../../data/match.json';
 import champions from '../../data/champions.json';
 import map from '../../data/map-3lane.json';
+import structures from '../../data/structures.json';
+import units from '../../data/units.json';
+import waves from '../../data/waves.json';
+import progression from '../../data/progression.json';
+import powers from '../../data/powers.json';
+import bots from '../../data/bots.json';
+import combat from '../../data/combat.json';
 import camera from '../../data/camera.json';
 import input from '../../data/input.json';
 
-export const rawConfig: RawConfig = { match, champions, map, camera, input } as RawConfig;
+export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, bots, combat, camera, input } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {
   match: 'match.json',
   champions: 'champions.json',
   map: 'map-3lane.json',
+  structures: 'structures.json',
+  units: 'units.json',
+  waves: 'waves.json',
+  progression: 'progression.json',
+  powers: 'powers.json',
+  bots: 'bots.json',
+  combat: 'combat.json',
   camera: 'camera.json',
   input: 'input.json',
 };
