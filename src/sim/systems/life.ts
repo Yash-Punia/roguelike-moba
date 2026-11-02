@@ -41,7 +41,7 @@ export function deathSystem(ctx: LifeContext, cfg: Config['match']['respawn']) {
     const m = motions.get(e);
     if (m) m.vx = m.vy = m.intentX = m.intentY = 0;
     const t = transforms.get(e)!;
-    events.push({ type: 'death', id: e, killer: h.killer, x: t.x, y: t.y });
+    events.push({ type: 'death', id: e, team: ctx.teams.get(e)!, killer: h.killer, x: t.x, y: t.y });
   }
 }
 

@@ -386,7 +386,7 @@ export function minionDeathSystem(ctx: MinionContext) {
     const h = healths.get(e)!;
     if (h.hp > 0) continue;
     const t = transforms.get(e)!;
-    events.push({ type: 'death', id: e, killer: h.killer, x: t.x, y: t.y });
+    events.push({ type: 'death', id: e, team: ctx.teams.get(e)!, killer: h.killer, x: t.x, y: t.y });
     dead.push(e);
   }
   for (const e of dead) {

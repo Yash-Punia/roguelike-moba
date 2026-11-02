@@ -16,6 +16,7 @@ import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { steadyHandSystem } from './systems/traits';
 import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
+import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import {
   callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnWave, waveDue, type MinionContext,
 } from './systems/minions';
@@ -92,8 +93,9 @@ export interface Champion {
   player: PlayerId;
   /** This champion's config (refreshed on live edits). */
   def: ChampionConfig;
-  /** Level 1–12; 1 until XP arrives (M2 feature 11). */
+  /** Level 1–12 (GDD §8), and the total XP earned. */
   level: number;
+  xp: number;
   /** Ultimate charge, 0–100. */
   ultCharge: number;
   /** The Ultimate's automatic target right now, or 0 (greys the button). */
@@ -193,6 +195,11 @@ export interface EntitySnapshot {
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
   aim: number;
+  /** Champions: level, total XP, and the XP totals where this level starts and the next begins. */
+  level: number;
+  xp: number;
+  xpLevelStart: number;
+  xpLevelEnd: number;
   /** Champions: ticks until redeploying (0 = alive) and who landed the knock-out (0 = none). */
   respawnTicks: number;
   killer: Entity;
@@ -299,12 +306,17 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     h.maxHp = maxHp;
   }
 
-  /** (Re)applies a champion's config: stat bases, then the values derived from them. */
-  function applyChampion(e: Entity, def: ChampionConfig) {
+  /**
+   * (Re)applies a champion's config: stat bases (level growth included, TDD §5), then the
+   * values derived from them. `gainHp` (level-up): a living champion gains the max HP it just
+   * got; otherwise HP keeps its fraction.
+   */
+  function applyChampion(e: Entity, def: ChampionConfig, gainHp = false) {
     const st = stats.get(e)!;
-    st.base[Stat.Damage] = 1;
+    const up = (champions.get(e)?.level ?? 1) - 1;
+    st.base[Stat.Damage] = 1 + def.growth.damagePct * up;
     st.base[Stat.FireRate] = 1;
-    st.base[Stat.MaxHp] = def.maxHp;
+    st.base[Stat.MaxHp] = def.maxHp * (1 + def.growth.hpPct * up);
     st.base[Stat.MoveSpeed] = def.moveSpeed;
     st.base[Stat.Range] = def.weapon.range;
     st.base[Stat.DamageTaken] = 1;
@@ -314,7 +326,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     st.dirty = true;
     motions.get(e)!.speed = stat(st, Stat.MoveSpeed);
     colliders.get(e)!.radius = def.radius;
-    setMaxHp(healths.get(e)!, stat(st, Stat.MaxHp));
+    const h = healths.get(e)!;
+    const maxHp = stat(st, Stat.MaxHp);
+    if (gainHp) {
+      if (h.hp > 0) h.hp += maxHp - h.maxHp;
+      h.maxHp = maxHp;
+    } else {
+      setMaxHp(h, maxHp);
+    }
     const w = weapons.get(e);
     if (w) Object.assign(w, def.weapon);
   }
@@ -338,7 +357,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -392,6 +411,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       return f.shape === 'circle' ? f.r : Math.max(f.w, f.h) / 2;
     },
   };
+  const progressionContext: ProgressionContext = {
+    champions, transforms, healths, teams, spatial, events,
+    onLevelUp: (e) => applyChampion(e, champions.get(e)!.def, true),
+  };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures };
@@ -408,6 +431,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
   /** Percentages set through `debug.setStatPct`, per entity × stat, so they apply as deltas. */
   const debugPct = new Map<number, number>();
+  /** Debug XP grants as [entity, amount (−1 = to the next level)] pairs. */
+  const pendingXp: number[] = [];
 
 
   const snap: Snapshot = { tick: 0, entities: [], projectiles: [], lobs: [], zones: [] };
@@ -423,6 +448,13 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     step(commands: readonly Command[]): StepResult {
       if (tick > 0) events.length = 0;
       respawnSystem(lifeContext, config.map);
+      for (let i = 0; i < pendingXp.length; i += 2) {
+        const e = pendingXp[i]!;
+        const c = champions.get(e);
+        const amount = pendingXp[i + 1]! < 0 && c ? xpForLevel(config.progression, c.level + 1) - c.xp : pendingXp[i + 1]!;
+        grantXp(progressionContext, config.progression, e, amount);
+      }
+      pendingXp.length = 0;
       for (const c of commands) {
         const e = playerEntity[c.player];
         const m = e === undefined ? undefined : motions.get(e);
@@ -453,11 +485,13 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       lobSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
+      const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn);
       minionDeathSystem(minionContext);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       structureDeathSystem(structureContext);
+      progressionSystem(progressionContext, config.progression, events, progressionFrom);
       structureRegenSystem(structureContext, config.structures);
       tick++;
       return { tick, events };
@@ -473,7 +507,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -494,6 +528,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
         const c = champions.get(e);
+        s.level = c?.level ?? 0;
+        s.xp = c?.xp ?? 0;
+        s.xpLevelStart = c ? xpForLevel(config.progression, c.level) : 0;
+        s.xpLevelEnd = c ? xpForLevel(config.progression, c.level + 1) : 0;
         s.respawnTicks = c?.respawnTicks ?? 0;
         s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
@@ -629,6 +667,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       /** A lethal hit through the normal damage pipeline (a lethal save still applies). */
       kill(e: Entity) {
         hits.push(0, e, 1e12);
+      },
+      /** Queued for the start of the next step, so its `levelUp` events reach that step's listeners. */
+      giveXp(e: Entity, amount: number) {
+        pendingXp.push(e, amount);
+      },
+      /** Grants exactly the XP to the next level (next step). */
+      levelUp(e: Entity) {
+        pendingXp.push(e, -1);
       },
       fillUltimate(e: Entity) {
         const c = champions.get(e);

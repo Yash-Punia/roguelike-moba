@@ -17,6 +17,8 @@ export const damageColours = {
   /** Damage to enemies. */
   enemy: hex(palette.hazard),
   absorbed: '#b8b4aa',
+  /** Level-up callouts. */
+  level: hex(palette.brass),
 };
 
 interface Floater {

@@ -112,6 +112,7 @@ export function createScene(container: HTMLElement, config: Config) {
         bars.set(e.id, bar);
       }
       bar?.set(e.hp, e.maxHp);
+      if (bar && e.kind === Kind.Champion) bar.setLevel(e.level);
       if (bar) bar.group.visible = e.hp > 0;
       // A jump this big in one tick is a teleport (respawn): don't streak across the map.
       if (Math.abs(e.x - s.x) + Math.abs(e.y - s.y) > SNAP_DISTANCE) {
@@ -151,6 +152,14 @@ export function createScene(container: HTMLElement, config: Config) {
     const now = performance.now();
     for (const ev of events) {
       if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'levelUp') {
+        const s = interp.get(ev.id);
+        if (s) {
+          ultFx.levelUp(s.x, s.y, now);
+          const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
+          damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, `LEVEL ${ev.level}`, damageColours.level, true, now);
+        }
+      }
       if (ev.type === 'structureDestroyed') {
         // Roof caves in: a dust and smoke column (GDD §11), then rubble for the rest of the match.
         ultFx.smoke(ev.x, ev.y, 3.2, palette.smoke, 10, now);

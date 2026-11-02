@@ -162,6 +162,19 @@ const MinionDef = z.object({
 });
 const Units = z.object({ mgSoldier: MinionDef });
 
+/** XP and levels (GDD §8). */
+const Progression = z.object({
+  /** XP from each level to the next: [1→2, 2→3, …]. The max level is its length + 1. */
+  xpPerLevel: z.array(positive()).min(1),
+  /** A minion's XP is split between allied champions within this distance of where it fell. */
+  shareRadius: positive(),
+  minionXp: z.object({ mgSoldier: z.number().nonnegative() }),
+  /** Champion takedown: base + perVictimLevel × victim level, plus a bonus for the killer. */
+  championKill: z.object({ base: z.number().nonnegative(), perVictimLevel: z.number().nonnegative(), killerBonus: z.number().nonnegative() }),
+  /** Whole-team XP for destroying a structure. */
+  structureXp: z.object({ subBase: z.number().nonnegative() }),
+});
+
 /** Minion waves (GDD §5, TDD §6.6). */
 const Waves = z.object({
   enabled: z.boolean(),
@@ -240,6 +253,7 @@ export const ConfigSchema = z.object({
   structures: Structures,
   units: Units,
   waves: Waves,
+  progression: Progression,
   combat: Combat,
   camera: Camera,
   input: Input,

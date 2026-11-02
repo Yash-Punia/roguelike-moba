@@ -26,6 +26,8 @@ const flameOuterMat = new THREE.MeshBasicMaterial({ color: palette.fire });
 const flameInnerMat = new THREE.MeshBasicMaterial({ color: palette.muzzle });
 const flashGeo = new THREE.IcosahedronGeometry(1, 1);
 const smokeGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+const pillarGeo = new THREE.CylinderGeometry(0.55, 0.7, 2.4, 16, 1, true).translate(0, 1.2, 0);
+const LEVEL_FLASH_MS = 600;
 
 interface Lob {
   telegraph: THREE.Group;
@@ -57,6 +59,7 @@ export class UltFx {
   private readonly lobs = new Map<number, Lob>();
   private readonly pools = new Map<number, Pool>();
   private blasts: Blast[] = [];
+  private flashes: { ring: THREE.Mesh; pillar: THREE.Mesh; born: number }[] = [];
   private readonly seen = new Set<number>();
 
   constructor(private readonly heightAt: HeightAt) {}
@@ -128,7 +131,36 @@ export class UltFx {
     this.blasts.push({ flash, smoke, born: now, radius });
   }
 
+  /** Level-up flash (GDD §10) at sim (x, y): a brass ring spreading at the feet and a rising pillar of light. */
+  levelUp(x: number, y: number, now: number) {
+    const h = this.heightAt(x, y);
+    const ring = new THREE.Mesh(ringGeo, basic(palette.brass, 0.9));
+    ring.position.set(x, h + 0.06, -y);
+    const pillar = new THREE.Mesh(pillarGeo, basic(palette.muzzle, 0.45));
+    pillar.position.set(x, h, -y);
+    this.group.add(ring, pillar);
+    this.flashes.push({ ring, pillar, born: now });
+  }
+
   update(alpha: number, now: number) {
+    if (this.flashes.length) {
+      const keep: typeof this.flashes = [];
+      for (const f of this.flashes) {
+        const t = (now - f.born) / LEVEL_FLASH_MS;
+        if (t >= 1) {
+          this.group.remove(f.ring, f.pillar);
+          (f.ring.material as THREE.Material).dispose();
+          (f.pillar.material as THREE.Material).dispose();
+          continue;
+        }
+        f.ring.scale.setScalar(0.4 + 1.2 * t);
+        (f.ring.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - t);
+        f.pillar.scale.set(1 - 0.5 * t, 0.3 + 1.7 * t, 1 - 0.5 * t);
+        (f.pillar.material as THREE.MeshBasicMaterial).opacity = 0.45 * (1 - t);
+        keep.push(f);
+      }
+      this.flashes = keep;
+    }
     for (const fx of this.lobs.values()) {
       const { x0, y0, x1, y1, elapsed, total, arcHeight } = fx.snap;
       const t = Math.min(1, (elapsed + alpha) / total);

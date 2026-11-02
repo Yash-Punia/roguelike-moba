@@ -26,6 +26,28 @@ const fillMat: Record<Team, THREE.MeshBasicMaterial> = {
   [Team.Neutral]: flat(palette.hazard),
 };
 
+/** One shared texture per level number: white digits on the bar's dark back. */
+const levelTextures = new Map<number, THREE.CanvasTexture>();
+function levelTexture(level: number): THREE.CanvasTexture {
+  let tex = levelTextures.get(level);
+  if (tex) return tex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#1b1a17';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#ffffff';
+  g.font = '800 44px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(String(level), 32, 35);
+  tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  levelTextures.set(level, tex);
+  return tex;
+}
+const badgeQuad = new THREE.PlaneGeometry(1, 1);
+
 /** A world-space HP bar: dark back, team-colour fill and a tick every 250 HP. Billboarded by the scene. */
 export class HpBar {
   readonly group = new THREE.Group();
@@ -36,6 +58,8 @@ export class HpBar {
   private readonly height: number;
   private readonly segmentHp: number;
   private maxHp = -1;
+  private badge: THREE.Mesh | undefined;
+  private level = 0;
 
   constructor(kind: Kind, team: Team) {
     const { width, height, lift } = sizes[kind];
@@ -52,6 +76,22 @@ export class HpBar {
     this.fill.position.x = -width / 2;
     this.fill.renderOrder = 11;
     this.group.add(back, this.fill, this.ticks);
+  }
+
+  /** Shows the level in a square badge at the bar's left end (champions). */
+  setLevel(level: number) {
+    if (level === this.level) return;
+    this.level = level;
+    if (!this.badge) {
+      const size = this.height * 2.4;
+      this.badge = new THREE.Mesh(badgeQuad, new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false }));
+      this.badge.scale.set(size, size, 1);
+      this.badge.position.x = -this.width / 2 - BORDER - size / 2;
+      this.badge.renderOrder = 12;
+      this.group.add(this.badge);
+    }
+    (this.badge.material as THREE.MeshBasicMaterial).map = levelTexture(level);
+    (this.badge.material as THREE.MeshBasicMaterial).needsUpdate = true;
   }
 
   set(hp: number, maxHp: number) {

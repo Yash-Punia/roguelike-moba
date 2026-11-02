@@ -56,8 +56,8 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
 | `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | 64691d5 |
 | `[c]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet (D-035) | f2f9bb3 |
-| `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | |
-| `[ ]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache | |
+| `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
+| `[c]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | |
 | `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
 | `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button (passive charge, `ultTargetable` and a temporary button already in with Alpha, D-033) | |
 | `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |

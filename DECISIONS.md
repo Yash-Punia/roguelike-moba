@@ -447,3 +447,27 @@ From TDD §13:
   - **Debug:** F1 → Structures → "Destroy enemy centre Sub-base" and an "HQ shields" toggle. Test arenas keep structures unarmed and HQs ungated unless a test asks (`armed`, `shielded`), with backdoor and regen off, so older combat tests keep their numbers.
 - Why: diving is now risky and minions matter, and the lane order (Sub-base before HQ) is enforced.
 - Alternatives: re-picking the nearest minion every tick (rejected by the user); Sub-base regen above 50% (the user read "None" literally); instant-hit flak.
+
+## D-037 — XP, levels and stat growth
+- Date: 2026-11-02
+- Source: made during development
+- Decision:
+  - **Data:** `data/progression.json` holds the GDD §8 table (100, 120 … 300 XP per level, total 2,200 at level 12), the 10 m share radius, MG Soldier 30 XP, champion kill 120 + 25 × victim level + 30, and Sub-base 150. XP past the level-12 total is dropped. One grant can raise several levels, with a `levelUp` event for each.
+  - **XP sources in M2:**
+    - a minion's XP is split evenly between the living enemy champions within 10 m of where it fell, whoever killed it (no last hits);
+    - a champion kill pays the killing champion everything, with no assists until M3 (D-024);
+    - a kill by a structure, a minion or a debug kill pays nothing;
+    - a fallen Sub-base pays every champion of the other team 150, dead ones included ("whole team").
+
+    Grants are read from this tick's events in order, after the death systems.
+  - **Growth** is part of `base` (TDD §5): max HP × (1 + 5% × (level − 1)) and damage × (1 + 4% × (level − 1)). Other sources (Steady Hand, powers, debug) keep their percentages.
+  - **Level-up HP:** a living champion gains the max HP it just got (MOBA convention). A live config edit still keeps the HP fraction.
+  - **The Ultimate scales twice:** the Frag Grenade's own +20 per level and the champion's +4% damage per level both apply, because every hit takes the damage stat at pipeline stage 2 (D-031). At level 3 the blast does 290 × 1.08 = 313. Revisit in tuning if Ultimates grow too fast.
+  - **Already level-aware:** the respawn timer (7.6 s at level 3) and the grenade read the level directly.
+  - **Render:**
+    - champions' HP bars carry a small level badge (white number on the bar's dark back, shared canvas textures);
+    - a level-up flashes a brass ring and a light pillar at the feet, with a "LEVEL n" callout through the damage-number pool;
+    - no XP floaters, which would be noise until the HUD's XP bar (row 14).
+  - **Debug:** F1 → Local champion → "+100 XP" and "Level up". Debug grants are queued to the start of the next step so their `levelUp` events reach render.
+- Why: kills and pushing now pay, and levels make the respawn timer, the grenade and the stats grow as the GDD intends. The draft (row 13) hooks onto `levelUp`.
+- Alternatives: keep the HP fraction on a level-up; floating "+XP" numbers.

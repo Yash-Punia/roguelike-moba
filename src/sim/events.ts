@@ -25,7 +25,9 @@ export type SimEvent =
   /** A grenade went off (for the flash, smoke and sound). */
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick. */
-  | { type: 'death'; id: Entity; killer: Entity; x: number; y: number }
+  | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number }
+  /** A champion reached a new level. */
+  | { type: 'levelUp'; id: Entity; level: number }
   /** A structure fell (it stays as rubble); `killer` landed the last hit. */
   | { type: 'structureDestroyed'; id: Entity; kind: 'subBase' | 'hq'; team: number; killer: Entity; x: number; y: number }
   /** A minion wave spawned on every wave lane (0 = the first). */
