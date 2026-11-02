@@ -6,12 +6,15 @@ import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
+import { Knockouts } from './knockout';
 import { TargetLine } from './target-line';
 import { Tracers } from './tracers';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
 
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
+/** Metres (Manhattan) moved in one tick that count as a teleport rather than movement. */
+const SNAP_DISTANCE = 5;
 
 interface Interp {
   /** Previous and current position, aim (pf, f) and leg facing (pl, l). */
@@ -59,6 +62,8 @@ export function createScene(container: HTMLElement, config: Config) {
   scene.add(tracers.mesh);
   const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
   scene.add(ultFx.group);
+  const knockouts = new Knockouts(scene, (x, z) => arena.terrain.heightAt(x, -z));
+  let lastUpdate = performance.now();
   const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
@@ -87,6 +92,14 @@ export function createScene(container: HTMLElement, config: Config) {
         bars.set(e.id, bar);
       }
       bar?.set(e.hp, e.maxHp);
+      if (bar) bar.group.visible = e.hp > 0;
+      // A jump this big in one tick is a teleport (respawn): don't streak across the map.
+      if (Math.abs(e.x - s.x) + Math.abs(e.y - s.y) > SNAP_DISTANCE) {
+        s.x = e.x;
+        s.y = e.y;
+        s.l = e.facing;
+        s.f = e.aim;
+      }
       s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
       s.x = e.x; s.y = e.y; s.f = e.aim; s.l = e.facing;
       const ring = partsOf(meshes.get(e.id)!).steadyRing;
@@ -114,6 +127,15 @@ export function createScene(container: HTMLElement, config: Config) {
     const now = performance.now();
     for (const ev of events) {
       if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'death') {
+        const mesh = meshes.get(ev.id);
+        if (mesh) knockouts.start(ev.id, mesh, now);
+        ultFx.smoke(ev.x, ev.y, 1.4, palette.mud, 4, now);
+      }
+      if (ev.type === 'respawn') {
+        knockouts.restore(ev.id);
+        ultFx.smoke(ev.x, ev.y, 2, palette.smoke, 7, now); // smoke-grenade pop on the pad
+      }
       if (ev.type !== 'damage') continue;
       const s = interp.get(ev.target);
       if (!s) continue;
@@ -132,8 +154,14 @@ export function createScene(container: HTMLElement, config: Config) {
   /** Interpolated position and velocity of the followed entity (sim space). */
   const focus = { x: 0, y: 0, vx: 0, vy: 0 };
 
-  /** Interpolates every entity by alpha and updates `focus` from the followed one. */
-  function update(alpha: number, focusId: number | undefined) {
+  /**
+   * Interpolates every entity by alpha. `localId` is the player's champion (team colours,
+   * target line); `focusId` is what the camera follows (the killer while knocked out).
+   */
+  function update(alpha: number, localId: number | undefined, focusId = localId) {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - lastUpdate) / 1000);
+    lastUpdate = now;
     for (const [id, s] of interp) {
       const mesh = meshes.get(id)!;
       const x = s.px + (s.x - s.px) * alpha;
@@ -156,13 +184,14 @@ export function createScene(container: HTMLElement, config: Config) {
       if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
+    knockouts.update(now, dt);
     tracers.update(alpha);
-    ultFx.update(alpha, performance.now());
-    const me = focusId === undefined ? undefined : interp.get(focusId);
+    ultFx.update(alpha, now);
+    const me = localId === undefined ? undefined : interp.get(localId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
-    if (me) localTeam = teams.get(focusId!);
+    if (me) localTeam = teams.get(localId!);
     if (me && !targetLine) {
-      targetLine = new TargetLine(teams.get(focusId!) ?? Team.Blue);
+      targetLine = new TargetLine(teams.get(localId!) ?? Team.Blue);
       scene.add(targetLine.group);
     }
     if (me && target) {

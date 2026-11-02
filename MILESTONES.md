@@ -54,13 +54,13 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
 | `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
 | `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
-| `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | |
+| `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | 64691d5 |
 | `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |
 | `[ ]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen | |
 | `[ ]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache | |
 | `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
 | `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button (passive charge, `ultTargetable` and a temporary button already in with Alpha, D-033) | |
-| `[ ]` | Death and respawn at HQ | |
+| `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | |
 | `[ ]` | One simple bot opponent (farm / trade / retreat) | |
 | `[ ]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars | |
 | `[ ]` | Win/lose on HQ destruction | |
@@ -86,7 +86,7 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[ ]` | Full v1 power catalogue as effect records + generic effect systems | |
 | `[ ]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation | |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
-| `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) | |
+| `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
 | `[ ]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count | |
 

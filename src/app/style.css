@@ -168,3 +168,24 @@ body {
     box-shadow: 0 0 0 3px #ffd45c, 0 0 26px 8px rgb(255 212 92 / 0.9);
   }
 }
+
+/* Minimal respawn countdown (app/main.ts) until the M4 respawn overlay. */
+.respawn-banner {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: rgb(27 26 23 / 0.7);
+  color: #fff;
+  font: 800 18px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.respawn-banner.show {
+  display: block;
+}

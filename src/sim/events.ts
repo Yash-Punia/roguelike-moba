@@ -24,4 +24,8 @@ export type SimEvent =
   | { type: 'ultCast'; id: Entity; target: Entity; x: number; y: number }
   /** A grenade went off (for the flash, smoke and sound). */
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
+  /** A champion was knocked out at (x, y); `killer` landed the lethal hit (0 = none). */
+  | { type: 'death'; id: Entity; killer: Entity; x: number; y: number }
+  /** A champion redeployed at (x, y). */
+  | { type: 'respawn'; id: Entity; x: number; y: number }
   | DamageEvent;

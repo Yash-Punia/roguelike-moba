@@ -4,6 +4,7 @@ import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
 import { createInput } from '../input';
 import { createSim, Team, type PlayerSetup } from '../sim/sim';
+import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 
 const params = new URLSearchParams(location.search);
@@ -33,6 +34,13 @@ view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
 const stats = { simMs: 0 };
 let lastFrame = performance.now();
+// While knocked out the camera follows the killer (D-034); otherwise the local champion.
+let cameraFocus = localEntity;
+// Minimal respawn countdown until the M4 respawn overlay.
+const banner = document.createElement('div');
+banner.className = 'respawn-banner';
+container.appendChild(banner);
+let bannerSeconds = -1;
 
 const loop = startLoop({
   step: () => {
@@ -43,13 +51,22 @@ const loop = startLoop({
     view.capture(snap);
     view.addEvents(events);
     const me = snap.entities.find((e) => e.id === localEntity);
-    if (me) input.ultButton.show(me.ultCharge, me.ultTargetable);
+    if (!me) return;
+    input.ultButton.show(me.ultCharge, me.ultTargetable);
+    const down = me.respawnTicks > 0;
+    cameraFocus = down && me.killer !== 0 && snap.entities.some((e) => e.id === me.killer) ? me.killer : localEntity;
+    const seconds = down ? Math.ceil(me.respawnTicks / TICK_HZ) : 0;
+    if (seconds !== bannerSeconds) {
+      bannerSeconds = seconds;
+      banner.textContent = down ? `REDEPLOYING IN ${seconds}` : '';
+      banner.classList.toggle('show', down);
+    }
   },
   draw: (alpha) => {
     const now = performance.now();
     const dt = Math.min((now - lastFrame) / 1000, 0.1);
     lastFrame = now;
-    view.update(alpha, localEntity);
+    view.update(alpha, localEntity, cameraFocus);
     rig.update(view.focus, config.camera, dt);
     view.render();
   },

@@ -40,7 +40,7 @@ interface Pool {
   total: number;
 }
 interface Blast {
-  flash: THREE.Mesh;
+  flash: THREE.Mesh | undefined;
   smoke: THREE.Mesh[];
   born: number;
   radius: number;
@@ -101,20 +101,30 @@ export class UltFx {
     }
   }
 
-  /** An explosion event at sim (x, y). */
+  /** An explosion event at sim (x, y): a fire flash plus smoke. */
   explode(x: number, y: number, radius: number, now: number) {
-    const h = this.heightAt(x, y);
     const flash = new THREE.Mesh(flashGeo, basic(palette.fire, 0.9));
-    flash.position.set(x, h + 0.4, -y);
+    flash.position.set(x, this.heightAt(x, y) + 0.4, -y);
+    this.group.add(flash);
+    this.puffs(x, y, radius, palette.smoke, 5, now, flash);
+  }
+
+  /** A ring of rising, fading puffs at sim (x, y): knock-out dust, respawn smoke. */
+  smoke(x: number, y: number, radius: number, colour: number, count: number, now: number) {
+    this.puffs(x, y, radius, colour, count, now, undefined);
+  }
+
+  private puffs(x: number, y: number, radius: number, colour: number, count: number, now: number, flash: THREE.Mesh | undefined) {
+    const h = this.heightAt(x, y);
     const smoke: THREE.Mesh[] = [];
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      const puff = new THREE.Mesh(smokeGeo, basic(palette.smoke, 0.8));
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const puff = new THREE.Mesh(smokeGeo, basic(colour, 0.8));
       puff.position.set(x + Math.cos(a) * radius * 0.35, h + 0.4, -y + Math.sin(a) * radius * 0.35);
       puff.rotation.set(a, a * 0.7, 0);
       smoke.push(puff);
     }
-    this.group.add(flash, ...smoke);
+    this.group.add(...smoke);
     this.blasts.push({ flash, smoke, born: now, radius });
   }
 
@@ -147,7 +157,9 @@ export class UltFx {
       const age = now - b.born;
       const tf = age / FLASH_MS;
       const ts = age / SMOKE_MS;
-      if (tf < 1) {
+      if (!b.flash) {
+        // smoke only
+      } else if (tf < 1) {
         b.flash.scale.setScalar(b.radius * (0.3 + 0.7 * Math.sqrt(tf)));
         (b.flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - tf);
       } else {
@@ -161,8 +173,11 @@ export class UltFx {
       if (ts < 1) {
         keep.push(b);
       } else {
-        this.group.remove(b.flash, ...b.smoke);
-        (b.flash.material as THREE.Material).dispose();
+        if (b.flash) {
+          this.group.remove(b.flash);
+          (b.flash.material as THREE.Material).dispose();
+        }
+        this.group.remove(...b.smoke);
         for (const puff of b.smoke) (puff.material as THREE.Material).dispose();
       }
     }

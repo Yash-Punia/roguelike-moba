@@ -33,7 +33,7 @@ export function reachable(g: ObstacleGrid, from: Point, to: Point): boolean {
 }
 
 /** `armed` champions fire back; by default only the shooter (player 0) fires. */
-export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq'; armed?: boolean };
+export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq'; armed?: boolean; /** Spawn on the team pad like a real champion (respawns there too). */ atPad?: boolean };
 
 /**
  * Open test map with Blue Alpha (player 0) at the origin plus the given units. Champions get
@@ -57,13 +57,15 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   config.combat.weapons = { aimTurnRate: 4 * Math.PI, fireCone: Math.PI / 18, bulletAim: 'lead', bulletRadius: 0.1, bulletOvershoot: 2 };
   config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45, critMultiplier: 2 };
+  config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
+  config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Team.Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {
     if (u.structure) {
       config.map.structures.push({ id: `s${config.map.structures.length}`, kind: u.structure, team: u.team === Team.Blue ? 'blue' : 'red', lane: undefined, x: u.x, y: u.y });
     } else {
-      players.push({ team: u.team, championId: 'alpha', spawnAt: { x: u.x, y: u.y }, unarmed: !u.armed });
+      players.push({ team: u.team, championId: 'alpha', spawnAt: u.atPad ? undefined : { x: u.x, y: u.y }, unarmed: !u.armed });
     }
   }
   const sim = createSim(config, 1, players);

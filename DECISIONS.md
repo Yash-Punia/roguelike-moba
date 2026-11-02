@@ -352,3 +352,23 @@ From TDD §13:
   - **Effects:** danger-red landing disc and ring for the whole flight (0.6 s, above the GDD's 0.5 s minimum), an olive grenade on its arc, a fire-colour flash with smoke blocks, and the fire pool as a scorched disc with flickering flame cones that shrink away in its last 0.5 s.
 - Why: Alpha's whole kit is testable in the browser now, without waiting for the HUD and charge features.
 - Alternatives: a dev cooldown instead of passive charge, or keyboard-only casting (both rejected by the user).
+
+## D-034 — Death, respawn and the spawn-pad heal
+- Date: 2026-11-02
+- Source: user choices (camera follows the killer; debug units respawn at their own spot); the rest made during development
+- Decision:
+  - **Knock-out:** after the damage stage, a champion at 0 HP that isn't already down gets `respawnTicks = round(min(18, 4 + 1.2 × level) s)` (156 ticks at level 1) and a `death` event with its killer. The killer is the source of the lethal hit, stored as `Health.killer`; a debug kill has none. It keeps its position, level and Ultimate charge. It doesn't move or take input, and it doesn't fire, charge, get targeted or take damage (those already skipped HP 0). Its passive charge pauses while it's down.
+  - **Respawn** runs first in the tick (TDD §4 "spawners and timers"). When the timer runs out the champion redeploys at home, facing the enemy, with full HP, no shield or timed invulnerability, a reset weapon and target, and its Ultimate charge kept, and a `respawn` event fires.
+  - **Home:** the team's HQ pad (`map.spawn`). A champion placed with a debug spawn point (`?dummy`, tests) respawns at that spot instead (user choice).
+  - **Spawn-pad heal:** living champions whose centre is within 2.3 m of their own team's pad (half the 4.6 m pad) heal 10% max HP per second, applied every tick and capped at max HP. It heals HP, not shield, and is never applied on the enemy pad or a debug spawn spot. Both numbers are in `match.json`, with the respawn formula.
+  - **Camera (user choice):** while you're down, the camera follows your killer for the whole timer, then pans back to you on the pad. With no killer it stays on your body. `scene.update` now takes the local champion (target line, team colours) and the camera focus separately.
+  - **Visuals:**
+    - knock-out: the model tips backwards over 0.35 s, the cap flies off and bounces twice, brown dust puffs appear, and after 1 s it all fades over 0.6 s using per-model material copies that are put back on respawn;
+    - respawn: a grey smoke pop on the pad;
+    - the HP bar is hidden while down;
+    - a move of more than 5 m in one tick snaps instead of interpolating, so a respawn doesn't streak across the map.
+  - **Countdown:** a plain centred "REDEPLOYING IN n" until the M4 respawn overlay. The ULT button greys out while you're down.
+  - **Debug:** `sim.debug.kill` sends a lethal hit through the normal pipeline (a lethal save still applies). The F1 Local champion folder has "Kill me" and "Kill dummy".
+  - **Not yet:** kill XP and kill charge (M2 features 11 and 13), assists, bounties, the Sudden Death ×1.5, the Redeploy sprint (M3), and the spectate switch to a teammate (no teammates until M3).
+- Why: kills now cost the loser time, which Gate 1 needs, and both sides of a death can be tested in the browser.
+- Alternatives: the GDD's killer-for-2-s then teammate (no teammates yet); staying on your own body (user preferred following the killer).

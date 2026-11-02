@@ -49,6 +49,8 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
 export interface ModelParts {
   upper?: THREE.Object3D;
   steadyRing?: THREE.Object3D;
+  /** Headgear that flies off on a knock-out (GDD §11 "bouncing helmet"). */
+  cap?: THREE.Object3D;
 }
 export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 
@@ -129,13 +131,17 @@ function alpha(root: THREE.Object3D, team: Team) {
     part(upper, box(0.1, 0.12, 0.05), palette.skin, -0.08, 1.74, z * 1.1);
   }
 
-  // Peaked cap: team band, wide crown, leather brim, brass badge.
-  part(upper, box(0.6, 0.1, 0.6), teamColour(team), 0, 2.05, 0);
-  part(upper, box(0.66, 0.13, 0.66), palette.greatcoat, 0, 2.16, 0);
-  part(upper, box(0.78, 0.06, 0.76), palette.greatcoat, 0.02, 2.25, 0);
-  const brim = part(upper, box(0.24, 0.045, 0.6), palette.leather, 0.4, 2.02, 0);
+  // Peaked cap (its own group, so it can fly off): team band, wide crown, leather brim, brass badge.
+  const cap = new THREE.Group();
+  cap.position.y = 2.05;
+  upper.add(cap);
+  partsOf(root).cap = cap;
+  part(cap, box(0.6, 0.1, 0.6), teamColour(team), 0, 0, 0);
+  part(cap, box(0.66, 0.13, 0.66), palette.greatcoat, 0, 0.11, 0);
+  part(cap, box(0.78, 0.06, 0.76), palette.greatcoat, 0.02, 0.2, 0);
+  const brim = part(cap, box(0.24, 0.045, 0.6), palette.leather, 0.4, -0.03, 0);
   brim.rotation.z = -0.15;
-  part(upper, box(0.03, 0.08, 0.08), palette.brass, 0.345, 2.15, 0);
+  part(cap, box(0.03, 0.08, 0.08), palette.brass, 0.345, 0.1, 0);
 }
 
 /** Until each champion gets its sheet model (Beta and Gamma: M3). */

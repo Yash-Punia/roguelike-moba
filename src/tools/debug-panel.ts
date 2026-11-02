@@ -93,6 +93,13 @@ function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
   folder.add({ give: () => sim.debug.addShield(e, mods.shield) }, 'give').name('Give shield');
   folder.add({ arm: () => sim.debug.armLethalSave(e) }, 'arm').name('Arm lethal save');
   folder.add({ fill: () => sim.debug.fillUltimate(e) }, 'fill').name('Fill Ultimate');
+  folder.add({ kill: () => sim.debug.kill(e) }, 'kill').name('Kill me');
+  // The `?dummy` enemy is player 1.
+  const killDummy = () => {
+    const d = sim.entityOf(1);
+    if (d !== undefined) sim.debug.kill(d);
+  };
+  folder.add({ killDummy }, 'killDummy').name('Kill dummy');
 }
 
 function download(name: string, data: unknown) {

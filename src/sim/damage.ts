@@ -83,6 +83,7 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
       } else {
         toHp = h.hp;
         flags |= HitFlag.Lethal;
+        h.killer = source;
       }
     }
     h.hp -= toHp;

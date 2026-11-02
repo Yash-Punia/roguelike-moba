@@ -1,3 +1,12 @@
 {
-  "defaultSeed": 1
+  "defaultSeed": 1,
+  "respawn": {
+    "baseSeconds": 4,
+    "perLevelSeconds": 1.2,
+    "maxSeconds": 18
+  },
+  "spawnPad": {
+    "radius": 2.3,
+    "healPctPerSecond": 10
+  }
 }

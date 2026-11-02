@@ -12,6 +12,10 @@ const positive = () => z.number().positive();
 
 const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
+  /** Respawn timer (GDD §9): base + perLevel × level, capped. Stays in seconds: level is runtime. */
+  respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive() }),
+  /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9). */
+  spawnPad: z.object({ radius: positive(), healPctPerSecond: pct() }),
 });
 
 /** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */

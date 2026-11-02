@@ -15,6 +15,7 @@ import { DamageLog } from './damage-log';
 import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { steadyHandSystem } from './systems/traits';
+import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
 import { lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
@@ -94,6 +95,10 @@ export interface Champion {
   stillTicks: number;
   /** Fire-rate bonus Steady Hand currently adds (0 when inactive). */
   steadyPct: number;
+  /** Ticks until redeploying; 0 while alive. */
+  respawnTicks: number;
+  /** Debug/test spawn point to respawn at instead of the team's HQ pad. */
+  spawnAt: { x: number; y: number } | undefined;
 }
 export interface Health {
   hp: number;
@@ -105,6 +110,8 @@ export interface Health {
   invulnUntil: number;
   /** Lethal hits this unit will survive on 1 HP (Last Stand: once per life). */
   lethalSaves: number;
+  /** Source of the hit that took the last HP (0 while alive or with no source). */
+  killer: Entity;
 }
 /** A unit's weapon (TDD §5): config values plus the ticks left until it can fire again. */
 export interface Weapon extends WeaponConfig {
@@ -150,6 +157,9 @@ export interface EntitySnapshot {
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
   aim: number;
+  /** Champions: ticks until redeploying (0 = alive) and who landed the knock-out (0 = none). */
+  respawnTicks: number;
+  killer: Entity;
   /** Champions: Ultimate charge 0–100, whether it has a target now, and Steady Hand active. */
   ultCharge: number;
   ultTargetable: boolean;
@@ -265,7 +275,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     if (w) Object.assign(w, def.weapon);
   }
 
-  const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0 });
+  const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
   const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
@@ -284,7 +294,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -322,6 +332,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const ultimateContext: UltimateContext = {
     champions, transforms, colliders, teams, healths, stats, targetClasses, spatial, lobs, zones, hits, events,
   };
+  const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events };
 
@@ -348,15 +359,16 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Advances exactly one tick. Returned events are valid until the next step. */
     step(commands: readonly Command[]): StepResult {
       if (tick > 0) events.length = 0;
+      respawnSystem(lifeContext, config.map);
       for (const c of commands) {
         const e = playerEntity[c.player];
         const m = e === undefined ? undefined : motions.get(e);
-        if (!m) continue;
+        if (!m || healths.get(e!)!.hp <= 0) continue; // knocked out: input is ignored
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
         if (c.ult) champions.get(e!)!.castQueued = true;
       }
-      movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
+      movementSystem(motions, transforms, colliders, healths, grid, config.map.bounds, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
       steadyHandSystem(champions, motions, stats, healths);
@@ -369,6 +381,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       lobSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick);
+      deathSystem(lifeContext, config.match.respawn);
+      padHealSystem(lifeContext, config.map, config.match.spawnPad);
       tick++;
       return { tick, events };
     },
@@ -383,7 +397,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0, ultCharge: 0, ultTargetable: false, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0, respawnTicks: 0, killer: 0, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -403,6 +417,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
         const c = champions.get(e);
+        s.respawnTicks = c?.respawnTicks ?? 0;
+        s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
         s.steady = (c?.steadyPct ?? 0) > 0;
@@ -511,6 +527,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       addShield(e: Entity, amount: number) {
         const h = healths.get(e);
         if (h) h.shield += amount;
+      },
+      /** A lethal hit through the normal damage pipeline (a lethal save still applies). */
+      kill(e: Entity) {
+        hits.push(0, e, 1e12);
       },
       fillUltimate(e: Entity) {
         const c = champions.get(e);
