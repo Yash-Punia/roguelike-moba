@@ -48,3 +48,14 @@ export function stat(s: Stats, which: Stat): number {
   }
   return s.value[which]!;
 }
+
+/**
+ * Adds `delta` to a stat's additive percentage. Every source (traits, buffs, powers, debug)
+ * adds its share on gain and removes the same amount on loss, so sources never clobber
+ * each other.
+ */
+export function addPct(s: Stats, which: Stat, delta: number): void {
+  if (delta === 0) return;
+  s.pct[which] = s.pct[which]! + delta;
+  s.dirty = true;
+}

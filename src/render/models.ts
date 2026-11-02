@@ -35,15 +35,110 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
   const root = new THREE.Group();
   if (kind === Kind.SubBase) pillbox(root, team);
   else if (kind === Kind.HQ) commandBunker(root, team);
-  else championPlaceholder(root, team); // modelId picks the champion's own model from feature 7
+  else if (modelId === 'alpha') alpha(root, team);
+  else championPlaceholder(root, team);
   root.traverse((o) => {
     o.castShadow = true;
     o.receiveShadow = true;
   });
+  if (kind === Kind.Champion) addSteadyRing(root);
   return root;
 }
 
-/** Until each champion gets its sheet model (Alpha: M2 feature 7). */
+/** Parts the scene animates: `upper` turns with the aim while the root turns with the legs. */
+export interface ModelParts {
+  upper?: THREE.Object3D;
+  steadyRing?: THREE.Object3D;
+}
+export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
+
+const steadyRingGeo = new THREE.RingGeometry(0.58, 0.7, 28).rotateX(-Math.PI / 2);
+const steadyRingMat = new THREE.MeshBasicMaterial({ color: palette.brass, transparent: true, opacity: 0.75, depthWrite: false });
+
+/** A faint brass ring at the feet while Steady Hand is active. */
+function addSteadyRing(root: THREE.Object3D) {
+  const ring = new THREE.Mesh(steadyRingGeo, steadyRingMat);
+  ring.position.y = 0.04;
+  ring.visible = false;
+  ring.castShadow = ring.receiveShadow = false;
+  root.add(ring);
+  partsOf(root).steadyRing = ring;
+}
+
+const SHIRT = 0xeeeae0;
+const EYES = 0x1b1a17;
+
+/**
+ * Alpha, the Sergeant (CH-01): 1.9 m chibi with navy legs, a greatcoat that flares into a
+ * bell, a barrel chest with a diagonal bandolier, brass buttons and buckle, oversized
+ * grey-green gloves, a square head with grey moustache, brows and sideburns, and a wide
+ * peaked cap. Team colour only on the cap band and epaulettes. The revolver arm is locked
+ * out forward (attack pose), so the gun points where the upper body aims. About 700 tris.
+ */
+function alpha(root: THREE.Object3D, team: Team) {
+  const fig = new THREE.Group();
+  fig.scale.setScalar(0.84); // modelled at ~2.28 m to the cap top; the sheet's 1.9 m
+  root.add(fig);
+
+  // Legs and boots: stay with the movement facing.
+  for (const z of [-0.13, 0.13]) {
+    part(fig, box(0.17, 0.34, 0.17), palette.trouserNavy, 0, 0.29, z);
+    part(fig, box(0.25, 0.12, 0.18), palette.leather, 0.03, 0.06, z);
+  }
+
+  const upper = new THREE.Group();
+  fig.add(upper);
+  partsOf(root).upper = upper;
+
+  // Greatcoat: bell skirt, barrel chest, wide shoulders.
+  part(upper, cyl(0.3, 0.44, 0.78, 8), palette.greatcoat, 0, 0.71, 0);
+  part(upper, box(0.5, 0.34, 0.72), palette.greatcoat, 0, 1.18, 0);
+  part(upper, box(0.38, 0.2, 0.92), palette.greatcoat, -0.02, 1.3, 0);
+  part(upper, box(0.04, 0.26, 0.3), palette.coatShadow, 0.26, 1.2, 0);
+  part(upper, box(0.24, 0.08, 0.28), SHIRT, 0.1, 1.43, 0);
+  for (const z of [-0.36, 0.36]) part(upper, box(0.3, 0.06, 0.2), teamColour(team), -0.02, 1.43, z);
+  // Belt, buckle and buttons.
+  part(upper, cyl(0.335, 0.335, 0.08, 8), palette.leather, 0, 0.96, 0);
+  part(upper, box(0.05, 0.09, 0.11), palette.brass, 0.34, 0.96, 0);
+  for (const y of [0.62, 0.8]) part(upper, box(0.04, 0.05, 0.05), palette.brass, 0.36, y, -0.07);
+  // Bandolier from the left shoulder to the right hip, with brass pouch studs.
+  const strap = part(upper, box(0.04, 0.08, 0.78), palette.leather, 0.27, 1.13, 0);
+  strap.rotation.x = 0.6;
+  for (const [y, z] of [[1.25, -0.17], [1.13, 0], [1.01, 0.17]] as const) part(upper, box(0.05, 0.06, 0.06), palette.brass, 0.3, y, z);
+
+  // Right arm (+z) locked out forward with the revolver; left arm at the side.
+  part(upper, box(0.52, 0.2, 0.2), palette.greatcoat, 0.22, 1.24, 0.4);
+  part(upper, box(0.06, 0.22, 0.22), palette.coatShadow, 0.47, 1.24, 0.4);
+  part(upper, box(0.24, 0.24, 0.24), palette.glove, 0.6, 1.24, 0.4);
+  part(upper, box(0.14, 0.14, 0.13), palette.gunmetal, 0.72, 1.34, 0.4);
+  part(upper, box(0.42, 0.09, 0.09), palette.gunmetal, 0.95, 1.36, 0.4);
+  part(upper, box(0.2, 0.5, 0.2), palette.greatcoat, 0.02, 1.08, -0.44);
+  part(upper, box(0.22, 0.06, 0.22), palette.coatShadow, 0.02, 0.84, -0.44);
+  part(upper, box(0.24, 0.24, 0.24), palette.glove, 0.02, 0.7, -0.46);
+
+  // Head and face (front is +x): big and square, so he reads as three heads tall.
+  part(upper, box(0.56, 0.56, 0.56), palette.skin, 0, 1.72, 0);
+  for (const z of [-0.12, 0.12]) {
+    part(upper, box(0.02, 0.08, 0.07), EYES, 0.285, 1.76, z);
+    part(upper, box(0.06, 0.05, 0.15), palette.hairGrey, 0.285, 1.84, z);
+  }
+  part(upper, box(0.09, 0.12, 0.1), palette.skin, 0.32, 1.68, 0);
+  part(upper, box(0.06, 0.07, 0.3), palette.hairGrey, 0.3, 1.6, 0);
+  for (const z of [-0.285, 0.285]) {
+    part(upper, box(0.24, 0.22, 0.04), palette.hairGrey, -0.02, 1.74, z);
+    part(upper, box(0.1, 0.12, 0.05), palette.skin, -0.08, 1.74, z * 1.1);
+  }
+
+  // Peaked cap: team band, wide crown, leather brim, brass badge.
+  part(upper, box(0.6, 0.1, 0.6), teamColour(team), 0, 2.05, 0);
+  part(upper, box(0.66, 0.13, 0.66), palette.greatcoat, 0, 2.16, 0);
+  part(upper, box(0.78, 0.06, 0.76), palette.greatcoat, 0.02, 2.25, 0);
+  const brim = part(upper, box(0.24, 0.045, 0.6), palette.leather, 0.4, 2.02, 0);
+  brim.rotation.z = -0.15;
+  part(upper, box(0.03, 0.08, 0.08), palette.brass, 0.345, 2.15, 0);
+}
+
+/** Until each champion gets its sheet model (Beta and Gamma: M3). */
 function championPlaceholder(root: THREE.Object3D, team: Team) {
   const body = part(root, new THREE.CapsuleGeometry(0.5, 0.8, 2, 8), teamColour(team), 0, 0.9, 0);
   part(body, box(0.5, 0.18, 0.18), palette.gunmetal, 0.55, 0.2, 0);

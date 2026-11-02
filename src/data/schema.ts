@@ -26,6 +26,32 @@ const Weapon = z.object({
   targets: z.number().int().min(1).default(1),
 });
 
+/** Auto-target classes in the order an Ultimate prefers them (GDD §6). */
+const UltTargetClass = z.enum(['champion', 'hq', 'subBase', 'minion', 'neutral']);
+
+/** Alpha's Frag Grenade (GDD §7, TDD §6.5): a lob to the target's spot, a blast, then a fire pool. */
+const FragGrenade = z.object({
+  id: z.literal('fragGrenade'),
+  castRange: positive(),
+  targetOrder: z.array(UltTargetClass).min(1),
+  flightSeconds: secs().refine((t) => t >= 1, 'flight must be at least one tick'),
+  /** Apex height of the lob (render only). */
+  arcHeight: z.number().nonnegative(),
+  radius: positive(),
+  damage: z.number().nonnegative(),
+  damagePerLevel: z.number().nonnegative(),
+  zone: z.object({
+    radius: positive(),
+    seconds: secs(),
+    dps: z.number().nonnegative(),
+    dpsPerLevel: z.number().nonnegative(),
+    /** Share of the fire's damage structures take. */
+    structurePct: pct(),
+    /** The pool hits every this often for dps × tickSeconds (readable damage numbers). */
+    tickSeconds: secs().refine((t) => t >= 1, 'tick must be at least one tick'),
+  }),
+});
+
 const Champion = z.object({
   id: z.string(),
   name: z.string(),
@@ -37,6 +63,9 @@ const Champion = z.object({
   /** Per-level growth on top of level 1 (GDD §7). */
   growth: z.object({ hpPct: pct(), damagePct: pct() }),
   weapon: Weapon,
+  /** Alpha's Steady Hand (GDD §7): still this long → + fire rate until moving again. */
+  trait: z.object({ id: z.literal('steadyHand'), stillSeconds: secs(), fireRatePct: pct() }),
+  ultimate: FragGrenade,
 });
 
 /** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
@@ -166,3 +195,4 @@ export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;
 export type WeaponConfig = z.output<typeof Weapon>;
+export type UltTargetClass = z.output<typeof UltTargetClass>;

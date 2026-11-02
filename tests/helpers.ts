@@ -40,13 +40,20 @@ export type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure
  * ids 1..n in order (player = id − 1), then structures. Tuning is pinned to the values the
  * combat tests are written against, so retuning data/ never breaks them: Alpha has a 7 m
  * range, 0.5 m radius, 95 damage every 25 ticks, 25 m/s bullets, 5 m/s move speed; lethal
- * saves last 45 ticks.
+ * saves last 45 ticks. Steady Hand is off (fire rate +0%); the Frag Grenade has a 9 m cast
+ * range, 18-tick flight, 250 damage in 3 m and a 3 m fire pool doing 25 every 15 ticks for
+ * 120 ticks (structures 50%); the Ultimate charges over 1,500 ticks.
  */
 export function arena(units: Unit[], tweak?: (c: Config) => void) {
   const config = fixtureConfig();
   const alpha = config.champions[0]!;
   Object.assign(alpha, { radius: 0.5, maxHp: 1000, moveSpeed: 5 });
   Object.assign(alpha.weapon, { damage: 95, interval: 25, range: 7, projectileSpeed: 25, spread: 0, targets: 1 });
+  // Steady Hand off unless a test turns it on, so shot counts stay at the plain fire rate.
+  Object.assign(alpha.trait, { stillSeconds: 15, fireRatePct: 0 });
+  Object.assign(alpha.ultimate, { castRange: 9, flightSeconds: 18, radius: 3, damage: 250, damagePerLevel: 20 });
+  Object.assign(alpha.ultimate.zone, { radius: 3, seconds: 120, dps: 50, dpsPerLevel: 5, structurePct: 0.5, tickSeconds: 15 });
+  alpha.ultChargeSeconds = 1500;
   config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   config.combat.weapons = { aimTurnRate: 4 * Math.PI, fireCone: Math.PI / 18, bulletAim: 'lead', bulletRadius: 0.1, bulletOvershoot: 2 };
   config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45, critMultiplier: 2 };

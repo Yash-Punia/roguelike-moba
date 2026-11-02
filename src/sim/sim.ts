@@ -4,7 +4,7 @@ import type { SimEvent } from './events';
 import { buildGrid, stampFootprint } from './grid';
 import { createStreams, type Streams } from './rng';
 import { SpatialIndex } from './spatial';
-import { createStats, Stat, stat, type Stats } from './stats';
+import { addPct, createStats, Stat, stat, type Stats } from './stats';
 import { movementSystem } from './systems/movement';
 import { targetingSystem, type TargetingContext } from './systems/targeting';
 import { projectileSystem } from './systems/projectiles';
@@ -12,6 +12,10 @@ import { weaponsSystem, type WeaponsContext } from './systems/weapons';
 import { HitQueue } from './hits';
 import { damageSystem, isInvulnerable, type DamageContext } from './damage';
 import { DamageLog } from './damage-log';
+import { LobPool } from './lobs';
+import { ZonePool } from './zones';
+import { steadyHandSystem } from './systems/traits';
+import { lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
@@ -76,6 +80,20 @@ export interface Collider {
 export interface Champion {
   championId: string;
   player: PlayerId;
+  /** This champion's config (refreshed on live edits). */
+  def: ChampionConfig;
+  /** Level 1–12; 1 until XP arrives (M2 feature 11). */
+  level: number;
+  /** Ultimate charge, 0–100. */
+  ultCharge: number;
+  /** The Ultimate's automatic target right now, or 0 (greys the button). */
+  ultTargetId: Entity;
+  /** The Ultimate was pressed this tick. */
+  castQueued: boolean;
+  /** Ticks the stick has been at rest (Steady Hand). */
+  stillTicks: number;
+  /** Fire-rate bonus Steady Hand currently adds (0 when inactive). */
+  steadyPct: number;
 }
 export interface Health {
   hp: number;
@@ -132,6 +150,37 @@ export interface EntitySnapshot {
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
   aim: number;
+  /** Champions: Ultimate charge 0–100, whether it has a target now, and Steady Hand active. */
+  ultCharge: number;
+  ultTargetable: boolean;
+  steady: boolean;
+}
+
+/** A grenade in flight: thrown from (x0, y0), lands at (x1, y1) after `total` ticks. */
+export interface LobSnapshot {
+  id: number;
+  team: Team;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  elapsed: number;
+  total: number;
+  /** Blast radius, for the landing telegraph. */
+  radius: number;
+  /** Apex height of the arc (render). */
+  arcHeight: number;
+}
+
+/** A ground zone (fire pool). */
+export interface ZoneSnapshot {
+  id: number;
+  team: Team;
+  x: number;
+  y: number;
+  radius: number;
+  elapsed: number;
+  total: number;
 }
 
 /** A bullet in flight. Velocity is in metres per second. */
@@ -148,6 +197,8 @@ export interface Snapshot {
   tick: number;
   entities: EntitySnapshot[];
   projectiles: ProjectileSnapshot[];
+  lobs: LobSnapshot[];
+  zones: ZoneSnapshot[];
 }
 
 export interface StepResult {
@@ -233,7 +284,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player });
+    champions.add(e, { championId: def.id, player, def, level: 1, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0 });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -266,6 +317,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits };
 
+  const lobs = new LobPool();
+  const zones = new ZonePool();
+  const ultimateContext: UltimateContext = {
+    champions, transforms, colliders, teams, healths, stats, targetClasses, spatial, lobs, zones, hits, events,
+  };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events };
 
@@ -277,7 +333,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
   };
 
-  const snap: Snapshot = { tick: 0, entities: [], projectiles: [] };
+  /** Percentages set through `debug.setStatPct`, per entity × stat, so they apply as deltas. */
+  const debugPct = new Map<number, number>();
+
+  const snap: Snapshot = { tick: 0, entities: [], projectiles: [], lobs: [], zones: [] };
 
   return {
     world,
@@ -295,13 +354,20 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         if (!m) continue;
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
+        if (c.ult) champions.get(e!)!.castQueued = true;
       }
       movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
+      steadyHandSystem(champions, motions, stats, healths);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
       projectileSystem(projectileContext, config.combat.weapons);
+      // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
+      // exactly its flight time later and a new fire pool first burns a full period after landing.
+      zoneSystem(ultimateContext);
+      lobSystem(ultimateContext);
+      ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick);
       tick++;
       return { tick, events };
@@ -317,7 +383,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, targetId: 0, aim: 0, ultCharge: 0, ultTargetable: false, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -336,6 +402,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.invulnerable = h ? isInvulnerable(h, tick) : false;
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
+        const c = champions.get(e);
+        s.ultCharge = c?.ultCharge ?? 0;
+        s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
+        s.steady = (c?.steadyPct ?? 0) > 0;
       }
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {
@@ -349,6 +419,36 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         p.vy = pool.vy[i]! * TICK_HZ;
       }
       snap.projectiles.length = n;
+      n = 0;
+      for (let i = 0; i < lobs.capacity; i++) {
+        if (!lobs.active[i]) continue;
+        const l = (snap.lobs[n++] ??= { id: 0, team: Team.Neutral, x0: 0, y0: 0, x1: 0, y1: 0, elapsed: 0, total: 1, radius: 0, arcHeight: 0 });
+        const ult = champions.get(lobs.owner[i]!)?.def.ultimate;
+        l.id = lobs.id[i]!;
+        l.team = lobs.team[i]! as Team;
+        l.x0 = lobs.x0[i]!;
+        l.y0 = lobs.y0[i]!;
+        l.x1 = lobs.x1[i]!;
+        l.y1 = lobs.y1[i]!;
+        l.elapsed = lobs.elapsed[i]!;
+        l.total = lobs.total[i]!;
+        l.radius = ult?.radius ?? 0;
+        l.arcHeight = ult?.arcHeight ?? 0;
+      }
+      snap.lobs.length = n;
+      n = 0;
+      for (let i = 0; i < zones.capacity; i++) {
+        if (!zones.active[i]) continue;
+        const z = (snap.zones[n++] ??= { id: 0, team: Team.Neutral, x: 0, y: 0, radius: 0, elapsed: 0, total: 1 });
+        z.id = zones.id[i]!;
+        z.team = zones.team[i]! as Team;
+        z.x = zones.x[i]!;
+        z.y = zones.y[i]!;
+        z.radius = zones.radius[i]!;
+        z.elapsed = zones.elapsed[i]!;
+        z.total = zones.total[i]!;
+      }
+      snap.zones.length = n;
       return snap;
     },
 
@@ -358,7 +458,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       for (let i = 0; i < champions.ids.length; i++) {
         const e = champions.ids[i]!;
         const def = next.champions.find((c) => c.id === champions.data[i]!.championId);
-        if (def) applyChampion(e, def);
+        if (!def) continue;
+        champions.data[i]!.def = def;
+        applyChampion(e, def);
       }
       for (let i = 0; i < structures.ids.length; i++) {
         const e = structures.ids[i]!;
@@ -382,6 +484,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Bullets in flight (read-only). */
     projectiles: pool,
 
+    /** Grenades in flight and ground zones (read-only). */
+    lobs,
+    zones,
+
     /** Every hit through the damage pipeline, at least the last `combat.damage.logSeconds` (read-only). */
     damageLog,
 
@@ -394,8 +500,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       setStatPct(e: Entity, which: Stat, pct: number) {
         const st = stats.get(e);
         if (!st) return;
-        st.pct[which] = pct;
-        st.dirty = true;
+        const key = e * 64 + which;
+        addPct(st, which, pct - (debugPct.get(key) ?? 0)); // a delta, so traits and powers keep theirs
+        debugPct.set(key, pct);
         const m = motions.get(e);
         if (m) m.speed = stat(st, Stat.MoveSpeed);
         const h = healths.get(e);
@@ -404,6 +511,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       addShield(e: Entity, amount: number) {
         const h = healths.get(e);
         if (h) h.shield += amount;
+      },
+      fillUltimate(e: Entity) {
+        const c = champions.get(e);
+        if (c) c.ultCharge = 100;
       },
       armLethalSave(e: Entity) {
         const h = healths.get(e);
@@ -417,7 +528,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions },
 
     /** Current obstacle grid (read-only; for tests and debug overlays). */
     get grid() {

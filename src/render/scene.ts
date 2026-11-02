@@ -4,7 +4,8 @@ import type { SimEvent } from '../sim/events';
 import { Team, type Snapshot } from '../sim/sim';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBar } from './hp-bars';
-import { createModel, createSpawnPad } from './models';
+import { createModel, createSpawnPad, partsOf } from './models';
+import { UltFx } from './ult-fx';
 import { TargetLine } from './target-line';
 import { Tracers } from './tracers';
 import { palette } from './palette';
@@ -13,8 +14,9 @@ import { buildSurround, buildTerrain } from './terrain';
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 
 interface Interp {
-  px: number; py: number; pf: number;
-  x: number; y: number; f: number;
+  /** Previous and current position, aim (pf, f) and leg facing (pl, l). */
+  px: number; py: number; pf: number; pl: number;
+  x: number; y: number; f: number; l: number;
   vx: number; vy: number;
   /** Interpolated position this frame. */
   ix: number; iy: number;
@@ -55,6 +57,8 @@ export function createScene(container: HTMLElement, config: Config) {
   const bars = new Map<number, HpBar>();
   const tracers = new Tracers((x, y) => arena.terrain.heightAt(x, y));
   scene.add(tracers.mesh);
+  const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
+  scene.add(ultFx.group);
   const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
@@ -69,7 +73,7 @@ export function createScene(container: HTMLElement, config: Config) {
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.aim, x: e.x, y: e.y, f: e.aim, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
+        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, e.team);
@@ -83,13 +87,16 @@ export function createScene(container: HTMLElement, config: Config) {
         bars.set(e.id, bar);
       }
       bar?.set(e.hp, e.maxHp);
-      s.px = s.x; s.py = s.y; s.pf = s.f;
-      s.x = e.x; s.y = e.y; s.f = e.aim; // models turn with their aim (upper body) until legs get their own part
+      s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
+      s.x = e.x; s.y = e.y; s.f = e.aim; s.l = e.facing;
+      const ring = partsOf(meshes.get(e.id)!).steadyRing;
+      if (ring) ring.visible = e.steady && e.hp > 0;
       s.vx = e.vx; s.vy = e.vy;
       s.targetId = e.targetId;
       s.radius = e.radius;
     }
     tracers.capture(snap.projectiles);
+    ultFx.capture(snap.lobs, snap.zones);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
       scene.remove(mesh);
@@ -106,6 +113,7 @@ export function createScene(container: HTMLElement, config: Config) {
   function addEvents(events: readonly SimEvent[]) {
     const now = performance.now();
     for (const ev of events) {
+      if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
       if (ev.type !== 'damage') continue;
       const s = interp.get(ev.target);
       if (!s) continue;
@@ -133,12 +141,23 @@ export function createScene(container: HTMLElement, config: Config) {
       s.ix = x;
       s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
-      mesh.rotation.y = lerpAngle(s.pf, s.f, alpha);
+      // Models with an upper body turn their legs with the movement facing and the upper body
+      // with the aim; the rest turn whole with the aim.
+      const aim = lerpAngle(s.pf, s.f, alpha);
+      const upper = partsOf(mesh).upper;
+      if (upper) {
+        const legs = lerpAngle(s.pl, s.l, alpha);
+        mesh.rotation.y = legs;
+        upper.rotation.y = aim - legs;
+      } else {
+        mesh.rotation.y = aim;
+      }
       const bar = bars.get(id);
       if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
     tracers.update(alpha);
+    ultFx.update(alpha, performance.now());
     const me = focusId === undefined ? undefined : interp.get(focusId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
     if (me) localTeam = teams.get(focusId!);

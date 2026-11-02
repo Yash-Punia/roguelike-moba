@@ -53,13 +53,13 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[c]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
 | `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
 | `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
-| `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616 |
-| `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet | |
+| `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
+| `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | |
 | `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |
 | `[ ]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen | |
 | `[ ]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache | |
 | `[ ]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only | |
-| `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button | |
+| `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button (passive charge, `ultTargetable` and a temporary button already in with Alpha, D-033) | |
 | `[ ]` | Death and respawn at HQ | |
 | `[ ]` | One simple bot opponent (farm / trade / retreat) | |
 | `[ ]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars | |

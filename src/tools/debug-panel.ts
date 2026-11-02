@@ -92,6 +92,7 @@ function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
   folder.add(mods, 'shield', 0, 1000, 50).name('shield amount');
   folder.add({ give: () => sim.debug.addShield(e, mods.shield) }, 'give').name('Give shield');
   folder.add({ arm: () => sim.debug.armLethalSave(e) }, 'arm').name('Arm lethal save');
+  folder.add({ fill: () => sim.debug.fillUltimate(e) }, 'fill').name('Fill Ultimate');
 }
 
 function download(name: string, data: unknown) {

@@ -124,3 +124,47 @@ body {
     -1px 1px 0 #1b1a17;
   will-change: transform, opacity;
 }
+
+/* Temporary Ultimate button (input/ult-button.ts) until the HUD gauge: charge fills the ring clockwise. */
+.ult-button {
+  --charge: 0%;
+  position: absolute;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: conic-gradient(#d8a64a var(--charge), rgb(0 0 0 / 0.35) 0);
+  color: #fff;
+  font: 800 15px/1 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  touch-action: none;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+.ult-button::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: #3c4147;
+  z-index: -1;
+}
+
+.ult-button.ready {
+  box-shadow: 0 0 0 3px #ffd45c, 0 0 18px 4px rgb(255 212 92 / 0.7);
+  animation: ult-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.ult-button.no-target {
+  filter: grayscale(1) brightness(0.75);
+}
+
+@keyframes ult-pulse {
+  to {
+    box-shadow: 0 0 0 3px #ffd45c, 0 0 26px 8px rgb(255 212 92 / 0.9);
+  }
+}

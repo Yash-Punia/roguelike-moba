@@ -33,14 +33,14 @@ const quantise = (v: number) => Math.sign(v) * Math.min(127, Math.round(Math.abs
  * Builds a world-space Command (D-014). Screen up is towards the enemy HQ, so a Red
  * player's stick is rotated 180°.
  */
-export function buildCommand(tick: number, player: PlayerId, move: Vec, team: Team): Command {
+export function buildCommand(tick: number, player: PlayerId, move: Vec, team: Team, ult = false): Command {
   const s = team === Team.Red ? -1 : 1;
   return {
     tick,
     player,
     moveX: quantise(move.x * s),
     moveY: quantise(move.y * s),
-    ult: false,
+    ult,
     draftPick: -1,
     reroll: false,
   };

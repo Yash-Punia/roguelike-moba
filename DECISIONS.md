@@ -336,3 +336,19 @@ From TDD §13:
 - Open: GDD Dead Eye ("every 6th revolver shot is a critical hit") needs re-reading when powers land, for example as a crit-chance bonus. The GDD is unchanged for now.
 - Why: the user wants crits to be random.
 - Alternatives: crit chance as a `Stats` entry (flat-based, base 0), which would let powers stack chance through the stat formula; worth revisiting with the power catalogue.
+
+## D-033 — Alpha: Steady Hand, Frag Grenade, fire pool and model
+- Date: 2026-11-02
+- Source: user choices (pull passive charge forward; Space/E plus a temporary button); the rest made during development
+- Decision:
+  - **Pulled forward from features 13–14 (user choice):** passive Ultimate charge (0 → 100 over `ultChargeSeconds`, × the Ult-charge stat), the Ultimate's target query with `ultTargetable` in the snapshot, Space/E to cast, and a plain temporary round button at the bottom right. The button fills clockwise, glows when ready and greys out without a target. Kill and damage charge and the brass gauge stay in features 13 and 14. Debug "Fill Ultimate" fills the charge.
+  - **Stat sources are deltas:** traits, debug cheats and later powers add their percentage on gain and remove the same amount on loss (`addPct`), so they stack instead of overwriting each other.
+  - **Steady Hand** counts ticks with the stick at rest (intent, not velocity, so being blocked doesn't break it). The bonus applies at 15 ticks and drops on the first tick of movement.
+  - **Ultimate target query:** within cast range to the collider edge, the first class in the config's order that has a living, targetable enemy, nearest within it. An invulnerable HQ is skipped. A press without full charge or a target does nothing and keeps the charge.
+  - **The grenade** is a pooled lob to the target's position at cast time and lands exactly `flightSeconds` (18 ticks) later. Zones and lobs advance before new casts within a tick. The blast hits every living enemy whose collider overlaps the 3 m circle, through the damage pipeline. The arc apex (2.5 m, `arcHeight`) is render only.
+  - **Fire pool** hits every 0.5 s (`zone.tickSeconds`) for dps × 0.5 = 25, eight times over 4 s. That's the same DPS, but in readable damage numbers instead of 30 tiny ones a second. The first burn is a full period after landing. Structures take `structurePct` (50%) through a per-hit structure share in the pipeline's structure-rules step; the blast itself hits structures in full.
+  - **Level** is stored on the champion (1 until XP). Per-level damage and DPS are already applied through it.
+  - **Model (CH-01):** primitives, about 700 triangles, built at about 2.28 m and scaled 0.84 to the sheet's 1.9 m, with a big square head (three heads tall). The legs turn with the movement facing and the upper body with the aim (this ends D-030's whole-model aim turn for champions with an upper body). The revolver arm is held out in the attack pose so the gun shows the aim. A faint brass ring at the feet shows Steady Hand.
+  - **Effects:** danger-red landing disc and ring for the whole flight (0.6 s, above the GDD's 0.5 s minimum), an olive grenade on its arc, a fire-colour flash with smoke blocks, and the fire pool as a scorched disc with flickering flame cones that shrink away in its last 0.5 s.
+- Why: Alpha's whole kit is testable in the browser now, without waiting for the HUD and charge features.
+- Alternatives: a dev cooldown instead of passive charge, or keyboard-only casting (both rejected by the user).

@@ -39,8 +39,11 @@ const loop = startLoop({
     const t0 = debug ? performance.now() : 0;
     const { events } = sim.step([input.sample(sim.tick)]);
     if (debug) stats.simMs = performance.now() - t0;
-    view.capture(sim.snapshot());
+    const snap = sim.snapshot();
+    view.capture(snap);
     view.addEvents(events);
+    const me = snap.entities.find((e) => e.id === localEntity);
+    if (me) input.ultButton.show(me.ultCharge, me.ultTargetable);
   },
   draw: (alpha) => {
     const now = performance.now();

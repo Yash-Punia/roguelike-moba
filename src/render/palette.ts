@@ -38,5 +38,11 @@ export const palette = {
   fire: 0xff8a2a,
   muzzle: 0xffd45c,
   danger: 0xff3b30, // attack telegraphs only
+  // Alpha (CH-01)
+  coatShadow: 0x6c4227,
+  trouserNavy: 0x2c3448,
+  hairGrey: 0x8e8b86,
+  glove: 0x7a735f,
+  skin: 0xe9b48e,
   haze: 0x4a4436,
 } as const;

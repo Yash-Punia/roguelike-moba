@@ -29,7 +29,7 @@ const eventPool: DamageEvent[] = [];
  * 1. base damage from the weapon or effect;
  * 2. attacker: damage stat, then the vs-champions or vs-structures stat by the target's kind;
  * 3. crit multiplier carried by the hit;
- * 4. target: damage-taken stat, then structure rules;
+ * 4. target: damage-taken stat, then structure rules (the hit's structure share);
  * 5. shield absorbs first, then HP;
  * 6. a lethal hit on a unit with a lethal save leaves 1 HP and a short invulnerability;
  * 7. log the hit and emit a `damage` event.
@@ -63,8 +63,9 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // 4. The target's modifiers.
     const ts = stats.get(target);
     if (ts) amount *= stat(ts, Stat.DamageTaken);
-    // Structure rules multiply in here: backdoor protection (M2 feature 10), the Bazooka
-    // Tank's resistance to structure fire (M3).
+    // Structure rules: the hit's own structure share (fire pool 50%); backdoor protection
+    // (M2 feature 10) and the Bazooka Tank's resistance to structure fire (M3) join here.
+    if (kind === Kind.SubBase || kind === Kind.HQ) amount *= hits.structureMult[k]!;
     if (amount < 0) amount = 0;
 
     // 5. Shield, then HP.

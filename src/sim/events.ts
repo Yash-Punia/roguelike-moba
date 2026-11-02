@@ -20,4 +20,8 @@ export type SimEvent =
   | { type: 'championSpawned'; id: Entity; player: number }
   /** A unit fired at its target (for muzzle flashes and sound). */
   | { type: 'shot'; id: Entity; target: Entity }
+  /** An Ultimate was cast at `target`; a lobbed one lands at (x, y). */
+  | { type: 'ultCast'; id: Entity; target: Entity; x: number; y: number }
+  /** A grenade went off (for the flash, smoke and sound). */
+  | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   | DamageEvent;
