@@ -7,6 +7,10 @@ import { SpatialIndex } from './spatial';
 import { createStats, Stat, stat, type Stats } from './stats';
 import { movementSystem } from './systems/movement';
 import { targetingSystem, type TargetingContext } from './systems/targeting';
+import { projectileSystem } from './systems/projectiles';
+import { weaponsSystem, type WeaponsContext } from './systems/weapons';
+import { HitQueue } from './hits';
+import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
 export enum Team {
@@ -47,6 +51,8 @@ export interface PlayerSetup {
   championId: string;
   /** Spawn here instead of the team's spawn pad (debug/test setups). */
   spawnAt?: { x: number; y: number };
+  /** No weapon: never fires (debug dummies, tests). */
+  unarmed?: boolean;
 }
 
 /** facing: radians, atan2(dy, dx) in sim space (0 = +x, PI/2 = towards Red). */
@@ -78,6 +84,8 @@ export interface Health {
 /** A unit's weapon (TDD §5): config values plus the ticks left until it can fire again. */
 export interface Weapon extends WeaponConfig {
   cooldown: number;
+  /** Upper-body aim (radians, like `facing`); turns towards the target at the aim turn rate. */
+  aim: number;
 }
 /** Auto-target state (TDD §6.2), filled by the targeting system. 0 = none. */
 export interface Targeting {
@@ -110,11 +118,24 @@ export interface EntitySnapshot {
   maxHp: number;
   /** Current auto-target, or 0. */
   targetId: Entity;
+  /** Upper-body aim (radians); equals `facing` for units without a weapon. */
+  aim: number;
+}
+
+/** A bullet in flight. Velocity is in metres per second. */
+export interface ProjectileSnapshot {
+  id: number;
+  team: Team;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
 }
 
 export interface Snapshot {
   tick: number;
   entities: EntitySnapshot[];
+  projectiles: ProjectileSnapshot[];
 }
 
 export interface StepResult {
@@ -175,7 +196,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     motions.get(e)!.speed = stat(st, Stat.MoveSpeed);
     colliders.get(e)!.radius = def.radius;
     setMaxHp(healths.get(e)!, stat(st, Stat.MaxHp));
-    Object.assign(weapons.get(e)!, def.weapon);
+    const w = weapons.get(e);
+    if (w) Object.assign(w, def.weapon);
   }
 
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
@@ -191,7 +213,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     teams.add(e, p.team);
     healths.add(e, { hp: 0, maxHp: 0, shield: 0, invulnerable: false });
     stats.add(e, createStats());
-    weapons.add(e, { ...def.weapon, cooldown: 0 });
+    if (!p.unarmed) weapons.add(e, { ...def.weapon, cooldown: 0, aim: transforms.get(e)!.facing });
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
@@ -213,12 +235,37 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane });
     const def = config.structures[p.kind];
     healths.add(e, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false });
-    weapons.add(e, { ...def.weapon, cooldown: 0 });
+    weapons.add(e, { ...def.weapon, cooldown: 0, aim: transforms.get(e)!.facing });
     targetings.add(e, noTarget());
     targetClasses.add(e, p.kind === 'hq' ? TargetClass.HQ : TargetClass.SubBase);
   }
   rebuildGrid();
   spatial.rebuild(healths.ids, transforms);
+
+  const pool = new ProjectilePool();
+  const hits = new HitQueue();
+  const weaponsContext: WeaponsContext = {
+    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events,
+    rangeOf: (e) => targetingContext.rangeOf(e),
+  };
+  const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits };
+
+  /**
+   * Damage stage, raw for now: shield absorbs first, then HP, floored at 0. Invulnerable and
+   * already-dead units take nothing. The full TDD §6.4 pipeline replaces this (M2 feature 6).
+   */
+  function applyHits() {
+    for (let k = 0; k < hits.count; k++) {
+      const h = healths.get(hits.target[k]!);
+      if (!h || h.hp <= 0 || h.invulnerable) continue;
+      let amount = hits.amount[k]!;
+      const absorbed = Math.min(h.shield, amount);
+      h.shield -= absorbed;
+      amount -= absorbed;
+      h.hp = Math.max(0, h.hp - amount);
+    }
+    hits.count = 0;
+  }
 
   const targetingContext: TargetingContext = {
     transforms, colliders, teams, healths, targetClasses, targetings, spatial,
@@ -228,7 +275,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
   };
 
-  const snap: Snapshot = { tick: 0, entities: [] };
+  const snap: Snapshot = { tick: 0, entities: [], projectiles: [] };
 
   return {
     world,
@@ -251,6 +298,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
       targetingSystem(champions.ids, targetingContext, config.combat.targeting);
+      weaponsSystem(champions.ids, weaponsContext, config.combat.weapons);
+      projectileSystem(projectileContext, config.combat.weapons);
+      applyHits();
       tick++;
       return { tick, events };
     },
@@ -265,7 +315,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, targetId: 0,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, targetId: 0, aim: 0,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -281,7 +331,20 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.hp = h?.hp ?? 0;
         s.maxHp = h?.maxHp ?? 0;
         s.targetId = targetings.get(e)?.targetId ?? 0;
+        s.aim = weapons.get(e)?.aim ?? t.facing;
       }
+      let n = 0;
+      for (let i = 0; i < pool.capacity; i++) {
+        if (!pool.active[i]) continue;
+        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, x: 0, y: 0, vx: 0, vy: 0 });
+        p.id = pool.id[i]!;
+        p.team = pool.team[i]! as Team;
+        p.x = pool.x[i]!;
+        p.y = pool.y[i]!;
+        p.vx = pool.vx[i]! * TICK_HZ;
+        p.vy = pool.vy[i]! * TICK_HZ;
+      }
+      snap.projectiles.length = n;
       return snap;
     },
 
@@ -311,6 +374,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
     /** Spatial index of every unit with health, as of the last step (read-only). */
     spatial,
+
+    /** Bullets in flight (read-only). */
+    projectiles: pool,
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
     stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds },

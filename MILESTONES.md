@@ -51,8 +51,8 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[t]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | 280dada |
 | `[t]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | f346375 |
 | `[c]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
-| `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | |
-| `[ ]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | |
+| `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
+| `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | |
 | `[ ]` | Damage pipeline in fixed order (TDD §6.4) + unit tests | |
 | `[ ]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet | |
 | `[ ]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet | |

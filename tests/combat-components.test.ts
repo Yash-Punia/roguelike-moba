@@ -20,7 +20,7 @@ describe('combat components at spawn', () => {
     const alpha = config.champions[0]!;
     expect(sim.stores.healths.get(e)).toEqual({ hp: alpha.maxHp, maxHp: alpha.maxHp, shield: 0, invulnerable: false });
     const w = sim.stores.weapons.get(e)!;
-    expect({ ...w }).toEqual({ ...alpha.weapon, cooldown: 0 });
+    expect({ ...w }).toEqual({ ...alpha.weapon, cooldown: 0, aim: Math.PI / 2 }); // Blue starts facing the enemy
     expect(Number.isInteger(w.interval)).toBe(true);
     expect(sim.stores.targetClasses.get(e)).toBe(TargetClass.Champion);
     expect(sim.stores.targetings.get(e)).toEqual({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });

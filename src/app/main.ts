@@ -15,10 +15,12 @@ const raw = structuredClone(rawConfig);
 if (params.has('curved')) raw.map.splineSamples = 16;
 let config = parseConfig(raw);
 const players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
-// `?dummy`: an idle enemy Alpha in front of your Sub-base to test combat against, until the bot (M2 feature 16).
+// `?dummy`: an idle, unarmed enemy Alpha in front of your Sub-base to test combat against;
+// `?dummy=armed` fires back. Until the bot (M2 feature 16).
 if (params.has('dummy')) {
   const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
-  players.push({ team: enemy, championId: 'alpha', spawnAt: { x: 0, y: localTeam === Team.Blue ? -50 : 50 } });
+  const spawnAt = { x: 0, y: localTeam === Team.Blue ? -50 : 50 };
+  players.push({ team: enemy, championId: 'alpha', spawnAt, unarmed: params.get('dummy') !== 'armed' });
 }
 const sim = createSim(config, config.match.defaultSeed, players);
 
@@ -50,7 +52,7 @@ const loop = startLoop({
 });
 
 if (debug) {
-  Object.assign(window, { warfront: { sim, view, get config() { return config; } } });
+  Object.assign(window, { warfront: { sim, view, loop, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
       raw,

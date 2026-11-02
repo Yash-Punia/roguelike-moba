@@ -102,6 +102,19 @@ const Combat = z.object({
     /** Hold fire this long after the current target dies. */
     retargetPauseSeconds: secs(),
   }),
+  /** Aiming and bullets (TDD §6.3). */
+  weapons: z.object({
+    /** Upper-body aim turn speed, degrees per second. */
+    aimTurnRate: deg(),
+    /** Fire only when the aim is within this many degrees of the target. */
+    fireCone: deg(),
+    /** lead: straight, aimed where the target will be; direct: straight at where it is; homing: curves onto its target and ignores everything else (D-030). */
+    bulletAim: z.enum(['lead', 'direct', 'homing']),
+    /** Bullet collision radius (m), added to each unit's collider in the swept hit test. */
+    bulletRadius: positive(),
+    /** A bullet flies the shooter's range plus this far before it expires (m). */
+    bulletOvershoot: nonneg(),
+  }),
 });
 
 // Camera runs in real time (render), so its seconds stay seconds.

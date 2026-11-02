@@ -4,6 +4,7 @@ import { Team, type Snapshot } from '../sim/sim';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad } from './models';
 import { TargetLine } from './target-line';
+import { Tracers } from './tracers';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
 
@@ -50,6 +51,8 @@ export function createScene(container: HTMLElement, config: Config) {
 
   const meshes = new Map<number, THREE.Object3D>();
   const bars = new Map<number, HpBar>();
+  const tracers = new Tracers((x, y) => arena.terrain.heightAt(x, y));
+  scene.add(tracers.mesh);
   const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
@@ -61,7 +64,7 @@ export function createScene(container: HTMLElement, config: Config) {
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.facing, x: e.x, y: e.y, f: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
+        s = { px: e.x, py: e.y, pf: e.aim, x: e.x, y: e.y, f: e.aim, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, e.team);
@@ -76,11 +79,12 @@ export function createScene(container: HTMLElement, config: Config) {
       }
       bar?.set(e.hp, e.maxHp);
       s.px = s.x; s.py = s.y; s.pf = s.f;
-      s.x = e.x; s.y = e.y; s.f = e.facing;
+      s.x = e.x; s.y = e.y; s.f = e.aim; // models turn with their aim (upper body) until legs get their own part
       s.vx = e.vx; s.vy = e.vy;
       s.targetId = e.targetId;
       s.radius = e.radius;
     }
+    tracers.capture(snap.projectiles);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
       scene.remove(mesh);
@@ -113,6 +117,7 @@ export function createScene(container: HTMLElement, config: Config) {
       if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
+    tracers.update(alpha);
     const me = focusId === undefined ? undefined : interp.get(focusId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
     if (me && !targetLine) {

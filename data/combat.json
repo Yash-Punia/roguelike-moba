@@ -5,5 +5,12 @@
     "tieBand": 0.5,
     "overrideSeconds": 0.15,
     "retargetPauseSeconds": 0.2
+  },
+  "weapons": {
+    "aimTurnRate": 720,
+    "fireCone": 10,
+    "bulletAim": "lead",
+    "bulletRadius": 0.1,
+    "bulletOvershoot": 2
   }
 }

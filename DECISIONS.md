@@ -293,3 +293,19 @@ From TDD §13:
 - Why: matches the stated rules where the GDD prose and pseudocode disagree; the prose is more specific.
 - Alternatives: 3-tick candidate rebuild (no benefit at this scale).
 
+## D-030 — Bullets fly straight with lead aim and hit the first enemy in their path
+- Date: 2026-11-02
+- Source: user choice (bullet behaviour); the rest made during development
+- Decision:
+  - **Behaviour (user choice):** bullets fly straight towards where the target will be. The aim leads the target's current velocity by solving the intercept with the bullet's speed. A bullet hits the first living enemy unit along its path, so minions and structures can body-block and a sharp change of direction can dodge. Allies never block. This fits Piercing Rounds and Ricochet in the GDD. `combat.weapons.bulletAim` switches to `direct` (straight at the current position) or `homing` (curves onto the target and ignores everything else) for comparison.
+  - **Aim and fire:** the aim (upper body) turns at 720°/s and the weapon fires only within 10° of the target direction. The bullet itself leaves along the exact target direction, so the aim only gates firing, and a 10° error never turns into a 1.2 m miss at 7 m. Bullets spawn at the shooter's collider edge.
+  - **Cooldown:** each tick it counts down by the fire-rate stat and carries the remainder when it fires, so +20% fire rate gives exactly 1.2× the shots over time.
+  - **Bullet flight:** bullets are 0.1 m in radius and fly the shooter's range plus 2 m before expiring. Hits use a swept segment-vs-circle test against the 4 m spatial index. Bullets currently fly over raised jungle ground; line of sight arrives in M3 (D-018). Invulnerable units still stop bullets but take no damage.
+  - **Pool:** projectiles live in a pooled struct-of-arrays (`src/sim/projectiles.ts`), not as ECS entities, so firing allocates nothing. The snapshot lists them with velocity in m/s.
+  - **Damage for now:** hits apply raw damage (shield first, then HP, floored at 0) until the TDD §6.4 pipeline arrives in feature 6. Only champions fire for now: structures (feature 10) and minions (feature 9) fire once their own targeting exists.
+  - **Debug tools:** `PlayerSetup.unarmed` gives a champion no weapon. `?dummy` is now unarmed and `?dummy=armed` fires back. In debug builds, `window.warfront.loop` exposes pause and time scale.
+  - **Render:** tracers are flat 0.9 m instanced quads in a lightened team colour at gun height (1 m), interpolated along their velocity. Models turn with their aim until champions get separate legs (feature 7).
+  - **Noted for later:** GDD §11 shows the local player's team in Blue and the enemy in Red, whatever the true side (the Brawl Stars convention). Render still uses true team colours.
+- Why: positioning stays the core skill while bullets remain readable and fair; lead aim keeps auto-fire reliable against steady movement.
+- Alternatives: homing bullets (no dodging or blocking); direct aim (moving targets mostly missed).
+

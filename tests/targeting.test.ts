@@ -1,44 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Config } from '../src/data/schema';
-import { createSim, Team, type PlayerSetup } from '../src/sim/sim';
-import { fixtureConfig } from './helpers';
+import { Team } from '../src/sim/sim';
+import { arena, type Unit } from './helpers';
 
-const base = fixtureConfig();
 const { Blue, Red } = Team;
-
-type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'subBase' | 'hq' };
-
-/**
- * Open test map with Blue Alpha (player 0) at the origin plus the given units. Champions get
- * ids 1..n in order, then structures. Alpha's range is 7 m, measured to the target's edge
- * (Alpha's radius is 0.5, a Sub-base's 1.45).
- */
-function arena(units: Unit[], tweak?: (c: Config) => void) {
-  const config = structuredClone(base);
-  // Pin the tuning these cases are written against, so retuning data/ never breaks them.
-  config.champions[0]!.weapon.range = 7;
-  config.champions[0]!.radius = 0.5;
-  config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
-  tweak?.(config);
-  const players: PlayerSetup[] = [{ team: Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
-  for (const u of units) {
-    if (u.structure) {
-      config.map.structures.push({ id: `s${config.map.structures.length}`, kind: u.structure, team: u.team === Blue ? 'blue' : 'red', lane: undefined, x: u.x, y: u.y });
-    } else {
-      players.push({ team: u.team, championId: 'alpha', spawnAt: { x: u.x, y: u.y } });
-    }
-  }
-  const sim = createSim(config, 1, players);
-  const shooter = sim.entityOf(0)!;
-  const target = () => sim.stores.targetings.get(shooter)!.targetId;
-  const step = (n = 1) => {
-    for (let i = 0; i < n; i++) sim.step([]);
-    return target();
-  };
-  const move = (id: number, x: number, y: number) => Object.assign(sim.stores.transforms.get(id)!, { x, y });
-  const hp = (id: number, value: number) => (sim.stores.healths.get(id)!.hp = value);
-  return { sim, config, shooter, step, move, hp, target };
-}
 
 describe('auto-targeting (GDD §6)', () => {
   it('targets the nearest enemy champion whose edge is within range, never allies', () => {
