@@ -35,8 +35,7 @@ describe('combat components at spawn', () => {
     expect(rows).toEqual([
       ['hq', hq.maxHp, hq.maxHp, TargetClass.HQ, hq.weapon.kind],
       ['hq', hq.maxHp, hq.maxHp, TargetClass.HQ, hq.weapon.kind],
-      ['subBase', subBase.maxHp, subBase.maxHp, TargetClass.SubBase, subBase.weapon.kind],
-      ['subBase', subBase.maxHp, subBase.maxHp, TargetClass.SubBase, subBase.weapon.kind],
+      ...Array.from({ length: 6 }, () => ['subBase', subBase.maxHp, subBase.maxHp, TargetClass.SubBase, subBase.weapon.kind]),
     ]);
     const hqEntity = sim.snapshot().entities.find((e) => e.kind === Kind.HQ)!;
     expect(sim.stores.weapons.get(hqEntity.id)!.targets).toBe(config.structures.hq.weapon.targets);

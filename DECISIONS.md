@@ -707,3 +707,30 @@ From TDD §13:
 - Decision: M3 rows are built in a playable order (see MILESTONES.md M3): The Front complete first, then match config with every slot filled by the lane bot, so the default match becomes 3v3 and every later feature is tested in a real 3v3; then Beta and Gamma, the Bazooka Tank and Shock Troops, Trenches, line of sight and fog of war, the power catalogue and full draft, Ultimate charge sources, the rest of respawn, match phases, and The Bridgehead last. The first map feature makes every trench, room and arena walkable but empty: medkits come with the Trenches feature, camps and bosses in M4.
 - Why: the map and team size frame every other M3 feature; building the roster on a 1v1 lane would need retesting on the full map anyway.
 - Alternatives: roster first (Beta and Gamma tested only in one lane); MILESTONES row order (the Bridgehead and match config before any champion).
+
+## D-047 — The Front complete
+- Date: 2026-11-02
+- Source: made during development; user choice (rooms and arenas as empty shells, D-046)
+- Decision:
+  - **Map data** (`data/map-3lane.json`) from the spec's MP-01 tables:
+    - the left and right lanes (8 m); the spec lists the right lane Red → Blue, so its points are stored reversed to run Blue → Red like every lane route;
+    - the four outer Sub-bases at the spec's coordinates, with their lane ids;
+    - the trench network: the spec's Red-half trenches plus their twins at (−x, −y), 38 paths and 374 m of centre line (the spec says 375 m);
+    - the 12 rooms (C1–C4, M1–M4, S1–S4) at trench depth, and the Halftrack and Field Gun arenas (13 m wide, so r 6.5 m, sunk 0.5 m).
+  - **Paint order:** bases, aprons, trenches, rooms, arenas, the Crater ramps and bowl, then lanes. Lanes paint over trench ends; rooms and arenas over trench ends inside them.
+  - **Heights** (render-only, D-018): trenches and rooms −0.85 m, arenas −0.5 m. The spec gives no entry profile, so a trench floor slopes linearly between the floors at its two ends (room −0.85, arena −0.5, lane 0): every lane entry is a ramp. The lane-to-lane trench by the east Crater branch is two halves dipping to −0.85 m in the middle.
+  - **Empty shells:** rooms and arenas are walkable but hold nothing yet. Medkits come with the Trenches feature, camps and bosses in M4. All rooms use the trench surface.
+  - **Waves** run on all three lanes. The user's wave tuning (5 soldiers every 15 s from 0:05) is unchanged, so about 60–90 soldiers are on the map from the first minute (the GDD's 3 every 25 s would give about a third of that).
+  - **Snapshots** carry `lane`: a minion's lane id, a Sub-base's placement lane, '' for the rest.
+  - **Bot:** `createBot` takes a lane id (default `centre`) instead of using the first lane. Its lane read counts only its lane's minions and Sub-bases (and both HQs); before, outer-lane waves read as enemies at its door.
+    - It also ignores minions more than `bots.lane.branchReach` (6 m) from the branch it walks. An east-branch minion near y = 0 is equally far from both trunk ends of the west-branch track, so its lane position flipped between about 50 m and 105 m. On the full map that held the bot back behind waves it could not reach.
+    - Measured (bot vs an idle player, seeds 1–8, share of minutes 1–4 spent in your half): with only the lane filter 0.29–0.52; with both 0.98–1.00. On centre-only waves 0.81–1.00 (was 0.83–1.00).
+    - Tried and dropped: projecting onto the nearest branch, and walking the branch its wave is on. With waves every 15 s alternating branches the bot ran back and forth between them. Lane assignment and branch choice belong to the bot slots (M3) and A\* (M4).
+  - **Terrain mesh:** the full map has saddle cells, where the slopes of two nearby shapes reach into opposite corners of one 0.5 m cell and the cut contour crosses it four times. `split` now cuts each inside arc off as its own piece instead of assuming two crossings. Slivers under 1e-6 m² are dropped, since their winding can flip once stored as float32.
+  - **Perf** (seed 11, D-044 method, software GL in headless Chromium, so only calls and triangles count):
+    - quiet views: 58–92 draw calls, 61–81k triangles;
+    - busy outer lane at 0:57 with 66 soldiers: 104–126 calls, 74–86k triangles.
+    - Calls reach the ≤ 120 mobile budget in the busiest view. Instancing soldiers (left open in D-044) is the next lever, best done once the bot slots fill the map.
+  - **Tests:** the lane-read test pinned 3 soldiers implicitly and broke with the wave-config commit (`1ddb04b`); it now sets them. The determinism test gets a 30 s timeout for the busier map (about 4.5 s per run).
+- Why: the full map is the frame for every other M3 feature.
+- Alternatives: the spec's trench floors flat at −0.85 m with a step into the lanes (looks like a cliff); separate short ramp shapes at each entry (more data for the same look).

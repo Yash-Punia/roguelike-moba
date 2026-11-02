@@ -5,6 +5,8 @@
   "soldiers": 5,
   "spacing": 1.5,
   "lanes": [
-    "centre"
+    "left",
+    "centre",
+    "right"
   ]
 }

@@ -66,9 +66,16 @@ export function championDps(cfg: Config, e: EntitySnapshot): number {
   return (def.weapon.damage * (1 + def.growth.damagePct * Math.max(0, e.level - 1))) / (def.weapon.interval / 30);
 }
 
-/** Fills `r` from the snapshot for the champion `self` of team `team`. */
-export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, track: LaneTrack, cfg: Config) {
+/**
+ * Fills `r` from the snapshot for the champion `self` of team `team`, playing lane `laneId`:
+ * only that lane's minions and Sub-bases count (and both HQs), so the other lanes' waves
+ * don't read as a threat on this track. Minions beyond `branchReach` of the track walk the
+ * other Crater branch: the bot can't reach them, and their nearest track point flips between
+ * the two trunk ends, so they are left out too.
+ */
+export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, track: LaneTrack, cfg: Config, laneId: string) {
   const b = cfg.bots;
+  const reachSq = b.lane.branchReach * b.lane.branchReach;
   const forward = (x: number, y: number) => (team === Team.Blue ? track.project(x, y) : track.length - track.project(x, y));
   r.me = undefined;
   r.enemy = undefined;
@@ -85,10 +92,13 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
     if (e.id === self) r.me = e;
     else if (e.kind === Kind.Champion && e.team !== team) r.enemy = e;
     else if (e.kind === Kind.Minion && e.hp > 0) {
+      if (e.lane !== laneId) continue;
       const f = forward(e.x, e.y);
+      if (track.lastDistSq > reachSq) continue;
       if (e.team === team) r.ownFront = Math.max(r.ownFront, f);
       else r.enemyFront = Math.min(r.enemyFront, f);
     } else if ((e.kind === Kind.SubBase || e.kind === Kind.HQ) && !e.destroyed) {
+      if (e.kind === Kind.SubBase && e.lane !== laneId) continue;
       const f = forward(e.x, e.y);
       if (e.team !== team && f < r.fEnemyTower) {
         r.enemyTower = e;
@@ -118,8 +128,9 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   if (tower) r.towerOnMe = tower.targetId === self;
   for (let i = 0; i < list.length; i++) {
     const e = list[i]!;
-    if (e.kind !== Kind.Minion || e.hp <= 0) continue;
+    if (e.kind !== Kind.Minion || e.hp <= 0 || e.lane !== laneId) continue;
     const f = forward(e.x, e.y);
+    if (track.lastDistSq > reachSq) continue;
     const near = Math.abs(f - clash) <= b.lane.clashWindow;
     if (e.team === team) {
       if (near) r.ownNear++;

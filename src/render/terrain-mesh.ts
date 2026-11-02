@@ -25,6 +25,8 @@ export const WALL_SLOPE = 0.6;
 const EDGE_BAND = 2;
 /** Shapes further than this from a cell can't cut it or shape its slope. */
 const SHAPE_REACH = 3;
+/** Triangles smaller than this (m²) are dropped as cut slivers. */
+const SLIVER_AREA = 1e-6;
 /** Points this close to a shape's edge count as inside it (crossing points land on edges). */
 const ON_EDGE = 1e-6;
 
@@ -122,7 +124,11 @@ export function buildTerrainGeometry(map: MapConfig): TerrainGeometry {
 
   const tris: number[] = [];
   const tags: number[] = [];
+  const f = Math.fround;
   const emit = (a: Pt, b: Pt, c: Pt, tag: number, candidates: readonly number[]) => {
+    // Slivers from cuts that graze a vertex: invisible, and their winding can flip once stored as float32.
+    const area = (f(b.x) - f(a.x)) * (f(c.y) - f(a.y)) - (f(c.x) - f(a.x)) * (f(b.y) - f(a.y));
+    if (Math.abs(area) < SLIVER_AREA * 2) return;
     for (const p of [a, b, c]) tris.push(p.x, p.y, p.h ?? (p.h = ground(p.x, p.y, candidates)));
     tags.push(tag);
   };
@@ -157,8 +163,8 @@ export function buildTerrainGeometry(map: MapConfig): TerrainGeometry {
         const next: typeof pieces = [];
         for (const piece of pieces) {
           const [inside, outside] = split(piece.pts, f, 0);
-          if (inside.length >= 3) next.push({ pts: inside, tag: k });
-          if (outside.length >= 3) next.push({ pts: outside, tag: piece.tag });
+          for (const pts of inside) next.push({ pts, tag: k });
+          for (const pts of outside) next.push({ pts, tag: piece.tag });
         }
         pieces = next;
       }
@@ -173,8 +179,8 @@ export function buildTerrainGeometry(map: MapConfig): TerrainGeometry {
           continue;
         }
         const [slope, top] = split(piece.pts, union, WALL_SLOPE);
-        if (slope.length >= 3) fan(slope, TAG_SLOPE);
-        if (top.length >= 3) fan(top, TAG_TOP);
+        for (const pts of slope) fan(pts, TAG_SLOPE);
+        for (const pts of top) fan(pts, TAG_TOP);
       }
 
       function fan(pts: Pt[], tag: number) {
@@ -198,27 +204,63 @@ export function buildTerrainGeometry(map: MapConfig): TerrainGeometry {
 }
 
 /**
- * Splits a convex polygon into the parts where f ≤ level and f > level (both convex, same
+ * Splits a convex polygon into the parts where f ≤ level and f > level (all convex, same
  * winding). Crossing points are refined onto the contour and computed from the edge's
  * endpoints in a fixed order, so the cell on the other side of an edge gets the same point.
+ *
+ * Usually the contour crosses twice, giving one piece each side. Where it crosses more often
+ * (a saddle, such as two shapes' slopes reaching into opposite corners of one cell), each
+ * inside arc becomes its own piece, closed by the chord between its crossings, and the
+ * outside is the polygon with those pieces cut off.
  */
-export function split(poly: readonly Pt[], f: (x: number, y: number) => number, level: number): [Pt[], Pt[]] {
-  const inside: Pt[] = [];
-  const outside: Pt[] = [];
+export function split(poly: readonly Pt[], f: (x: number, y: number) => number, level: number): [Pt[][], Pt[][]] {
+  const n = poly.length;
   const values = poly.map((p) => f(p.x, p.y) - level);
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i]!;
-    const b = poly[(i + 1) % poly.length]!;
+  // Boundary in order: every vertex, plus a crossing point after it where the side changes.
+  const ring: { p: Pt; inside: boolean; crossing: boolean }[] = [];
+  for (let i = 0; i < n; i++) {
     const fa = values[i]!;
-    const fb = values[(i + 1) % poly.length]!;
-    (fa <= 0 ? inside : outside).push(a);
-    if (fa <= 0 !== fb <= 0) {
-      const p = crossing(a, b, fa, fb, f, level);
-      inside.push(p);
-      outside.push(p);
+    const fb = values[(i + 1) % n]!;
+    ring.push({ p: poly[i]!, inside: fa <= 0, crossing: false });
+    if (fa <= 0 !== fb <= 0) ring.push({ p: crossing(poly[i]!, poly[(i + 1) % n]!, fa, fb, f, level), inside: true, crossing: true });
+  }
+  const crossings = ring.length - n;
+  if (crossings <= 2) {
+    const inside: Pt[] = [];
+    const outside: Pt[] = [];
+    for (const v of ring) {
+      if (v.crossing || v.inside) inside.push(v.p);
+      if (v.crossing || !v.inside) outside.push(v.p);
+    }
+    return [inside.length >= 3 ? [inside] : [], outside.length >= 3 ? [outside] : []];
+  }
+  // Start at a crossing that opens an inside arc, then walk once round.
+  let start = 0;
+  while (!(ring[start]!.crossing && !ring[(start + 1) % ring.length]!.crossing && ring[(start + 1) % ring.length]!.inside)) {
+    start++;
+    if (start === ring.length) break;
+  }
+  const inside: Pt[][] = [];
+  const outside: Pt[] = [];
+  let arc: Pt[] | undefined;
+  for (let k = 0; k < ring.length; k++) {
+    const v = ring[(start + k) % ring.length]!;
+    if (v.crossing) {
+      outside.push(v.p);
+      if (arc) {
+        arc.push(v.p);
+        if (arc.length >= 3) inside.push(arc);
+        arc = undefined;
+      } else {
+        arc = [v.p];
+      }
+    } else if (v.inside) {
+      arc?.push(v.p);
+    } else {
+      outside.push(v.p);
     }
   }
-  return [inside, outside];
+  return [inside, outside.length >= 3 ? [outside] : []];
 }
 
 /** Point on segment ab where f = level (Illinois regula falsi), endpoints in canonical order. */

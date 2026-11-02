@@ -9,6 +9,8 @@ export class LaneTrack {
   /** Cumulative length at each polyline vertex. */
   private readonly cum: Float64Array;
   readonly length: number;
+  /** Squared distance from the last `project`ed point to the lane centre line. */
+  lastDistSq = 0;
 
   constructor(private readonly pts: Float64Array) {
     const n = pts.length / 2;
@@ -31,6 +33,7 @@ export class LaneTrack {
         s = this.cum[k]! + (this.cum[k + 1]! - this.cum[k]!) * r.t;
       }
     }
+    this.lastDistSq = best;
     return s;
   }
 

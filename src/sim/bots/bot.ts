@@ -41,7 +41,15 @@ const quantise = (v: number) => Math.sign(v) * Math.min(127, Math.round(Math.abs
  * A personality rolled per match and a confidence that rises with kills and falls with
  * deaths shape every desire, so no two matches play the same.
  */
-export function createBot(player: PlayerId, team: Team, getConfig: () => Config, getLanes: () => readonly LanePath[], rng: Rng) {
+export function createBot(
+  player: PlayerId,
+  team: Team,
+  getConfig: () => Config,
+  getLanes: () => readonly LanePath[],
+  rng: Rng,
+  /** The lane it plays (`map.lanes` id); falls back to the first lane if the map has none by that id. */
+  laneId = 'centre',
+) {
   const personality: Personality = rollPersonality(getConfig().bots.personality, rng);
   const desires: Record<Exclude<BotMode, 'dead'>, number> = {
     retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0,
@@ -68,7 +76,10 @@ export function createBot(player: PlayerId, team: Team, getConfig: () => Config,
   const fromForward = (f: number) => (team === Team.Blue ? f : track!.length - f);
 
   function laneTrack(): LaneTrack | undefined {
-    const pts = getLanes()[0]?.branches[0];
+    const lanes = getLanes();
+    let lane = lanes[0];
+    for (let i = 0; i < lanes.length; i++) if (lanes[i]!.id === laneId) lane = lanes[i];
+    const pts = lane?.branches[0];
     if (!pts) return undefined;
     if (pts !== trackFrom) {
       track = new LaneTrack(pts);
@@ -203,7 +214,7 @@ export function createBot(player: PlayerId, team: Team, getConfig: () => Config,
       cmd.moveX = cmd.moveY = 0;
       cmd.ult = false;
       if (snap.match.phase !== 'live' || !laneTrack()) return cmd;
-      readLane(read, snap, self, team, track!, cfg);
+      readLane(read, snap, self, team, track!, cfg, laneId);
       const me = read.me;
       if (!me) return cmd;
       updateConfidence(cfg, me, tick);

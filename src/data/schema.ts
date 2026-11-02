@@ -276,6 +276,8 @@ const Bots = z.object({
     callForHelpRadius: positive(),
     /** Goes all in when it can kill the enemy champion within this long and faster than it dies (s). */
     allInSeconds: positive(),
+    /** Minions further than this from the branch it walks are on the other Crater branch: out of reach, not read (m). */
+    branchReach: positive(),
   }),
   /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
   ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),

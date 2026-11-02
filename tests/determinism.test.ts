@@ -46,9 +46,9 @@ describe('determinism', () => {
     const b = run(1, log);
     expect(a).toHaveLength(TICKS / 300);
     expect(b).toEqual(a);
-  });
+  }, 30_000);
 
   it('different commands give a different match', () => {
     expect(run(1, commandLog(1)).at(-1)).not.toBe(run(1, commandLog(2)).at(-1));
-  });
+  }, 30_000);
 });

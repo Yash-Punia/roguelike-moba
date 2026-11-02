@@ -42,8 +42,12 @@ function match(opts: { bots: number[]; waves?: boolean; blueAt?: { x: number; y:
   };
   const ent = (id: number) => sim.snapshot().entities.find((e) => e.id === id)!;
   const place = (id: number, x: number, y: number) => Object.assign(sim.stores.transforms.get(id)!, { x, y });
-  const structure = (team: Team, kind: 'subBase' | 'hq' = 'subBase') =>
-    sim.stores.structures.ids.find((e) => sim.stores.teams.get(e) === team && sim.stores.structures.get(e)!.kind === kind)!;
+  /** A team's HQ, or its Sub-base in `lane` (the bot plays the centre). */
+  const structure = (team: Team, kind: 'subBase' | 'hq' = 'subBase', lane = 'centre') =>
+    sim.stores.structures.ids.find((e) => {
+      const st = sim.stores.structures.get(e)!;
+      return sim.stores.teams.get(e) === team && st.kind === kind && (kind === 'hq' || st.lane === lane);
+    })!;
   const red = sim.entityOf(1)!;
   const blue = sim.entityOf(0)!;
   const bot = () => bots.find((b) => b.pl === 1)!.bot;
@@ -206,7 +210,7 @@ describe('bot matches', () => {
 describe('the lane read', () => {
   it('counts the wave advantage and both kill times', async () => {
     const { emptyRead, readLane } = await import('../src/sim/bots/lane-read');
-    const m = match({ bots: [], blueAt: { x: 0, y: 0 } });
+    const m = match({ bots: [], blueAt: { x: 0, y: 0 }, tweak: (c) => (c.waves.soldiers = 3) });
     m.place(m.red, 0, 5);
     m.sim.debug.spawnWave();
     m.run();
@@ -217,7 +221,7 @@ describe('the lane read', () => {
     m.sim.debug.kill(m.sim.stores.laneAgents.ids.find((e) => m.sim.stores.teams.get(e) === Blue)!);
     m.run();
     const r = emptyRead();
-    readLane(r, m.sim.snapshot(), m.red, Red, new LaneTrack(m.sim.lanes[0]!.branches[0]!), m.config);
+    readLane(r, m.sim.snapshot(), m.red, Red, new LaneTrack(m.sim.lanes[0]!.branches[0]!), m.config, 'centre');
     expect(r.waveAdvantage).toBe(1); // 3 Red soldiers against 2 Blue
     const dps = 95 / (25 / 30);
     expect(r.ttkUs).toBeCloseTo(m.ent(m.blue).hp / dps);

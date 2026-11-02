@@ -189,6 +189,8 @@ export interface EntitySnapshot {
   /** Which model to draw: the champion id, or the structure kind. */
   modelId: string;
   team: Team;
+  /** Minions and Sub-bases: the `map.lanes` id they belong to; '' for everything else. */
+  lane: string;
   x: number;
   y: number;
   facing: number;
@@ -561,12 +563,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, steady: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
         s.modelId = models.get(e) ?? '';
         s.team = teams.get(e) ?? Team.Neutral;
+        const agent = laneAgents.get(e);
+        s.lane = agent ? (lanes[agent.lane]?.id ?? '') : (structures.get(e)?.lane ?? '');
         s.x = t.x;
         s.y = t.y;
         s.facing = t.facing;

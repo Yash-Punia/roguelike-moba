@@ -81,7 +81,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01 | |
+| `[c]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | |
 | `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice | |
 | `[ ]` | Match config: team size 2v2–5v5 and lane count 2/3 via URL params + debug panel; map chosen by lane count; duplicate champions allowed (D-009) | |
 | `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms | |
