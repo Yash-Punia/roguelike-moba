@@ -16,6 +16,8 @@ Progress tracker for the Warfront web prototype (see [docs/TDD.md](docs/TDD.md))
 
 A feature's own commit marks it `[c]`; the hash is filled in by the next commit that touches this file (a commit cannot contain its own hash). `[t]` and `[p]` are set only after the user confirms.
 
+From M3 on, features are committed on `main` and pushed straight away (D-045), so a row goes `[c]` → `[p]` (the next commit backfills the hash and marks it pushed) → `[t]` once the user has tested it. `[t]` is the final state.
+
 ---
 
 ## M1 — Foundation (~weeks 1–2)
@@ -44,34 +46,38 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (GDD §13).
 
-Build order (D-024), so each commit is playable: map v2 → centre lane and structures → Health/TargetClass/Weapon/Targeting → auto-targeting → projectiles → damage pipeline → Alpha → death and respawn → MG Soldier waves → structure rules → XP and levels → win/lose → minimal HUD → Ultimate charge → basic draft → bot. Pulled in from M3 in minimal form: respawn formula, solo champion-kill XP and charge, spawn-pad heal. Work happens on `wip/m2` (D-021).
+Build order (D-024), so each commit is playable: map v2 → centre lane and structures → Health/TargetClass/Weapon/Targeting → auto-targeting → projectiles → damage pipeline → Alpha → death and respawn → MG Soldier waves → structure rules → XP and levels → win/lose → minimal HUD → Ultimate charge → basic draft → bot. Pulled in from M3 in minimal form: respawn formula, solo champion-kill XP and charge, spawn-pad heal. Work happened on `wip/m2` (D-021), merged to `main` in PR #1 (`aff2505`).
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[t]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | 280dada |
-| `[t]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | f346375 |
-| `[c]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
-| `[c]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
-| `[c]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
-| `[c]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
-| `[c]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | 64691d5 |
-| `[c]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet (D-035) | f2f9bb3 |
-| `[c]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
-| `[c]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | 2bee6ad |
-| `[c]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only; stack caps and the 2-offer queue pulled forward (D-041) | 5c157f5 |
-| `[c]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button: kill charge and the brass gauge (D-040; passive and `ultTargetable` came with Alpha, D-033) | 1f0b4ec |
-| `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
-| `[c]` | One simple bot opponent (farm / trade / retreat), with a simple Ultimate; the default match is you vs the bot (D-042); v2 after playtest: utility modes, wave play and pushes, per-match personality and confidence, random seed per load (D-043) | 5b1b973 |
-| `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
-| `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
+| `[p]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | 280dada |
+| `[p]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | f346375 |
+| `[p]` | Health, `TargetClass`, `Weapon`, `Targeting` components | 7637ac4 |
+| `[p]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | 9ce051b |
+| `[p]` | Bullet projectiles with swept hit test; aim turn rate and 10° fire cone | 3955850 |
+| `[p]` | Damage pipeline in fixed order (TDD §6.4) + unit tests; damage numbers and debug modifiers pulled forward (D-031); random crits (D-032) | b617616, 20f8df9 |
+| `[p]` | Alpha: Service Revolver, Steady Hand, Frag Grenade + fire pool; primitive chibi model per the Alpha sheet (D-033) | 64691d5 |
+| `[p]` | MG Soldier waves (0:15, every 25 s), lane following, minion targeting, call-for-help; model per the minions sheet (D-035) | f2f9bb3 |
+| `[p]` | Structures: aggro rules, warm-up, backdoor protection, HQ invulnerable until a Sub-base falls, regen (D-036) | 0d4a1ea |
+| `[p]` | XP sharing (10 m), level table 1–12, stat growth, stat formula + cache; champion-kill XP to the killer (D-037) | 2bee6ad |
+| `[p]` | Basic draft: 3-card tray, non-blocking, 10 s auto-pick, Common powers only; stack caps and the 2-offer queue pulled forward (D-041) | 5c157f5 |
+| `[p]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button: kill charge and the brass gauge (D-040; passive and `ultTargetable` came with Alpha, D-033) | 1f0b4ec |
+| `[p]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
+| `[p]` | One simple bot opponent (farm / trade / retreat), with a simple Ultimate; the default match is you vs the bot (D-042); v2 after playtest: utility modes, wave play and pushes, per-match personality and confidence, random seed per load (D-043) | 5b1b973 |
+| `[p]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | ceaa529 |
+| `[p]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
 
-**Gate 1 performance pass (D-044, committed `[c]`):** busy single-lane scene (seed 11, 15 units) went from 444 draw calls / 201k triangles to 91 / 76k (mobile budget ≤ 120 / ≤ 150k); sim 0.06 ms average, 0.23 ms p99 per tick. The dev perf overlay (`?debug`) shows fps, frame times, draw calls and triangles for the on-device check.
+**Gate 1 performance pass (D-044, `62aceed`, pushed `[p]`):** busy single-lane scene (seed 11, 15 units) went from 444 draw calls / 201k triangles to 91 / 76k (mobile budget ≤ 120 / ≤ 150k); sim 0.06 ms average, 0.23 ms p99 per tick. The dev perf overlay (`?debug`) shows fps, frame times, draw calls and triangles for the on-device check.
+
+**Gate 1: passed** (user, 2026-11-02).
 
 **Gate 1 exit criteria:** the user plays the single lane and confirms positioning decides trades; holds 60 fps on desktop and a mid-range phone. If the gate fails, fix the core before M3.
 
 ---
 
 ## M3 — Full map and roster (~weeks 5–7)
+
+Build order (D-046), so each commit is playable: The Front complete → match config and bot slots (default 3v3) → Beta → Gamma → Bazooka Tank and wave composition → Shock Troops → Trenches → line of sight → fog of war → power catalogue → full draft rules → Ultimate charge sources → respawn rest → match phases → The Bridgehead. Work happens directly on `main` (D-045).
 
 | Status | Feature | Hash |
 | --- | --- | --- |

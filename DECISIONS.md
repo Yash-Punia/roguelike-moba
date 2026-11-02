@@ -693,3 +693,17 @@ From TDD §13:
   - **Left for M5:** adaptive pixel ratio, GPU particles, and instancing whole soldiers (needed only if M3's ~50 minions push past the budget).
 - Why: Gate 1 needs 60 fps on a mid-range phone, and M3 roughly quadruples the units; the per-unit cost had to drop now.
 - Alternatives: lower the shadow map or drop shadows (visible quality loss); instance every soldier now (needs per-instance animation and fading; deferred until M3 shows it's needed).
+
+## D-045 — M3 works directly on `main`, pushed per feature
+- Date: 2026-11-02
+- Source: user decision (after merging `wip/m2` into `main`, PR #1)
+- Decision: from M3, cloud sessions commit each feature on `main` and push it straight away. The user pulls `main`, tests, and any failure gets a follow-up fix commit (no history rewrites). MILESTONES rows go `[c]` → `[p]` (the next commit backfills the hash) → `[t]` once tested. This replaces D-021 (the `wip/<milestone>` branch) and the "push only on go-ahead" rule of D-007 for this way of working.
+- Why: Gate 1 is passed and the core is proven; the extra branch and merge step cost more than they protect. A cloud session must push to keep its work.
+- Alternatives: keep `wip/m3` (one more merge per milestone); commit on `main` but push only on go-ahead (work is lost if the cloud session ends first).
+
+## D-046 — M3 build order
+- Date: 2026-11-02
+- Source: user choice
+- Decision: M3 rows are built in a playable order (see MILESTONES.md M3): The Front complete first, then match config with every slot filled by the lane bot, so the default match becomes 3v3 and every later feature is tested in a real 3v3; then Beta and Gamma, the Bazooka Tank and Shock Troops, Trenches, line of sight and fog of war, the power catalogue and full draft, Ultimate charge sources, the rest of respawn, match phases, and The Bridgehead last. The first map feature makes every trench, room and arena walkable but empty: medkits come with the Trenches feature, camps and bosses in M4.
+- Why: the map and team size frame every other M3 feature; building the roster on a 1v1 lane would need retesting on the full map anyway.
+- Alternatives: roster first (Beta and Gamma tested only in one lane); MILESTONES row order (the Bridgehead and match config before any champion).

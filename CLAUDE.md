@@ -64,9 +64,7 @@ TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (
 
 ## Workflow (hard rules)
 
-- **One feature = one commit**, committed locally on `main`.
-- **Never `git push` without the user's explicit go-ahead in that turn.** The user tests each feature before it is pushed.
-- Push only up to the last user-tested commit: `git push origin <hash>:main`. Plain `git push` only when every local commit is tested (`[t]`).
-- If a feature fails the user's testing, fix it in a follow-up commit. Do not rewrite history unless asked.
-- **Cloud sessions** (claude.ai/code) cannot run the user's local dev server. There, commit features on branch `wip/<milestone>` (for example `wip/m2`) and push that branch; never push `main`. The user checks the branch out locally to test, and only tested commits reach `main`, on the user's go-ahead (D-021).
+- **One feature = one commit**, committed on `main`.
+- Each feature is pushed to `origin/main` as soon as it is committed (D-045). The user pulls and tests; if a feature fails, fix it in a follow-up commit. Do not rewrite history unless asked.
+- This applies to cloud sessions too: they work on `main` directly and push every feature (D-045 replaces the `wip/<milestone>` branch of D-021).
 - In the same commit as the feature, mark it `[c]` in [MILESTONES.md](MILESTONES.md) and add a [DECISIONS.md](DECISIONS.md) entry for any non-obvious decision made along the way. Backfill the hash in the next commit that touches MILESTONES.md (a commit cannot contain its own hash).
