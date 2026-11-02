@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Config, MapConfig } from '../data/schema';
 import { Team, type Snapshot } from '../sim/sim';
+import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad } from './models';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
@@ -43,6 +44,7 @@ export function createScene(container: HTMLElement, config: Config) {
   const camera = new THREE.PerspectiveCamera(config.camera.fovDeg, 1, 1, 300);
 
   const meshes = new Map<number, THREE.Object3D>();
+  const bars = new Map<number, HpBar>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
 
@@ -59,6 +61,13 @@ export function createScene(container: HTMLElement, config: Config) {
         scene.add(root);
         meshes.set(e.id, root);
       }
+      let bar = bars.get(e.id);
+      if (!bar && e.maxHp > 0) {
+        bar = new HpBar(e.kind, e.team);
+        scene.add(bar.group);
+        bars.set(e.id, bar);
+      }
+      bar?.set(e.hp, e.maxHp);
       s.px = s.x; s.py = s.y; s.pf = s.f;
       s.x = e.x; s.y = e.y; s.f = e.facing;
       s.vx = e.vx; s.vy = e.vy;
@@ -68,6 +77,9 @@ export function createScene(container: HTMLElement, config: Config) {
       scene.remove(mesh);
       meshes.delete(id);
       interp.delete(id);
+      const bar = bars.get(id);
+      if (bar) scene.remove(bar.group);
+      bars.delete(id);
     }
   }
 
@@ -82,6 +94,8 @@ export function createScene(container: HTMLElement, config: Config) {
       const y = s.py + (s.y - s.py) * alpha;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
       mesh.rotation.y = lerpAngle(s.pf, s.f, alpha);
+      const bar = bars.get(id);
+      if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
     sun.target.position.set(focus.x, 0, -focus.y);
@@ -89,6 +103,8 @@ export function createScene(container: HTMLElement, config: Config) {
   }
 
   function render() {
+    // Bars face the camera; done here because the camera rig moves after update().
+    for (const bar of bars.values()) bar.group.quaternion.copy(camera.quaternion);
     renderer.render(scene, camera);
   }
 

@@ -1,3 +1,12 @@
 [
-  { "id": "alpha", "name": "Alpha", "moveSpeed": 3.5, "radius": 0.5 }
+  {
+    "id": "alpha",
+    "name": "Alpha",
+    "maxHp": 1000,
+    "moveSpeed": 3.5,
+    "radius": 0.5,
+    "ultChargeSeconds": 50,
+    "growth": { "hpPct": 5, "damagePct": 4 },
+    "weapon": { "kind": "bullet", "damage": 95, "interval": 0.833, "range": 7, "projectileSpeed": 25 }
+  }
 ]

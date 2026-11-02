@@ -263,3 +263,17 @@ From TDD §13:
 - Why: the faceted look fits the flat-shaded low-poly style better.
 - Alternatives: the spec's curves (kept as a URL toggle).
 
+## D-028 — Combat components: undocumented numbers and test scaffolding
+- Date: 2026-11-02
+- Source: made during development
+- Decision:
+  - **Projectile speeds:** Sub-base bullets and HQ flak travel at 30 m/s (not in the GDD/TDD; Alpha's 25 m/s is). Whether flak is a projectile or an instant hit is settled with the structure rules (feature 10).
+  - **Weapon intervals** stay rounded to whole ticks at load (0.833 s → 25 ticks, 1 s → 30) per the conventions. Fire-rate bonuses will run on a fractional cooldown accumulator (feature 5), so percentage stacks are not lost to rounding.
+  - **Stats:** champions carry Damage, FireRate, MaxHp, MoveSpeed, Range, DamageTaken and UltCharge, computed as `(base + flat) × (1 + Σpct) × Πmult` and cached until marked dirty (`src/sim/stats.ts`). Move speed and max HP are now derived from stats; live max-HP edits keep the unit's HP fraction.
+  - **Spatial index:** 4 m buckets over the map, holding every unit with Health, rebuilt each tick after movement; queries return ascending ids.
+  - **`units.json`** (MG Soldier) is deferred to the waves feature, where it is first used.
+  - **`?dummy`:** spawns an idle enemy Alpha at (0, ∓50), in front of your Sub-base, to test combat against until the bot replaces it. `PlayerSetup.spawnAt` supports it.
+  - **World HP bars:** team-coloured fill on a dark back, unlit billboards drawn over the models. Units tick every 250 HP (GDD §10); structures tick every 1,000 HP, since 250 HP ticks turn a 10,000 HP bar into an unreadable barcode.
+- Why: unblocks combat with values that are easy to tune live.
+- Alternatives: 250 HP ticks on structures too (rejected after a visual check).
+

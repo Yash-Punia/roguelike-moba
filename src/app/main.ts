@@ -3,7 +3,7 @@ import { parseConfig, rawConfig } from '../data/load';
 import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
 import { createInput } from '../input';
-import { createSim, Team } from '../sim/sim';
+import { createSim, Team, type PlayerSetup } from '../sim/sim';
 import { startLoop } from './loop';
 
 const params = new URLSearchParams(location.search);
@@ -14,7 +14,13 @@ const debug = import.meta.env.DEV || params.has('debug');
 const raw = structuredClone(rawConfig);
 if (params.has('curved')) raw.map.splineSamples = 16;
 let config = parseConfig(raw);
-const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, championId: 'alpha' }]);
+const players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
+// `?dummy`: an idle enemy Alpha in front of your Sub-base to test combat against, until the bot (M2 feature 16).
+if (params.has('dummy')) {
+  const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
+  players.push({ team: enemy, championId: 'alpha', spawnAt: { x: 0, y: localTeam === Team.Blue ? -50 : 50 } });
+}
+const sim = createSim(config, config.match.defaultSeed, players);
 
 const container = document.getElementById('frame')!;
 

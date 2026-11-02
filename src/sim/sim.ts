@@ -1,8 +1,10 @@
-import { TICK_HZ, type Config, type StructureKind } from '../data/schema';
+import { TICK_HZ, type ChampionConfig, type Config, type StructureKind, type WeaponConfig } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
 import { buildGrid, stampFootprint } from './grid';
 import { createStreams, type Streams } from './rng';
+import { SpatialIndex } from './spatial';
+import { createStats, Stat, stat, type Stats } from './stats';
 import { movementSystem } from './systems/movement';
 
 export type PlayerId = number;
@@ -19,6 +21,15 @@ export enum Kind {
   HQ = 2,
 }
 
+/** Auto-target priority class (GDD §6): higher wins. */
+export enum TargetClass {
+  Neutral = 1,
+  Minion = 2,
+  SubBase = 3,
+  HQ = 4,
+  Champion = 5,
+}
+
 /** One per player per tick. Move is in world space (D-014), quantised to -127..127. */
 export interface Command {
   tick: number;
@@ -33,6 +44,8 @@ export interface Command {
 export interface PlayerSetup {
   team: Team.Blue | Team.Red;
   championId: string;
+  /** Spawn here instead of the team's spawn pad (debug/test setups). */
+  spawnAt?: { x: number; y: number };
 }
 
 /** facing: radians, atan2(dy, dx) in sim space (0 = +x, PI/2 = towards Red). */
@@ -55,6 +68,23 @@ export interface Champion {
   championId: string;
   player: PlayerId;
 }
+export interface Health {
+  hp: number;
+  maxHp: number;
+  shield: number;
+  invulnerable: boolean;
+}
+/** A unit's weapon (TDD §5): config values plus the ticks left until it can fire again. */
+export interface Weapon extends WeaponConfig {
+  cooldown: number;
+}
+/** Auto-target state (TDD §6.2), filled by the targeting system. 0 = none. */
+export interface Targeting {
+  targetId: Entity;
+  pendingSwitchId: Entity;
+  pendingTicks: number;
+  holdTicks: number;
+}
 /** A Sub-base or HQ. `placement` is its id in `map.structures`. */
 export interface Structure {
   kind: StructureKind;
@@ -74,6 +104,9 @@ export interface EntitySnapshot {
   vx: number;
   vy: number;
   radius: number;
+  /** 0 / 0 for entities without health. */
+  hp: number;
+  maxHp: number;
 }
 
 export interface Snapshot {
@@ -97,6 +130,13 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const kinds = world.store<Kind>();
   const models = world.store<string>();
   const structures = world.store<Structure>();
+  const healths = world.store<Health>();
+  const targetClasses = world.store<TargetClass>();
+  const weapons = world.store<Weapon>();
+  const targetings = world.store<Targeting>();
+  const stats = world.store<Stats>();
+  const { bounds } = config.map;
+  const spatial = new SpatialIndex(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
   const rng: Streams = createStreams(seed);
   const events: SimEvent[] = [];
   const playerEntity: Entity[] = [];
@@ -112,15 +152,46 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     }
   }
 
+  /** Keeps a unit's HP fraction when its max HP changes. */
+  function setMaxHp(h: Health, maxHp: number) {
+    h.hp = h.maxHp > 0 ? (h.hp / h.maxHp) * maxHp : maxHp;
+    h.maxHp = maxHp;
+  }
+
+  /** (Re)applies a champion's config: stat bases, then the values derived from them. */
+  function applyChampion(e: Entity, def: ChampionConfig) {
+    const st = stats.get(e)!;
+    st.base[Stat.Damage] = def.weapon.damage;
+    st.base[Stat.FireRate] = 1;
+    st.base[Stat.MaxHp] = def.maxHp;
+    st.base[Stat.MoveSpeed] = def.moveSpeed;
+    st.base[Stat.Range] = def.weapon.range;
+    st.base[Stat.DamageTaken] = 1;
+    st.base[Stat.UltCharge] = 1;
+    st.dirty = true;
+    motions.get(e)!.speed = stat(st, Stat.MoveSpeed);
+    colliders.get(e)!.radius = def.radius;
+    setMaxHp(healths.get(e)!, stat(st, Stat.MaxHp));
+    Object.assign(weapons.get(e)!, def.weapon);
+  }
+
+  const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
+
   players.forEach((p, player) => {
     const def = config.champions.find((c) => c.id === p.championId);
     if (!def) throw new Error(`Unknown champion "${p.championId}"`);
-    const spawn = p.team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red;
+    const spawn = p.spawnAt ?? (p.team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red);
     const e = world.create();
     transforms.add(e, { x: spawn.x, y: spawn.y, facing: p.team === Team.Blue ? Math.PI / 2 : -Math.PI / 2 });
-    motions.add(e, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0 });
-    colliders.add(e, { radius: def.radius });
+    motions.add(e, { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0 });
+    colliders.add(e, { radius: 0 });
     teams.add(e, p.team);
+    healths.add(e, { hp: 0, maxHp: 0, shield: 0, invulnerable: false });
+    stats.add(e, createStats());
+    weapons.add(e, { ...def.weapon, cooldown: 0 });
+    targetings.add(e, noTarget());
+    targetClasses.add(e, TargetClass.Champion);
+    applyChampion(e, def);
     champions.add(e, { championId: def.id, player });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
@@ -137,8 +208,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     kinds.add(e, p.kind === 'hq' ? Kind.HQ : Kind.SubBase);
     models.add(e, p.kind);
     structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane });
+    const def = config.structures[p.kind];
+    healths.add(e, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false });
+    weapons.add(e, { ...def.weapon, cooldown: 0 });
+    targetings.add(e, noTarget());
+    targetClasses.add(e, p.kind === 'hq' ? TargetClass.HQ : TargetClass.SubBase);
   }
   rebuildGrid();
+  spatial.rebuild(healths.ids, transforms);
 
   const snap: Snapshot = { tick: 0, entities: [] };
 
@@ -160,6 +237,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         m.intentY = c.moveY / 127;
       }
       movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
+      spatial.rebuild(healths.ids, transforms);
       tick++;
       return { tick, events };
     },
@@ -174,7 +252,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -186,6 +264,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.vx = m?.vx ?? 0;
         s.vy = m?.vy ?? 0;
         s.radius = colliders.get(e)?.radius ?? 0;
+        const h = healths.get(e);
+        s.hp = h?.hp ?? 0;
+        s.maxHp = h?.maxHp ?? 0;
       }
       return snap;
     },
@@ -196,9 +277,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       for (let i = 0; i < champions.ids.length; i++) {
         const e = champions.ids[i]!;
         const def = next.champions.find((c) => c.id === champions.data[i]!.championId);
-        if (!def) continue;
-        motions.get(e)!.speed = def.moveSpeed;
-        colliders.get(e)!.radius = def.radius;
+        if (def) applyChampion(e, def);
       }
       for (let i = 0; i < structures.ids.length; i++) {
         const e = structures.ids[i]!;
@@ -208,10 +287,19 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.get(e)!;
         t.x = p.x;
         t.y = p.y;
-        colliders.get(e)!.radius = next.structures[st.kind].radius;
+        const def = next.structures[st.kind];
+        colliders.get(e)!.radius = def.radius;
+        setMaxHp(healths.get(e)!, def.maxHp);
+        Object.assign(weapons.get(e)!, def.weapon);
       }
       rebuildGrid();
     },
+
+    /** Spatial index of every unit with health, as of the last step (read-only). */
+    spatial,
+
+    /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
+    stores: { transforms, healths, weapons, targetings, targetClasses, stats, teams, kinds },
 
     /** Current obstacle grid (read-only; for tests and debug overlays). */
     get grid() {

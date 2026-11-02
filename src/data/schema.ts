@@ -14,11 +14,29 @@ const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
 });
 
+/** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */
+const Weapon = z.object({
+  kind: z.enum(['bullet', 'flak']),
+  damage: positive(),
+  interval: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
+  range: positive(),
+  projectileSpeed: positive(),
+  spread: deg().default(0),
+  /** Targets hit per shot (HQ flak hits 2). */
+  targets: z.number().int().min(1).default(1),
+});
+
 const Champion = z.object({
   id: z.string(),
   name: z.string(),
+  maxHp: positive(),
   moveSpeed: positive(),
   radius: positive(),
+  /** Seconds for the Ultimate to charge 0 → 100% from the passive gain alone. */
+  ultChargeSeconds: secs(),
+  /** Per-level growth on top of level 1 (GDD §7). */
+  growth: z.object({ hpPct: pct(), damagePct: pct() }),
+  weapon: Weapon,
 });
 
 /** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
@@ -65,7 +83,7 @@ const Footprint = z.discriminatedUnion('shape', [
   z.object({ shape: z.literal('circle'), r: positive() }),
   z.object({ shape: z.literal('rect'), w: positive(), h: positive() }),
 ]);
-const StructureDef = z.object({ name: z.string(), radius: positive(), footprint: Footprint });
+const StructureDef = z.object({ name: z.string(), maxHp: positive(), radius: positive(), footprint: Footprint, weapon: Weapon });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef });
 
 // Camera runs in real time (render), so its seconds stay seconds.
@@ -106,3 +124,4 @@ export type StructureDef = z.output<typeof StructureDef>;
 export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;
+export type WeaponConfig = z.output<typeof Weapon>;
