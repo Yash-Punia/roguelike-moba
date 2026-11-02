@@ -372,3 +372,46 @@ From TDD §13:
   - **Not yet:** kill XP and kill charge (M2 features 11 and 13), assists, bounties, the Sudden Death ×1.5, the Redeploy sprint (M3), and the spectate switch to a teammate (no teammates until M3).
 - Why: kills now cost the loser time, which Gate 1 needs, and both sides of a death can be tested in the browser.
 - Alternatives: the GDD's killer-for-2-s then teammate (no teammates yet); staying on your own body (user preferred following the killer).
+
+## D-035 — MG Soldier waves: lanes, targeting, call for help, separation
+- Date: 2026-11-02
+- Source: user choice (whole waves alternate branches); the rest made during development
+- Decision:
+  - **Scope (M2):** MG Soldiers only, in the centre lane only (`waves.lanes`). Not yet:
+    - M3: the Bazooka Tank, the +6%/min scaling, Shock Troops, and the outer lanes;
+    - M2 feature 11: minion XP.
+  - **Lanes in data:** `map.lanes` lists route steps from Blue to Red, each naming the `path` shapes that can be taken there (two at the Crater). At load every combination becomes one polyline, sampled like the terrain (`splineSamples`), so minions follow the visible lane, straight or curved. Red walks the same polylines reversed.
+  - **Branches (user choice):** wave n (scheduled or debug, one shared count) takes branch n mod 2, west first, the same for both teams, so the waves meet head-on at the Crater.
+  - **Waves:** the first at 15 s (tick 450), then every 25 s. Each team spawns a row of 3 at its end of the lane, 1.1 m apart and offset to the right of travel, and each keeps its place in the row along the route. `waves.enabled` (`?nowaves` in the URL, or live in F1) switches them off; "Spawn wave now" is in the F1 Waves folder.
+  - **Numbers the docs leave open** (all in `units.json`, live-tunable):
+    - 0.35 m collider (the sheet makes minions 60% of a hero's height);
+    - 25 m/s bullets;
+    - `acquireRange` 7 m to notice and walk to a target.
+
+    The GDD numbers: HP 300, 2.6 m/s, 8 damage 3×/s, 5 m range, 6 m leash, call for help 6 m for 3 s.
+  - **Targeting:**
+    - A live call-for-help target comes first. Otherwise the order is nearest enemy minion, then structure, then champion, within 7 m to the collider edge.
+    - The current target is kept while it is still the best class and within 7.5 m.
+    - Only targets the minion could shoot without leaving the lane by more than the leash count (lane distance ≤ leash + range + target radius), so a minion never oscillates at the leash.
+    - Firing reuses the champions' weapon system: aim turn, fire cone, lead and bullets.
+  - **Movement:**
+    - A minion walks to its target until it is in range, never stepping beyond 6 m from its lane.
+    - With no target it marches waypoint to waypoint, holding its place in the row.
+    - Lanes run straight through their Sub-bases, so a minion whose straight line crosses a structure's footprint steers along the tangent round the nearer side. The tangent is the centre direction turned by asin(clearance / distance), computed without trig. A* arrives with the bots in M4.
+  - **Call for help:** after the damage stage, every hit this tick by an enemy champion on an allied champion pulls that ally's minions within 6 m of the champion that was hit onto the attacker for 90 ticks. They react on the next tick, matching TDD §6.2's "previous tick's damage log".
+  - **Separation** (TDD §6.1), after movement:
+    - overlapping minions each move half the overlap × 0.5 per tick, so a crowd settles softly;
+    - a minion overlapping a champion moves aside on its own (× 0.5 per tick);
+    - champions are never pushed;
+    - a push into a blocked cell is dropped.
+  - **Death:**
+    - A minion at 0 HP fires a `death` event with its killer and is removed that tick.
+    - Its component objects go to a per-sim pool that the next spawns reuse; entity ids are still never reused (`World.create`).
+    - The app now passes events to render before the snapshot, so the knock-out takes over the model before capture would drop it, and removes it after the fade.
+  - **Render:**
+    - The MG Soldier is about 400 triangles: a team dome helmet with a darker rim (it bounces off on a knock-out), a big round head, green uniform, khaki backpack, and an LMG with a drum at port arms.
+    - Its legs and upper body are separate parts, and it marches with a bouncy bob.
+    - Its HP bar is small, ticking every 250 HP.
+    - Minion tracers are 55% size at gun height (0.5 m). The snapshot's projectiles now carry `ownerKind`.
+- Why: the lane now has its rhythm and the trading-inside-the-wave risk the GDD wants. It plays on the real map: a browser run showed soldiers stuck on their own Sub-base until the tangent steering went in.
+- Alternatives: per-soldier branches, or mirrored branches per team (the user picked whole waves); a navmesh or A* for minions now (deferred to M4).

@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "firstSeconds": 15,
+  "intervalSeconds": 25,
+  "soldiers": 3,
+  "spacing": 1.1,
+  "lanes": ["centre"]
+}

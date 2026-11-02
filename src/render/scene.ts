@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Config, MapConfig } from '../data/schema';
 import type { SimEvent } from '../sim/events';
-import { Team, type Snapshot } from '../sim/sim';
+import { Kind, Team, type Snapshot } from '../sim/sim';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad, partsOf } from './models';
@@ -25,6 +25,7 @@ interface Interp {
   ix: number; iy: number;
   targetId: number;
   radius: number;
+  kind: Kind;
 }
 
 const lambert = (color: number) => new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -78,7 +79,7 @@ export function createScene(container: HTMLElement, config: Config) {
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
+        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, e.team);
@@ -112,7 +113,9 @@ export function createScene(container: HTMLElement, config: Config) {
     ultFx.capture(snap.lobs, snap.zones);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
-      scene.remove(mesh);
+      // A minion removed on its knock-out tick: the knock-out keeps the model until it fades.
+      if (knockouts.has(id)) knockouts.own(id);
+      else scene.remove(mesh);
       meshes.delete(id);
       interp.delete(id);
       teams.delete(id);
@@ -169,6 +172,8 @@ export function createScene(container: HTMLElement, config: Config) {
       s.ix = x;
       s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
+      // Minions march with a bouncy stride (UN-01).
+      if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0)) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
       // Models with an upper body turn their legs with the movement facing and the upper body
       // with the aim; the rest turn whole with the aim.
       const aim = lerpAngle(s.pf, s.f, alpha);

@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { TICK_HZ } from '../data/schema';
-import { Team, type ProjectileSnapshot } from '../sim/sim';
+import { Kind, Team, type ProjectileSnapshot } from '../sim/sim';
 import { palette } from './palette';
 
 const LENGTH = 0.9;
 const WIDTH = 0.08;
 /** Gun height above the ground. */
 const LIFT = 1.0;
+/** Minion bullets: shorter, thinner and lower (their guns are at ~0.5 m). */
+const MINION_SCALE = 0.55;
+const MINION_LIFT = 0.5;
 
 /**
  * Bullet tracers (GDD §11, TDD §8): one instanced, flat, stretched quad per projectile in its
@@ -21,6 +24,7 @@ export class Tracers {
   private vxs = new Float64Array(256);
   private vys = new Float64Array(256);
   private teams = new Uint8Array(256);
+  private small = new Uint8Array(256);
   private readonly matrix = new THREE.Matrix4();
   private readonly position = new THREE.Vector3();
   private readonly rotation = new THREE.Quaternion();
@@ -49,6 +53,7 @@ export class Tracers {
       this.vxs[i] = p.vx / TICK_HZ;
       this.vys[i] = p.vy / TICK_HZ;
       this.teams[i] = p.team;
+      this.small[i] = p.ownerKind === Kind.Minion ? 1 : 0;
     }
     this.count = n;
   }
@@ -58,8 +63,10 @@ export class Tracers {
     for (let i = 0; i < this.count; i++) {
       const x = this.xs[i]! - this.vxs[i]! * (1 - alpha);
       const y = this.ys[i]! - this.vys[i]! * (1 - alpha);
-      this.position.set(x, this.heightAt(x, y) + LIFT, -y);
+      const small = this.small[i] === 1;
+      this.position.set(x, this.heightAt(x, y) + (small ? MINION_LIFT : LIFT), -y);
       this.rotation.setFromAxisAngle(this.up, Math.atan2(this.vys[i]!, this.vxs[i]!));
+      this.scale.setScalar(small ? MINION_SCALE : 1);
       this.matrix.compose(this.position, this.rotation, this.scale);
       this.mesh.setMatrixAt(i, this.matrix);
       this.mesh.setColorAt(i, this.colours[this.teams[i] as Team]);
@@ -76,5 +83,6 @@ export class Tracers {
     this.vxs = new Float64Array(size);
     this.vys = new Float64Array(size);
     this.teams = new Uint8Array(size);
+    this.small = new Uint8Array(size);
   }
 }

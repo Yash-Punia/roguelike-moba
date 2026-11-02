@@ -14,6 +14,8 @@ const debug = import.meta.env.DEV || params.has('debug');
 // Lanes are straight segments between the spec's control points (D-027); `?curved` draws the spec's Catmull-Rom curves instead.
 const raw = structuredClone(rawConfig);
 if (params.has('curved')) raw.map.splineSamples = 16;
+// `?nowaves`: no minion waves, for clean duels (also switchable live: F1 → waves.json → enabled).
+if (params.has('nowaves')) raw.waves.enabled = false;
 let config = parseConfig(raw);
 const players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
 // `?dummy`: an idle, unarmed enemy Alpha in front of your Sub-base to test combat against;
@@ -47,9 +49,11 @@ const loop = startLoop({
     const t0 = debug ? performance.now() : 0;
     const { events } = sim.step([input.sample(sim.tick)]);
     if (debug) stats.simMs = performance.now() - t0;
+    // Events first: a minion knocked out this tick is already gone from the snapshot, and its
+    // model must reach the knock-out before capture drops it.
+    view.addEvents(events);
     const snap = sim.snapshot();
     view.capture(snap);
-    view.addEvents(events);
     const me = snap.entities.find((e) => e.id === localEntity);
     if (!me) return;
     input.ultButton.show(me.ultCharge, me.ultTargetable);

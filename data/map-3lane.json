@@ -61,5 +61,8 @@
       ]
     }
   ],
-  "obstacles": []
+  "obstacles": [],
+  "lanes": [
+    { "id": "centre", "route": [["centre-blue"], ["centre-west", "centre-east"], ["centre-red"]] }
+  ]
 }

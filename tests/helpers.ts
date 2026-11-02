@@ -59,6 +59,13 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.combat.damage = { logSeconds: 240, lethalSaveSeconds: 45, critMultiplier: 2 };
   config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
+  // Waves off unless a test turns them on; MG Soldier pinned to the GDD numbers.
+  config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
+  config.units.mgSoldier = {
+    name: 'MG Soldier', maxHp: 300, radius: 0.35, moveSpeed: 2.6,
+    weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, spread: 0, targets: 1 },
+    acquireRange: 7, leash: 6, callForHelp: { radius: 6, seconds: 90 },
+  };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Team.Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {

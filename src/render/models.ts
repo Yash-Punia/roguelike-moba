@@ -36,6 +36,7 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
   if (kind === Kind.SubBase) pillbox(root, team);
   else if (kind === Kind.HQ) commandBunker(root, team);
   else if (modelId === 'alpha') alpha(root, team);
+  else if (modelId === 'mgSoldier') mgSoldier(root, team);
   else championPlaceholder(root, team);
   root.traverse((o) => {
     o.castShadow = true;
@@ -142,6 +143,44 @@ function alpha(root: THREE.Object3D, team: Team) {
   const brim = part(cap, box(0.24, 0.045, 0.6), palette.leather, 0.4, -0.03, 0);
   brim.rotation.z = -0.15;
   part(cap, box(0.03, 0.08, 0.08), palette.brass, 0.345, 0.1, 0);
+}
+
+/**
+ * MG Soldier (UN-01): a 1.1 m chibi infantryman, 2.3 heads tall. Dome helmet in team colour
+ * with a darker rim, big round head, green uniform, khaki backpack, brown boots, and a light
+ * machine gun with a drum magazine held forward at port arms. Legs and upper body are
+ * separate parts so the gun tracks the target. About 400 tris.
+ */
+function mgSoldier(root: THREE.Object3D, team: Team) {
+  for (const z of [-0.08, 0.08]) {
+    part(root, box(0.11, 0.2, 0.11), palette.infantry, 0, 0.16, z);
+    part(root, box(0.16, 0.08, 0.12), palette.leather, 0.02, 0.04, z);
+  }
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+  part(upper, box(0.3, 0.32, 0.34), palette.infantry, 0, 0.42, 0);
+  part(upper, box(0.31, 0.05, 0.35), palette.leather, 0, 0.3, 0);
+  for (const z of [-0.08, 0.08]) part(upper, box(0.05, 0.07, 0.08), palette.leather, 0.16, 0.33, z);
+  part(upper, box(0.16, 0.24, 0.26), palette.khaki, -0.23, 0.45, 0);
+  // Arms forward at port arms, hands on the gun.
+  for (const z of [-0.15, 0.15]) {
+    part(upper, box(0.24, 0.09, 0.09), palette.infantry, 0.12, 0.44, z);
+    part(upper, box(0.08, 0.08, 0.08), palette.skin, 0.26, 0.44, z * 0.6);
+  }
+  part(upper, box(0.24, 0.08, 0.07), palette.gunmetal, 0.26, 0.48, 0);
+  part(upper, box(0.36, 0.045, 0.045), palette.gunmetal, 0.55, 0.5, 0);
+  part(upper, box(0.14, 0.06, 0.05), palette.leather, 0.08, 0.47, 0);
+  part(upper, cyl(0.09, 0.09, 0.04, 10), palette.olive, 0.27, 0.55, 0);
+  // Big round head and the team helmet (its own group, so it can bounce off on a knock-out).
+  part(upper, new THREE.IcosahedronGeometry(0.23, 1), palette.skin, 0.02, 0.77, 0);
+  for (const z of [-0.07, 0.07]) part(upper, box(0.02, 0.05, 0.04), EYES, 0.235, 0.76, z);
+  const helmet = new THREE.Group();
+  helmet.position.y = 0.82;
+  upper.add(helmet);
+  partsOf(root).cap = helmet;
+  part(helmet, new THREE.SphereGeometry(0.27, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), teamColour(team), 0, 0, 0);
+  part(helmet, cyl(0.31, 0.31, 0.035, 12), teamShade(team), 0, 0.01, 0);
 }
 
 /** Until each champion gets its sheet model (Beta and Gamma: M3). */

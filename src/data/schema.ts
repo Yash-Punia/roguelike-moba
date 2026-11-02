@@ -104,6 +104,11 @@ const MapConfig = z.object({
   ),
   /** Everything not covered by a walkable shape is raised jungle ground: blocked. */
   walkable: z.array(WalkShape).min(1),
+  /**
+   * Minion lanes: route steps from the Blue end to the Red end, each listing the `path` shapes
+   * that can be taken there (two at a branch). Red walks the same routes reversed.
+   */
+  lanes: z.array(z.object({ id: z.string(), route: z.array(z.array(z.string()).min(1)).min(1) })).default([]),
   /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
   obstacles: z.array(
     z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
@@ -118,6 +123,34 @@ const Footprint = z.discriminatedUnion('shape', [
 ]);
 const StructureDef = z.object({ name: z.string(), maxHp: positive(), radius: positive(), footprint: Footprint, weapon: Weapon });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef });
+
+/** Lane minions (GDD §5). Ranges in metres to collider edges; `leash` is the distance from the lane. */
+const MinionDef = z.object({
+  name: z.string(),
+  maxHp: positive(),
+  radius: positive(),
+  moveSpeed: positive(),
+  weapon: Weapon,
+  /** Notices and walks to targets this close. */
+  acquireRange: positive(),
+  /** Gives up a chase that would take it this far from its lane. */
+  leash: positive(),
+  /** An enemy champion hitting an allied champion within `radius` pulls these minions onto it for `seconds`. */
+  callForHelp: z.object({ radius: positive(), seconds: secs() }),
+});
+const Units = z.object({ mgSoldier: MinionDef });
+
+/** Minion waves (GDD §5, TDD §6.6). */
+const Waves = z.object({
+  enabled: z.boolean(),
+  firstSeconds: secs(),
+  intervalSeconds: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
+  soldiers: z.number().int().min(0),
+  /** Gap between soldiers in a wave's row (m). */
+  spacing: z.number().nonnegative(),
+  /** Lane ids (from `map.lanes`) that get waves. */
+  lanes: z.array(z.string()),
+});
 
 const nonneg = () => z.number().nonnegative();
 
@@ -183,6 +216,8 @@ export const ConfigSchema = z.object({
   champions: z.array(Champion).min(1),
   map: MapConfig,
   structures: Structures,
+  units: Units,
+  waves: Waves,
   combat: Combat,
   camera: Camera,
   input: Input,
@@ -195,6 +230,7 @@ export type WalkShape = MapConfig['walkable'][number];
 export type SurfaceKind = z.output<typeof Surface>;
 export type StructureKind = z.output<typeof StructureKind>;
 export type StructureDef = z.output<typeof StructureDef>;
+export type MinionDef = z.output<typeof MinionDef>;
 export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;

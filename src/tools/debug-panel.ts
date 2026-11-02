@@ -42,6 +42,8 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
+  const waves = gui.addFolder('Waves').close();
+  waves.add({ spawn: () => sim.debug.spawnWave() }, 'spawn').name('Spawn wave now');
 
   const edits = structuredClone(raw);
   const onChange = () => {

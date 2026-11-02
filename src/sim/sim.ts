@@ -16,6 +16,10 @@ import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { steadyHandSystem } from './systems/traits';
 import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
+import {
+  callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnWave, waveDue, type MinionContext,
+} from './systems/minions';
+import { buildLanes, type LanePath } from '../data/map-geometry';
 import { lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
@@ -31,6 +35,7 @@ export enum Kind {
   Champion = 0,
   SubBase = 1,
   HQ = 2,
+  Minion = 3,
 }
 
 /** Auto-target priority class (GDD §6): higher wins. */
@@ -128,6 +133,21 @@ export interface Targeting {
   pendingTicks: number;
   holdTicks: number;
 }
+/** A lane minion's march state (TDD §5 `LaneAgent`). */
+export interface LaneAgent {
+  unit: keyof Config['units'];
+  /** Index into the built lanes, and which way through its branches. */
+  lane: number;
+  branch: number;
+  /** Next waypoint along the route (counted from its own team's end). */
+  waypoint: number;
+  /** Place in the wave's row: metres to the right of the route. */
+  offset: number;
+  /** Call-for-help target and ticks left on it (GDD §5). */
+  helpTarget: Entity;
+  helpTicks: number;
+}
+
 /** A Sub-base or HQ. `placement` is its id in `map.structures`. */
 export interface Structure {
   kind: StructureKind;
@@ -197,6 +217,8 @@ export interface ZoneSnapshot {
 export interface ProjectileSnapshot {
   id: number;
   team: Team;
+  /** What fired it (minion bullets draw smaller). */
+  ownerKind: Kind;
   x: number;
   y: number;
   vx: number;
@@ -232,6 +254,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const weapons = world.store<Weapon>();
   const targetings = world.store<Targeting>();
   const stats = world.store<Stats>();
+  const laneAgents = world.store<LaneAgent>();
+  let lanes: LanePath[] = buildLanes(config.map);
+  /** Waves spawned so far, scheduled or debug: wave n takes branch n mod branches (D-035). */
+  let waveCount = 0;
   const { bounds } = config.map;
   const spatial = new SpatialIndex(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
   const rng: Streams = createStreams(seed);
@@ -332,6 +358,17 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const ultimateContext: UltimateContext = {
     champions, transforms, colliders, teams, healths, stats, targetClasses, spatial, lobs, zones, hits, events,
   };
+  const minionContext: MinionContext = {
+    world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events,
+    lanes: () => lanes,
+    grid: () => grid,
+    pool: [],
+    structureIds: () => structures.ids,
+    footprintRadius: (e) => {
+      const f = config.structures[structures.get(e)!.kind].footprint;
+      return f.shape === 'circle' ? f.r : Math.max(f.w, f.h) / 2;
+    },
+  };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events };
@@ -346,6 +383,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
   /** Percentages set through `debug.setStatPct`, per entity × stat, so they apply as deltas. */
   const debugPct = new Map<number, number>();
+
 
   const snap: Snapshot = { tick: 0, entities: [], projectiles: [], lobs: [], zones: [] };
 
@@ -368,12 +406,18 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         m.intentY = c.moveY / 127;
         if (c.ult) champions.get(e!)!.castQueued = true;
       }
+      if (waveDue(config.waves, tick)) spawnWave(minionContext, config, waveCount++);
+      spatial.rebuild(healths.ids, transforms);
+      minionSystem(minionContext, config.units, tick);
       movementSystem(motions, transforms, colliders, healths, grid, config.map.bounds, 1 / TICK_HZ);
+      spatial.rebuild(healths.ids, transforms);
+      separationSystem(minionContext);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
       steadyHandSystem(champions, motions, stats, healths);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
+      weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
       projectileSystem(projectileContext, config.combat.weapons);
       // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
       // exactly its flight time later and a new fire pool first burns a full period after landing.
@@ -382,6 +426,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick);
       deathSystem(lifeContext, config.match.respawn);
+      minionDeathSystem(minionContext);
+      callForHelpSystem(minionContext, damageLog, config.units, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       tick++;
       return { tick, events };
@@ -426,9 +472,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {
         if (!pool.active[i]) continue;
-        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, x: 0, y: 0, vx: 0, vy: 0 });
+        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, ownerKind: Kind.Champion, x: 0, y: 0, vx: 0, vy: 0 });
         p.id = pool.id[i]!;
         p.team = pool.team[i]! as Team;
+        p.ownerKind = kinds.get(pool.owner[i]!) ?? Kind.Minion;
         p.x = pool.x[i]!;
         p.y = pool.y[i]!;
         p.vx = pool.vx[i]! * TICK_HZ;
@@ -491,6 +538,15 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         setMaxHp(healths.get(e)!, def.maxHp);
         Object.assign(weapons.get(e)!, def.weapon);
       }
+      for (let i = 0; i < laneAgents.ids.length; i++) {
+        const e = laneAgents.ids[i]!;
+        const def = next.units[laneAgents.data[i]!.unit];
+        motions.get(e)!.speed = def.moveSpeed;
+        colliders.get(e)!.radius = def.radius;
+        setMaxHp(healths.get(e)!, def.maxHp);
+        Object.assign(weapons.get(e)!, def.weapon);
+      }
+      lanes = buildLanes(next.map);
       rebuildGrid();
     },
 
@@ -528,6 +584,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         if (h) h.shield += amount;
       },
+      /** Spawns the next wave now on every wave lane. */
+      spawnWave() {
+        spawnWave(minionContext, config, waveCount++);
+      },
       /** A lethal hit through the normal damage pipeline (a lethal save still applies). */
       kill(e: Entity) {
         hits.push(0, e, 1e12);
@@ -548,7 +608,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents },
+
+    /** Built lane polylines (read-only). */
+    get lanes() {
+      return lanes;
+    },
 
     /** Current obstacle grid (read-only; for tests and debug overlays). */
     get grid() {

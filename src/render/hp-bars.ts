@@ -12,6 +12,7 @@ const sizes: Record<Kind, { width: number; height: number; lift: number }> = {
   [Kind.Champion]: { width: 1.3, height: 0.16, lift: 2.2 },
   [Kind.SubBase]: { width: 2.4, height: 0.2, lift: 3.6 },
   [Kind.HQ]: { width: 3.4, height: 0.24, lift: 4.9 },
+  [Kind.Minion]: { width: 0.8, height: 0.12, lift: 1.45 },
 };
 
 // Left-anchored unit quad (x 0..1), so scaling x fills the bar from the left.
@@ -41,7 +42,7 @@ export class HpBar {
     this.width = width;
     this.height = height;
     this.lift = lift;
-    this.segmentHp = kind === Kind.Champion ? UNIT_SEGMENT_HP : STRUCTURE_SEGMENT_HP;
+    this.segmentHp = kind === Kind.Champion || kind === Kind.Minion ? UNIT_SEGMENT_HP : STRUCTURE_SEGMENT_HP;
     const back = new THREE.Mesh(unitQuad, backMat);
     back.scale.set(width + BORDER * 2, height + BORDER * 2, 1);
     back.position.x = -width / 2 - BORDER;

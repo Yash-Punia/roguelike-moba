@@ -1,10 +1,123 @@
 {
   "id": "fixture-open",
-  "bounds": { "minX": -18, "maxX": 18, "minY": -55, "maxY": 55 },
+  "bounds": {
+    "minX": -18,
+    "maxX": 18,
+    "minY": -55,
+    "maxY": 55
+  },
   "gridCell": 0.5,
-  "splineSamples": 8,
+  "splineSamples": 1,
   "structures": [],
-  "spawn": { "blue": { "x": 0, "y": -42 }, "red": { "x": 0, "y": 42 } },
-  "walkable": [{ "id": "all", "shape": "rect", "surface": "dirt", "x": 0, "y": 0, "w": 36, "h": 110 }],
-  "obstacles": []
+  "spawn": {
+    "blue": {
+      "x": 0,
+      "y": -42
+    },
+    "red": {
+      "x": 0,
+      "y": 42
+    }
+  },
+  "walkable": [
+    {
+      "id": "all",
+      "shape": "rect",
+      "surface": "dirt",
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 110
+    },
+    {
+      "id": "trunk-blue",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 8,
+      "points": [
+        {
+          "x": 0,
+          "y": -42
+        },
+        {
+          "x": 0,
+          "y": -10
+        }
+      ]
+    },
+    {
+      "id": "west",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 7,
+      "points": [
+        {
+          "x": 0,
+          "y": -10
+        },
+        {
+          "x": -8,
+          "y": 0
+        },
+        {
+          "x": 0,
+          "y": 10
+        }
+      ]
+    },
+    {
+      "id": "east",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 7,
+      "points": [
+        {
+          "x": 0,
+          "y": -10
+        },
+        {
+          "x": 8,
+          "y": 0
+        },
+        {
+          "x": 0,
+          "y": 10
+        }
+      ]
+    },
+    {
+      "id": "trunk-red",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 8,
+      "points": [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 0,
+          "y": 42
+        }
+      ]
+    }
+  ],
+  "obstacles": [],
+  "lanes": [
+    {
+      "id": "centre",
+      "route": [
+        [
+          "trunk-blue"
+        ],
+        [
+          "west",
+          "east"
+        ],
+        [
+          "trunk-red"
+        ]
+      ]
+    }
+  ]
 }

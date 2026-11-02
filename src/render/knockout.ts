@@ -12,6 +12,8 @@ const CAP_BOUNCE = 0.45;
 
 interface Knockout {
   root: THREE.Object3D;
+  /** The unit is gone from the sim (minions): remove the model once it has faded. */
+  owned: boolean;
   born: number;
   /** Original material of every mesh, restored on respawn; the fading copies replace them. */
   originals: Map<THREE.Mesh, THREE.Material | THREE.Material[]>;
@@ -36,7 +38,7 @@ export class Knockouts {
     if (this.active.has(id)) return;
     const originals = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
     const fades: THREE.MeshLambertMaterial[] = [];
-    const ko: Knockout = { root, born: now, originals, fades, cap: undefined };
+    const ko: Knockout = { root, owned: false, born: now, originals, fades, cap: undefined };
     const cap = partsOf(root).cap;
     if (cap?.parent) {
       const parent = cap.parent;
@@ -58,9 +60,15 @@ export class Knockouts {
     this.active.set(id, ko);
   }
 
+  /** The unit left the sim mid-knock-out: this takes the model over and removes it after the fade. */
+  own(id: number) {
+    const ko = this.active.get(id);
+    if (ko) ko.owned = true;
+  }
+
   /** Call every frame after the scene has placed and turned the models. */
   update(now: number, dt: number) {
-    for (const ko of this.active.values()) {
+    for (const [id, ko] of this.active) {
       const age = now - ko.born;
       const fall = Math.min(1, age / FALL_MS);
       ko.root.rotation.z = FALL_ANGLE * fall * fall; // tips back about the feet
@@ -87,6 +95,12 @@ export class Knockouts {
           if (cap.vy < 0.6) cap.vy = cap.spin = cap.vx = cap.vz = 0;
         }
         o.visible = fade < 1;
+      }
+      if (ko.owned && fade >= 1) {
+        ko.root.removeFromParent();
+        ko.cap?.obj.removeFromParent();
+        for (const m of ko.fades) m.dispose();
+        this.active.delete(id);
       }
     }
   }

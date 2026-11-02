@@ -188,3 +188,41 @@ export function alongPath(pts: Float64Array, x: number, y: number): number {
   }
   return total > 0 ? bestAt / total : 0;
 }
+
+/** A minion lane: one Blue→Red centre-line polyline (flat [x0, y0, x1, y1, …]) per way through its branches. */
+export interface LanePath {
+  id: string;
+  branches: Float64Array[];
+}
+
+/**
+ * Joins each lane's route into polylines (D-035): every combination of branch choices gives one
+ * polyline, sampled like the terrain (`splineSamples`) so minions follow the visible lane.
+ * Branch k picks option (k mod options) at a branching step. Throws on an unknown path id.
+ */
+export function buildLanes(map: MapConfig): LanePath[] {
+  const paths = new Map<string, readonly Vec2[]>();
+  for (const s of map.walkable) if (s.shape === 'path') paths.set(s.id, s.points);
+  return map.lanes.map((lane) => {
+    let combos = 1;
+    for (const step of lane.route) combos *= step.length;
+    const branches: Float64Array[] = [];
+    for (let k = 0; k < combos; k++) {
+      const pts: number[] = [];
+      let rest = k;
+      for (const step of lane.route) {
+        const id = step[rest % step.length]!;
+        rest = Math.floor(rest / step.length);
+        const points = paths.get(id);
+        if (!points) throw new Error(`Lane "${lane.id}" uses unknown path "${id}"`);
+        const sampled = sampleSpline(points, map.splineSamples);
+        // Skip a first point that repeats the previous step's last point.
+        const n = pts.length;
+        const start = n >= 2 && pts[n - 2] === sampled[0] && pts[n - 1] === sampled[1] ? 2 : 0;
+        for (let i = start; i < sampled.length; i++) pts.push(sampled[i]!);
+      }
+      branches.push(Float64Array.from(pts));
+    }
+    return { id: lane.id, branches };
+  });
+}
