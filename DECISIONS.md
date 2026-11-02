@@ -277,3 +277,19 @@ From TDD §13:
 - Why: unblocks combat with values that are easy to tune live.
 - Alternatives: 250 HP ticks on structures too (rejected after a visual check).
 
+## D-029 — Auto-targeting details the GDD leaves open
+- Date: 2026-11-02
+- Source: made during development
+- Decision: champion targeting (`src/sim/systems/targeting.ts`) follows GDD §6 / TDD §6.2, with these readings:
+  - **Every tick, not every 0.1 s:** candidates are re-evaluated each tick from the spatial index. It is cheap and only makes switches up to 2 ticks more responsive; all timings stay as specified.
+  - **Distance** is from the shooter's centre to the target's collider edge, for range, stickiness, ties and the 1.5 m switch rule. The GDD pseudocode's plain `dist` is read as rule 3's edge distance.
+  - **Ties:** units within 0.5 m of the nearest unit in the top class are tied; the lowest HP% wins, then the nearer, then the lower id.
+  - **Stickiness** keeps the current target out to range + 0.5 m even when it is no longer a candidate (the GDD pseudocode only kept it inside range; rule 4 wins).
+  - **Higher-class override** counts consecutive ticks with a higher class in range (5 ticks = 0.15 s rounded up from 4.5), resetting if it leaves; the switch goes to whichever unit is best on the 5th tick.
+  - **Retarget pause** follows any death of the current target (GDD §3), not just the shooter's own kill (TDD wording). A target that merely leaves range or turns invulnerable is dropped without the pause.
+  - **Not yet:** line of sight and fog/Trench visibility (M3, D-010, D-018). Structures (aggro rules, feature 10) and minions (feature 9) get their own targeting.
+  - All five tuning values live in the new `data/combat.json`.
+  - **Target line pulled forward** from the HUD feature: a team-coloured ground ribbon from the local champion to its target, with a ring round the target, so targeting is visible before shooting exists.
+- Why: matches the stated rules where the GDD prose and pseudocode disagree; the prose is more specific.
+- Alternatives: 3-tick candidate rebuild (no benefit at this scale).
+

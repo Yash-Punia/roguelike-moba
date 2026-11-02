@@ -86,6 +86,24 @@ const Footprint = z.discriminatedUnion('shape', [
 const StructureDef = z.object({ name: z.string(), maxHp: positive(), radius: positive(), footprint: Footprint, weapon: Weapon });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef });
 
+const nonneg = () => z.number().nonnegative();
+
+/** Auto-targeting tuning (GDD §6, TDD §6.2). Distances in metres, measured to collider edges. */
+const Combat = z.object({
+  targeting: z.object({
+    /** Keep the current target while within weapon range + this. */
+    stickyRange: nonneg(),
+    /** Within the same class, switch only to a unit this much nearer. */
+    sameClassSwitch: nonneg(),
+    /** Units this close to the nearest count as tied; the lowest HP% wins. */
+    tieBand: nonneg(),
+    /** A higher class must stay in range this long before it overrides the current target. */
+    overrideSeconds: secs(),
+    /** Hold fire this long after the current target dies. */
+    retargetPauseSeconds: secs(),
+  }),
+});
+
 // Camera runs in real time (render), so its seconds stay seconds.
 const Camera = z.object({
   fovDeg: positive(),
@@ -110,6 +128,7 @@ export const ConfigSchema = z.object({
   champions: z.array(Champion).min(1),
   map: MapConfig,
   structures: Structures,
+  combat: Combat,
   camera: Camera,
   input: Input,
 });

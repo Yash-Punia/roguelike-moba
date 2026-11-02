@@ -1,0 +1,9 @@
+{
+  "targeting": {
+    "stickyRange": 0.5,
+    "sameClassSwitch": 1.5,
+    "tieBand": 0.5,
+    "overrideSeconds": 0.15,
+    "retargetPauseSeconds": 0.2
+  }
+}

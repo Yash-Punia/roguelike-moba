@@ -6,6 +6,7 @@ import { createStreams, type Streams } from './rng';
 import { SpatialIndex } from './spatial';
 import { createStats, Stat, stat, type Stats } from './stats';
 import { movementSystem } from './systems/movement';
+import { targetingSystem, type TargetingContext } from './systems/targeting';
 
 export type PlayerId = number;
 export enum Team {
@@ -107,6 +108,8 @@ export interface EntitySnapshot {
   /** 0 / 0 for entities without health. */
   hp: number;
   maxHp: number;
+  /** Current auto-target, or 0. */
+  targetId: Entity;
 }
 
 export interface Snapshot {
@@ -217,6 +220,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   rebuildGrid();
   spatial.rebuild(healths.ids, transforms);
 
+  const targetingContext: TargetingContext = {
+    transforms, colliders, teams, healths, targetClasses, targetings, spatial,
+    rangeOf: (e) => {
+      const st = stats.get(e);
+      return st ? stat(st, Stat.Range) : (weapons.get(e)?.range ?? 0);
+    },
+  };
+
   const snap: Snapshot = { tick: 0, entities: [] };
 
   return {
@@ -238,6 +249,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       movementSystem(motions, transforms, colliders, grid, config.map.bounds, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
+      // Structures (aggro rules) and minions get their own targeting with their features.
+      targetingSystem(champions.ids, targetingContext, config.combat.targeting);
       tick++;
       return { tick, events };
     },
@@ -252,7 +265,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, targetId: 0,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -267,6 +280,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         s.hp = h?.hp ?? 0;
         s.maxHp = h?.maxHp ?? 0;
+        s.targetId = targetings.get(e)?.targetId ?? 0;
       }
       return snap;
     },
@@ -299,7 +313,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     spatial,
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, healths, weapons, targetings, targetClasses, stats, teams, kinds },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds },
 
     /** Current obstacle grid (read-only; for tests and debug overlays). */
     get grid() {

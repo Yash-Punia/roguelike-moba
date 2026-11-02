@@ -3,6 +3,7 @@ import type { Config, MapConfig } from '../data/schema';
 import { Team, type Snapshot } from '../sim/sim';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad } from './models';
+import { TargetLine } from './target-line';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
 
@@ -12,6 +13,10 @@ interface Interp {
   px: number; py: number; pf: number;
   x: number; y: number; f: number;
   vx: number; vy: number;
+  /** Interpolated position this frame. */
+  ix: number; iy: number;
+  targetId: number;
+  radius: number;
 }
 
 const lambert = (color: number) => new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -45,6 +50,7 @@ export function createScene(container: HTMLElement, config: Config) {
 
   const meshes = new Map<number, THREE.Object3D>();
   const bars = new Map<number, HpBar>();
+  const teams = new Map<number, Team>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
 
@@ -55,8 +61,9 @@ export function createScene(container: HTMLElement, config: Config) {
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.facing, x: e.x, y: e.y, f: e.facing, vx: 0, vy: 0 };
+        s = { px: e.x, py: e.y, pf: e.facing, x: e.x, y: e.y, f: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius };
         interp.set(e.id, s);
+        teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, e.team);
         scene.add(root);
         meshes.set(e.id, root);
@@ -71,17 +78,23 @@ export function createScene(container: HTMLElement, config: Config) {
       s.px = s.x; s.py = s.y; s.pf = s.f;
       s.x = e.x; s.y = e.y; s.f = e.facing;
       s.vx = e.vx; s.vy = e.vy;
+      s.targetId = e.targetId;
+      s.radius = e.radius;
     }
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
       scene.remove(mesh);
       meshes.delete(id);
       interp.delete(id);
+      teams.delete(id);
       const bar = bars.get(id);
       if (bar) scene.remove(bar.group);
       bars.delete(id);
     }
   }
+
+  // The followed champion's target line, coloured for its team on first sight.
+  let targetLine: TargetLine | undefined;
 
   /** Interpolated position and velocity of the followed entity (sim space). */
   const focus = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -92,11 +105,25 @@ export function createScene(container: HTMLElement, config: Config) {
       const mesh = meshes.get(id)!;
       const x = s.px + (s.x - s.px) * alpha;
       const y = s.py + (s.y - s.py) * alpha;
+      s.ix = x;
+      s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
       mesh.rotation.y = lerpAngle(s.pf, s.f, alpha);
       const bar = bars.get(id);
       if (bar) bar.group.position.set(x, mesh.position.y + bar.lift, -y);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
+    }
+    const me = focusId === undefined ? undefined : interp.get(focusId);
+    const target = me && me.targetId ? interp.get(me.targetId) : undefined;
+    if (me && !targetLine) {
+      targetLine = new TargetLine(teams.get(focusId!) ?? Team.Blue);
+      scene.add(targetLine.group);
+    }
+    if (me && target) {
+      const h = arena.terrain.heightAt;
+      targetLine!.show(me.ix, me.iy, h(me.ix, me.iy), target.ix, target.iy, h(target.ix, target.iy), target.radius);
+    } else {
+      targetLine?.hide();
     }
     sun.target.position.set(focus.x, 0, -focus.y);
     sun.position.copy(sun.target.position).add(sunOffset);
