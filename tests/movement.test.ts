@@ -4,6 +4,8 @@ import { createSim, Team, type Command } from '../src/sim/sim';
 import { fixtureConfig } from './helpers';
 
 const base = fixtureConfig();
+/** Alpha's tuned move speed (data/champions.json), so tuning never breaks these tests. */
+const speed = base.champions[0]!.moveSpeed;
 
 function withObstacles(obstacles: Config['map']['obstacles']): Config {
   const c = structuredClone(base);
@@ -25,16 +27,16 @@ describe('movement', () => {
   const open = withObstacles([]);
   const spawn = base.map.spawn.blue;
 
-  it('moves at move speed (3.5 m in 1 s)', () => {
+  it('moves at move speed (speed m in 1 s)', () => {
     const e = run(open, move(0, 127), 30);
-    expect(e.y - spawn.y).toBeCloseTo(3.5, 5);
+    expect(e.y - spawn.y).toBeCloseTo(speed, 5);
     expect(e.x).toBeCloseTo(spawn.x);
     expect(e.facing).toBeCloseTo(Math.PI / 2);
   });
 
   it('never exceeds move speed on a diagonal command', () => {
     const e = run(open, move(127, 127), 30);
-    expect(Math.hypot(e.x - spawn.x, e.y - spawn.y)).toBeCloseTo(3.5, 5);
+    expect(Math.hypot(e.x - spawn.x, e.y - spawn.y)).toBeCloseTo(speed, 5);
   });
 
   it('stops at a wall face', () => {
@@ -66,6 +68,6 @@ describe('movement', () => {
 
   it('moves a Red champion towards -y on a -y command', () => {
     const e = run(open, move(0, -127), 30, Team.Red);
-    expect(e.y - base.map.spawn.red.y).toBeCloseTo(-3.5, 5);
+    expect(e.y - base.map.spawn.red.y).toBeCloseTo(-speed, 5);
   });
 });

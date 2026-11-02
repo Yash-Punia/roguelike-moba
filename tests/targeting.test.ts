@@ -15,6 +15,10 @@ type Unit = { team: Team.Blue | Team.Red; x: number; y: number; structure?: 'sub
  */
 function arena(units: Unit[], tweak?: (c: Config) => void) {
   const config = structuredClone(base);
+  // Pin the tuning these cases are written against, so retuning data/ never breaks them.
+  config.champions[0]!.weapon.range = 7;
+  config.champions[0]!.radius = 0.5;
+  config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {
@@ -33,7 +37,7 @@ function arena(units: Unit[], tweak?: (c: Config) => void) {
   };
   const move = (id: number, x: number, y: number) => Object.assign(sim.stores.transforms.get(id)!, { x, y });
   const hp = (id: number, value: number) => (sim.stores.healths.get(id)!.hp = value);
-  return { sim, shooter, step, move, hp, target };
+  return { sim, config, shooter, step, move, hp, target };
 }
 
 describe('auto-targeting (GDD §6)', () => {
@@ -137,9 +141,9 @@ describe('auto-targeting (GDD §6)', () => {
   });
 
   it('uses tuning from combat.json live', () => {
-    const { sim, step, move } = arena([{ team: Red, x: 0, y: 7 }]);
+    const { sim, config, step, move } = arena([{ team: Red, x: 0, y: 7 }]);
     step();
-    const next = structuredClone(base);
+    const next = structuredClone(config);
     next.combat.targeting.stickyRange = 0;
     sim.setConfig(next);
     move(2, 0, 7.9);

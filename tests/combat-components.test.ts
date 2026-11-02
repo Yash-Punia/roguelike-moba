@@ -14,12 +14,14 @@ const twoAlphas = () =>
   ]);
 
 describe('combat components at spawn', () => {
-  it('gives Alpha 1000 HP, a 95-damage revolver every 25 ticks and the champion target class', () => {
+  it("gives Alpha her config HP, revolver (interval in ticks) and the champion target class", () => {
     const sim = twoAlphas();
     const e = sim.entityOf(0)!;
-    expect(sim.stores.healths.get(e)).toEqual({ hp: 1000, maxHp: 1000, shield: 0, invulnerable: false });
+    const alpha = config.champions[0]!;
+    expect(sim.stores.healths.get(e)).toEqual({ hp: alpha.maxHp, maxHp: alpha.maxHp, shield: 0, invulnerable: false });
     const w = sim.stores.weapons.get(e)!;
-    expect([w.kind, w.damage, w.interval, w.range, w.projectileSpeed, w.targets, w.cooldown]).toEqual(['bullet', 95, 25, 7, 25, 1, 0]);
+    expect({ ...w }).toEqual({ ...alpha.weapon, cooldown: 0 });
+    expect(Number.isInteger(w.interval)).toBe(true);
     expect(sim.stores.targetClasses.get(e)).toBe(TargetClass.Champion);
     expect(sim.stores.targetings.get(e)).toEqual({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
   });
@@ -29,25 +31,26 @@ describe('combat components at spawn', () => {
     const rows = sim.snapshot().entities
       .filter((e) => e.kind !== Kind.Champion)
       .map((e) => [e.modelId, e.hp, e.maxHp, sim.stores.targetClasses.get(e.id), sim.stores.weapons.get(e.id)!.kind]);
+    const { hq, subBase } = config.structures;
     expect(rows).toEqual([
-      ['hq', 10000, 10000, TargetClass.HQ, 'flak'],
-      ['hq', 10000, 10000, TargetClass.HQ, 'flak'],
-      ['subBase', 6000, 6000, TargetClass.SubBase, 'bullet'],
-      ['subBase', 6000, 6000, TargetClass.SubBase, 'bullet'],
+      ['hq', hq.maxHp, hq.maxHp, TargetClass.HQ, hq.weapon.kind],
+      ['hq', hq.maxHp, hq.maxHp, TargetClass.HQ, hq.weapon.kind],
+      ['subBase', subBase.maxHp, subBase.maxHp, TargetClass.SubBase, subBase.weapon.kind],
+      ['subBase', subBase.maxHp, subBase.maxHp, TargetClass.SubBase, subBase.weapon.kind],
     ]);
-    const hq = sim.snapshot().entities.find((e) => e.kind === Kind.HQ)!;
-    expect(sim.stores.weapons.get(hq.id)!.targets).toBe(2);
+    const hqEntity = sim.snapshot().entities.find((e) => e.kind === Kind.HQ)!;
+    expect(sim.stores.weapons.get(hqEntity.id)!.targets).toBe(config.structures.hq.weapon.targets);
   });
 
   it('spawns a player at spawnAt when given (the ?dummy setup)', () => {
     const e = twoAlphas().snapshot().entities[1]!;
-    expect([e.team, e.x, e.y, e.hp]).toEqual([Team.Red, 0, -50, 1000]);
+    expect([e.team, e.x, e.y, e.hp]).toEqual([Team.Red, 0, -50, config.champions[0]!.maxHp]);
   });
 
   it('keeps the HP fraction on a live max-HP edit', () => {
     const sim = twoAlphas();
     const e = sim.entityOf(0)!;
-    sim.stores.healths.get(e)!.hp = 500;
+    sim.stores.healths.get(e)!.hp = config.champions[0]!.maxHp / 2;
     const next = structuredClone(config);
     next.champions[0]!.maxHp = 2000;
     next.structures.subBase.maxHp = 3000;
@@ -77,7 +80,7 @@ describe('stats', () => {
     const up: Command = { tick: 0, player: 0, moveX: 0, moveY: 127, ult: false, draftPick: -1, reroll: false };
     const y0 = sim.snapshot().entities[0]!.y;
     for (let i = 0; i < 30; i++) sim.step([up]);
-    expect(sim.snapshot().entities[0]!.y - y0).toBeCloseTo(3.5, 5);
+    expect(sim.snapshot().entities[0]!.y - y0).toBeCloseTo(config.champions[0]!.moveSpeed, 5);
   });
 });
 

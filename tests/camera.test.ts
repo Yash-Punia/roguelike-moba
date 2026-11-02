@@ -54,7 +54,7 @@ describe('camera framing', () => {
     let y = -42;
     for (let i = 0; i < 120; i++) {
       y += 3.5 / 60;
-      rig.update({ x: 0, y, vx: 0, vy: 3.5 }, cfg, 1 / 60);
+      rig.update({ x: 0, y, vx: 0, vy: 3.5 }, { ...cfg, lookAhead: 2 }, 1 / 60); // look-ahead pinned: this tests the mechanism, not the tuning
     }
     const p = ndc(cam, 0, y);
     expect(p.y).toBeLessThan(2 * cfg.playerFramePct - 1);
