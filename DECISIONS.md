@@ -244,3 +244,15 @@ From TDD §13:
 - Why: placements are map layout (D-017), stats are gameplay data; stamping keeps one collision system (the grid) for terrain and buildings.
 - Alternatives: static circle-vs-circle colliders for structures (a second collision path in movement; rectangles fit the HQ poorly).
 
+## D-026 — Terrain mesh is cut along true shape edges; straight-lane toggle
+- Date: 2026-11-02
+- Source: user report (staircase edges on lane walls) and user choice (try both lane styles)
+- Decision: render terrain is a contour mesh (`src/render/terrain-mesh.ts`, no Three.js, unit tested).
+  - Cells within 2 cells of an owner change are cut along each shape's signed-distance contour in paint order, then the jungle remainder is cut at the 0.6 m slope line into slope and top pieces. All other cells stay two triangles.
+  - Cut points are refined onto the contour (Illinois regula falsi) from canonically ordered edge endpoints, and every vertex height comes from one ground function, so the mesh is crack-free.
+  - Slopes use mud (#6B5540) as exposed earth. Build time is about 0.3–0.4 s on desktop for The Front.
+  - The sim's walkability grid is unchanged (0.5 m cells): the visible edge can sit up to a quarter cell from where movement stops, which the 0.5 m unit radius hides.
+  - Lane style is a live choice for playtesting: `map.splineSamples` 16 gives the spec's curves (default), 1 gives straight segments between the control points. Set it in the debug panel (the terrain rebuilds live) or with `?straight` in the URL.
+- Why: the 0.5 m grid heightfield stair-stepped every non-axis-aligned edge, whatever the lane shape; straight lanes alone would not fix it.
+- Alternatives: finer grid mesh (more triangles, still stepped); separate lane ribbon meshes with boolean cut-outs in the jungle (much more code).
+

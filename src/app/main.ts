@@ -10,7 +10,10 @@ const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
 const debug = import.meta.env.DEV || params.has('debug');
 
-let config = parseConfig(rawConfig);
+// `?straight` draws lanes as straight segments between the spec's control points (D-026).
+const raw = structuredClone(rawConfig);
+if (params.has('straight')) raw.map.splineSamples = 1;
+let config = parseConfig(raw);
 const sim = createSim(config, config.match.defaultSeed, [{ team: localTeam, championId: 'alpha' }]);
 
 const container = document.getElementById('frame')!;
@@ -44,8 +47,9 @@ if (debug) {
   Object.assign(window, { warfront: { sim, view, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
-      raw: rawConfig,
+      raw,
       apply: (next) => {
+        if (JSON.stringify(next.map) !== JSON.stringify(config.map)) view.setMap(next.map);
         config = next;
         sim.setConfig(next);
       },

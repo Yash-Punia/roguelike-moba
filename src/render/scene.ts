@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Config } from '../data/schema';
+import type { Config, MapConfig } from '../data/schema';
 import { Team, type Snapshot } from '../sim/sim';
 import { createModel, createSpawnPad } from './models';
 import { palette } from './palette';
@@ -37,7 +37,8 @@ export function createScene(container: HTMLElement, config: Config) {
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 80 });
   scene.add(sun, sun.target);
 
-  const terrain = buildArena(scene, config);
+  let arena = buildArena(config.map);
+  scene.add(arena.group);
 
   const camera = new THREE.PerspectiveCamera(config.camera.fovDeg, 1, 1, 300);
 
@@ -79,7 +80,7 @@ export function createScene(container: HTMLElement, config: Config) {
       const mesh = meshes.get(id)!;
       const x = s.px + (s.x - s.px) * alpha;
       const y = s.py + (s.y - s.py) * alpha;
-      mesh.position.set(x, terrain.heightAt(x, y), -y);
+      mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
       mesh.rotation.y = lerpAngle(s.pf, s.f, alpha);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
@@ -101,7 +102,17 @@ export function createScene(container: HTMLElement, config: Config) {
   });
   ro.observe(container);
 
-  return { renderer, camera, focus, capture, update, render };
+  /** Rebuilds the static map (terrain, pads, obstacles) after a live map edit. */
+  function setMap(map: MapConfig) {
+    scene.remove(arena.group);
+    arena.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.geometry.dispose();
+    });
+    arena = buildArena(map);
+    scene.add(arena.group);
+  }
+
+  return { renderer, camera, focus, capture, update, render, setMap };
 }
 
 function lerpAngle(a: number, b: number, t: number) {
@@ -109,22 +120,24 @@ function lerpAngle(a: number, b: number, t: number) {
   return a + d * t;
 }
 
-function buildArena(scene: THREE.Scene, config: Config) {
-  const terrain = buildTerrain(config.map);
-  scene.add(terrain.mesh, buildSurround(config.map));
+/** Static map: terrain, the area outside the bounds, spawn pads and obstacle blocks. */
+function buildArena(map: MapConfig) {
+  const group = new THREE.Group();
+  const terrain = buildTerrain(map);
+  group.add(terrain.mesh, buildSurround(map));
 
   for (const team of [Team.Blue, Team.Red]) {
-    const at = team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red;
+    const at = team === Team.Blue ? map.spawn.blue : map.spawn.red;
     const pad = createSpawnPad(team);
     pad.position.set(at.x, terrain.heightAt(at.x, at.y), -at.y);
-    scene.add(pad);
+    group.add(pad);
   }
 
-  for (const o of config.map.obstacles) {
+  for (const o of map.obstacles) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1, o.h), lambert(palette.sandbag));
     box.position.set(o.x, 0.5, -o.y);
     box.castShadow = box.receiveShadow = true;
-    scene.add(box);
+    group.add(box);
   }
-  return terrain;
+  return { group, terrain };
 }
