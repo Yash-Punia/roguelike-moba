@@ -205,3 +205,29 @@ From TDD §13:
 - Decision: a cloud session commits features on `wip/<milestone>` and pushes that branch. It never pushes `main`. The user tests by checking the branch out locally (`npm run dev`, LAN URL for the phone) and says which commits passed; those reach `main` on the user's go-ahead. Local sessions keep D-007 unchanged.
 - Why: a cloud session's commits are lost unless pushed, and the user can't test from the cloud machine. Pushing a non-main branch keeps `main` limited to tested work.
 - Alternatives: pull requests per feature (heavier than needed now).
+
+## D-022 — Map v2 format: walkable shapes painted in order
+- Date: 2026-11-02
+- Source: made during development
+- Decision: `map.walkable` is one ordered list of shapes (`path`, `ellipse`, `circle`, `rect`), each with a `surface` (dirt, grass, trench, arena, crater) and a render-only `height`. Shapes are painted in list order onto the 0.5 m grid by cell centre; the last shape over a cell owns it. Uncovered cells are jungle (blocked); `obstacles` rects are stamped blocked on top.
+  - Paths are uniform Catmull-Rom curves with clamped ends, sampled at `splineSamples` (16) per segment by plain arithmetic in `src/data/map-geometry.ts`, shared by the sim grid and render terrain. Lanes and trenches are both paths (the spec draws trenches as curves too); ramps slope via `endHeight`, the Behemoth bowl via `centreHeight`.
+  - M2 builds only the centre lane of The Front: both bases (50 × 26 m), aprons (24 × 15 m), both trunks, both Crater branches, the Crater (walkable floor radius 9 m of the spec's 9–10 m, leaving a rock rim to the 7 m branches) and its four 5 m ramps. Outer lanes, rooms and trenches come with M3.
+  - Render terrain is a heightfield on grid corners. Near walkable edges, corner heights follow each shape's true signed distance with a 0.6 m slope up to the jungle, so walls trace the curves instead of the grid's staircase; render-only, so the sim is unaffected. Units are placed on the terrain height.
+  - The HQs stay as obstacle rects (5 × 4.2 m) until structures become entities. The M1 movement tests use an open fixture map (`tests/fixtures/map-open.json`); the determinism test runs on the real map.
+- Why: one ordered list makes overlaps (lane over apron, lane over ramp, arena over ramp) explicit in data; cell-centre painting keeps the grid exact and simple.
+- Alternatives: separate arrays per shape type with fixed priority (less flexible); centripetal Catmull-Rom (unneeded: control points are evenly spaced).
+
+## D-023 — Map distances follow the concept spec; GDD timings are unchanged
+- Date: 2026-11-02
+- Source: user decision
+- Decision: The Front's centre lane is about 157 m HQ to HQ (trunk 51 + branch 55 + trunk 51), against the ~96 m the GDD's wave timing (first wave 0:15, then every 25 s), minion speed (2.6 m/s, ~60 s to cross) and XP pacing were tuned for. M2 keeps the GDD numbers as they are and tunes live during the Gate 1 playtests.
+- Why: the numbers are all in `/data` and live-tunable; guessing a rescale before playing adds noise to the Gate 1 test.
+- Alternatives: pre-scale wave timing and minion speed to the longer lane.
+
+## D-024 — M2 build order and pull-ins from M3
+- Date: 2026-11-02
+- Source: user decision
+- Decision: M2 rows are built in a playable order (see MILESTONES.md M2): death and respawn move up before minions so kills work, win/lose before the HUD, the HUD before the Ultimate button and draft tray, and the bot last. Minimal versions of three M3 items are pulled into M2 because the single lane needs them: the respawn timer formula (4 s + 1.2 s × level, capped at 18 s), champion-kill XP and Ultimate charge for the killer only (no 8 s assists), and the spawn-pad heal (10% max HP/s). Undocumented numbers needed along the way are chosen in the feature's commit, put in `/data` and logged here.
+- Why: each commit can then be tested in the browser, and Gate 1 needs kills to matter.
+- Alternatives: build in MILESTONES row order (several commits would be untestable until the HUD and bot exist).
+

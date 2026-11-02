@@ -44,9 +44,11 @@ Goal: an empty arena you can walk around in, on desktop and phone, driven by a d
 
 Goal: one lane, Alpha vs a bot, to answer *does movement alone feel skilful?* (GDD §13).
 
+Build order (D-024), so each commit is playable: map v2 → centre lane and structures → Health/TargetClass/Weapon/Targeting → auto-targeting → projectiles → damage pipeline → Alpha → death and respawn → MG Soldier waves → structure rules → XP and levels → win/lose → minimal HUD → Ultimate charge → basic draft → bot. Pulled in from M3 in minimal form: respawn formula, solo champion-kill XP and charge, spawn-pad heal. Work happens on `wip/m2` (D-021).
+
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | |
+| `[c]` | Map v2: The Front from the concept map spec (D-017, D-018): spline lanes, aprons and bases, trench/room/arena walkability rasterised to the grid, SG-01 palette, terrain heights in render; M1 tests move to a fixture map | |
 | `[ ]` | Centre lane (Blue and Red trunks + both branches round the Crater), centre Sub-bases at (1, −40) and (−1, 40), both HQs at (0, ∓72), with primitive models per the structures sheet (D-020) | |
 | `[ ]` | Health, `TargetClass`, `Weapon`, `Targeting` components | |
 | `[ ]` | Auto-targeting exactly per GDD §6 (class order, nearest, tie-break, stickiness, 0.15 s override, 0.2 s retarget pause) + unit tests | |

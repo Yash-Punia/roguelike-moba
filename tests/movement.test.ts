@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig, rawConfig } from '../src/data/load';
 import type { Config } from '../src/data/schema';
 import { createSim, Team, type Command } from '../src/sim/sim';
+import { fixtureConfig } from './helpers';
 
-const base = parseConfig(rawConfig);
+const base = fixtureConfig();
 
 function withObstacles(obstacles: Config['map']['obstacles']): Config {
   const c = structuredClone(base);

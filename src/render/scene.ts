@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Config } from '../data/schema';
 import { Team, type Snapshot } from '../sim/sim';
 import { palette } from './palette';
+import { buildSurround, buildTerrain } from './terrain';
 
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 
@@ -35,7 +36,7 @@ export function createScene(container: HTMLElement, config: Config) {
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 80 });
   scene.add(sun, sun.target);
 
-  buildArena(scene, config);
+  const terrain = buildArena(scene, config);
 
   const camera = new THREE.PerspectiveCamera(config.camera.fovDeg, 1, 1, 300);
 
@@ -89,7 +90,7 @@ export function createScene(container: HTMLElement, config: Config) {
       const mesh = meshes.get(id)!;
       const x = s.px + (s.x - s.px) * alpha;
       const y = s.py + (s.y - s.py) * alpha;
-      mesh.position.set(x, 0, -y);
+      mesh.position.set(x, terrain.heightAt(x, y), -y);
       mesh.rotation.y = lerpAngle(s.pf, s.f, alpha);
       if (id === focusId) Object.assign(focus, { x, y, vx: s.vx, vy: s.vy });
     }
@@ -120,32 +121,15 @@ function lerpAngle(a: number, b: number, t: number) {
 }
 
 function buildArena(scene: THREE.Scene, config: Config) {
-  const { bounds, lanes, laneWidth, obstacles, hq } = config.map;
-  const w = bounds.maxX - bounds.minX;
-  const h = bounds.maxY - bounds.minY;
-  const cx = (bounds.minX + bounds.maxX) / 2;
-  const cy = (bounds.minY + bounds.maxY) / 2;
+  const terrain = buildTerrain(config.map);
+  scene.add(terrain.mesh, buildSurround(config.map));
 
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(w, h), lambert(palette.olive));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(cx, 0, -cy);
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  const laneLength = hq.red.y - hq.blue.y;
-  for (const lane of lanes) {
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(laneWidth, laneLength), lambert(palette.mud));
-    strip.rotation.x = -Math.PI / 2;
-    strip.position.set(lane.x, 0.01, -(hq.blue.y + hq.red.y) / 2);
-    strip.receiveShadow = true;
-    scene.add(strip);
-  }
-
-  for (const o of obstacles) {
-    const height = o.kind === 'hq' ? 3 : 1;
+  // Placeholder blocks until structures become entities with their own models (M2 feature 2).
+  for (const o of config.map.obstacles) {
+    const height = o.kind === 'hq' ? 3.4 : 1;
     const box = new THREE.Mesh(
       new THREE.BoxGeometry(o.w, height, o.h),
-      lambert(o.kind === 'hq' ? palette.concrete : palette.khaki),
+      lambert(o.kind === 'hq' ? palette.concrete : palette.sandbag),
     );
     box.position.set(o.x, height / 2, -o.y);
     box.castShadow = box.receiveShadow = true;
@@ -159,4 +143,5 @@ function buildArena(scene: THREE.Scene, config: Config) {
       scene.add(stripe);
     }
   }
+  return terrain;
 }

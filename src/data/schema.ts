@@ -21,13 +21,33 @@ const Champion = z.object({
   radius: positive(),
 });
 
+/** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
+const Surface = z.enum(['dirt', 'grass', 'trench', 'arena', 'crater']);
+
+// Walkable shapes from the concept map spec (D-018). Painted in array order: where shapes
+// overlap, the later one decides the surface and render height. `height` is render-only.
+const shapeBase = { id: z.string(), surface: Surface, height: z.number().default(0) };
+const WalkShape = z.discriminatedUnion('shape', [
+  // Catmull-Rom curve through `points`, swept to `width`. `endHeight` slopes the floor (ramps).
+  z.object({ shape: z.literal('path'), ...shapeBase, width: positive(), points: z.array(vec).min(2), endHeight: z.number().optional() }),
+  // w, h are full sizes, not semi-axes.
+  z.object({ shape: z.literal('ellipse'), ...shapeBase, x: z.number(), y: z.number(), w: positive(), h: positive() }),
+  // `centreHeight` makes a bowl: `height` at the rim, `centreHeight` in the middle.
+  z.object({ shape: z.literal('circle'), ...shapeBase, x: z.number(), y: z.number(), r: positive(), centreHeight: z.number().optional() }),
+  z.object({ shape: z.literal('rect'), ...shapeBase, x: z.number(), y: z.number(), w: positive(), h: positive() }),
+]);
+
 const MapConfig = z.object({
+  id: z.string(),
   bounds: z.object({ minX: z.number(), maxX: z.number(), minY: z.number(), maxY: z.number() }),
   gridCell: positive(),
-  laneWidth: positive(),
-  lanes: z.array(z.object({ x: z.number() })),
+  /** Catmull-Rom samples per control-point segment. */
+  splineSamples: z.number().int().min(1),
   hq: z.object({ blue: vec, red: vec }),
   spawn: z.object({ blue: vec, red: vec }),
+  /** Everything not covered by a walkable shape is raised jungle ground: blocked. */
+  walkable: z.array(WalkShape).min(1),
+  /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
   obstacles: z.array(
     z.object({ kind: z.enum(['hq', 'sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
   ),
@@ -63,5 +83,7 @@ export const ConfigSchema = z.object({
 export type RawConfig = z.input<typeof ConfigSchema>;
 export type Config = z.output<typeof ConfigSchema>;
 export type MapConfig = Config['map'];
+export type WalkShape = MapConfig['walkable'][number];
+export type SurfaceKind = z.output<typeof Surface>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;

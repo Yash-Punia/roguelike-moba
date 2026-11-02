@@ -1,16 +1,63 @@
 {
-  "bounds": { "minX": -18, "maxX": 18, "minY": -55, "maxY": 55 },
+  "id": "the-front",
+  "bounds": { "minX": -34, "maxX": 34, "minY": -82, "maxY": 82 },
   "gridCell": 0.5,
-  "laneWidth": 6,
-  "lanes": [{ "x": -12 }, { "x": 0 }, { "x": 12 }],
-  "hq": { "blue": { "x": 0, "y": -48 }, "red": { "x": 0, "y": 48 } },
-  "spawn": { "blue": { "x": 0, "y": -42 }, "red": { "x": 0, "y": 42 } },
+  "splineSamples": 16,
+  "hq": { "blue": { "x": 0, "y": -72 }, "red": { "x": 0, "y": 72 } },
+  "spawn": { "blue": { "x": 0, "y": -66.5 }, "red": { "x": 0, "y": 66.5 } },
+  "walkable": [
+    { "id": "blue-base", "shape": "ellipse", "surface": "grass", "x": 0, "y": -71, "w": 50, "h": 26 },
+    { "id": "red-base", "shape": "ellipse", "surface": "grass", "x": 0, "y": 71, "w": 50, "h": 26 },
+    { "id": "blue-apron", "shape": "ellipse", "surface": "dirt", "x": 0, "y": -68.5, "w": 24, "h": 15 },
+    { "id": "red-apron", "shape": "ellipse", "surface": "dirt", "x": 0, "y": 68.5, "w": 24, "h": 15 },
+    {
+      "id": "crater-ramp-n", "shape": "path", "surface": "arena", "width": 5, "height": -0.55, "endHeight": 0,
+      "points": [{ "x": 0, "y": 8 }, { "x": 0, "y": 20 }]
+    },
+    {
+      "id": "crater-ramp-s", "shape": "path", "surface": "arena", "width": 5, "height": -0.55, "endHeight": 0,
+      "points": [{ "x": 0, "y": -8 }, { "x": 0, "y": -20 }]
+    },
+    {
+      "id": "crater-ramp-e", "shape": "path", "surface": "arena", "width": 5, "height": -0.55, "endHeight": 0,
+      "points": [{ "x": 8, "y": 0 }, { "x": 15, "y": 0 }]
+    },
+    {
+      "id": "crater-ramp-w", "shape": "path", "surface": "arena", "width": 5, "height": -0.55, "endHeight": 0,
+      "points": [{ "x": -8, "y": 0 }, { "x": -15, "y": 0 }]
+    },
+    { "id": "crater", "shape": "circle", "surface": "crater", "x": 0, "y": 0, "r": 9, "height": -0.55, "centreHeight": -0.9 },
+    {
+      "id": "centre-blue", "shape": "path", "surface": "dirt", "width": 8,
+      "points": [
+        { "x": 0, "y": -67 }, { "x": 3, "y": -56 }, { "x": -2, "y": -46 },
+        { "x": 3, "y": -36 }, { "x": 0, "y": -27 }, { "x": 0, "y": -20 }
+      ]
+    },
+    {
+      "id": "centre-red", "shape": "path", "surface": "dirt", "width": 8,
+      "points": [
+        { "x": 0, "y": 20 }, { "x": 0, "y": 27 }, { "x": -3, "y": 36 },
+        { "x": 2, "y": 46 }, { "x": -3, "y": 56 }, { "x": 0, "y": 67 }
+      ]
+    },
+    {
+      "id": "centre-west", "shape": "path", "surface": "dirt", "width": 7,
+      "points": [
+        { "x": 0, "y": -20 }, { "x": -8, "y": -16.5 }, { "x": -14, "y": -8 }, { "x": -15, "y": 0 },
+        { "x": -14, "y": 8 }, { "x": -8, "y": 16.5 }, { "x": 0, "y": 20 }
+      ]
+    },
+    {
+      "id": "centre-east", "shape": "path", "surface": "dirt", "width": 7,
+      "points": [
+        { "x": 0, "y": -20 }, { "x": 8, "y": -16.5 }, { "x": 14, "y": -8 }, { "x": 15, "y": 0 },
+        { "x": 14, "y": 8 }, { "x": 8, "y": 16.5 }, { "x": 0, "y": 20 }
+      ]
+    }
+  ],
   "obstacles": [
-    { "kind": "hq", "x": 0, "y": -48, "w": 6, "h": 4 },
-    { "kind": "hq", "x": 0, "y": 48, "w": 6, "h": 4 },
-    { "kind": "sandbag", "x": -3, "y": -34, "w": 4, "h": 1 },
-    { "kind": "sandbag", "x": 4, "y": -28, "w": 1, "h": 4 },
-    { "kind": "sandbag", "x": 3, "y": 34, "w": 4, "h": 1 },
-    { "kind": "sandbag", "x": -4, "y": 28, "w": 1, "h": 4 }
+    { "kind": "hq", "x": 0, "y": -72, "w": 5, "h": 4.2 },
+    { "kind": "hq", "x": 0, "y": 72, "w": 5, "h": 4.2 }
   ]
 }
