@@ -62,8 +62,8 @@ Build order (D-024), so each commit is playable: map v2 → centre lane and stru
 | `[ ]` | Ultimate charge (passive + kills), `ultTargetable`, Ultimate button (passive charge, `ultTargetable` and a temporary button already in with Alpha, D-033) | |
 | `[c]` | Death and respawn at HQ, with the respawn timer formula and spawn-pad heal (D-034) | 496a2d1 |
 | `[ ]` | One simple bot opponent (farm / trade / retreat) | |
-| `[ ]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars | |
-| `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | |
+| `[c]` | Minimal HUD: HP/XP/level, timer, target line, world HP bars; structure icons and score; your team drawn Blue (D-039) | |
+| `[c]` | Win/lose on HQ destruction, with a minimal end banner (D-038) | c3445b9 |
 
 **Gate 1 exit criteria:** the user plays the single lane and confirms positioning decides trades; holds 60 fps on desktop and a mid-range phone. If the gate fails, fix the core before M3.
 

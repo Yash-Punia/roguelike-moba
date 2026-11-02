@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@preact/signals": "2.11.3",
     "lil-gui": "0.21.0",
+    "preact": "11.0.1",
     "three": "0.187.0",
     "zod": "4.6.7"
   },

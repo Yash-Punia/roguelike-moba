@@ -305,7 +305,7 @@ From TDD §13:
   - **Damage for now:** hits apply raw damage (shield first, then HP, floored at 0) until the TDD §6.4 pipeline arrives in feature 6. Only champions fire for now: structures (feature 10) and minions (feature 9) fire once their own targeting exists.
   - **Debug tools:** `PlayerSetup.unarmed` gives a champion no weapon. `?dummy` is now unarmed and `?dummy=armed` fires back. In debug builds, `window.warfront.loop` exposes pause and time scale.
   - **Render:** tracers are flat 0.9 m instanced quads in a lightened team colour at gun height (1 m), interpolated along their velocity. Models turn with their aim until champions get separate legs (feature 7).
-  - **Noted for later:** GDD §11 shows the local player's team in Blue and the enemy in Red, whatever the true side (the Brawl Stars convention). Render still uses true team colours.
+  - **Noted for later:** GDD §11 shows the local player's team in Blue and the enemy in Red, whatever the true side (the Brawl Stars convention). Render still uses true team colours. *(Done in D-039.)*
 - Why: positioning stays the core skill while bullets remain readable and fair; lead aim keeps auto-fire reliable against steady movement.
 - Alternatives: homing bullets (no dodging or blocking); direct aim (moving targets mostly missed).
 
@@ -490,3 +490,34 @@ From TDD §13:
   - **Not yet:** the 13:00 time-out, Sudden Death and Surrender (M3); the Results screen and telemetry (M4/M5); victory and defeat poses (M5).
 - Why: a pushed lane now ends the match, which completes the core loop for Gate 1.
 - Alternatives: keep simulating behind the banner; build the Results screen now (both declined by the user).
+
+## D-039 — Minimal HUD, and your team is always Blue
+- Date: 2026-11-02
+- Source: user choices (top strip with structures and score; your team drawn Blue now); the rest made during development
+- Decision:
+  - **First `ui` code:** Preact 11.0.1 and @preact/signals 2.11.3, pinned exactly. The newest releases were days old; these had been out for weeks. TSX uses `jsx: react-jsx` with `jsxImportSource: preact`, and Vite needs no plugin. The HUD is a `pointer-events: none` layer in `#frame` with sizes in container query units, so it scales with the frame and never blocks the joystick.
+  - **State flow (TDD §10):** `ui/store.ts` holds a few signals. `updateHud(snapshot, localId, localTeam)` fills them every third tick (10 Hz) and on the tick the match ends; structure lists are only replaced when something changed. The sim is unchanged.
+  - **Top strip (user choice):**
+    - the timer in the centre, with the takedown score below it (yours in light blue · theirs in light red);
+    - your structures on the left and the enemy's on the right, HQ first: a hexagon for a Sub-base, a square for the HQ, each with 4 HP pips;
+    - a white outline while an HQ is shielded, grey with ✕ once destroyed.
+
+    Debug builds move the FPS overlay below the strip.
+  - **Bottom left:**
+    - a level badge (a brass ring) with rank chevrons above it: one per 3 levels, gold at 12 (GDD §11);
+    - the HP bar with 250 HP segments and `hp / max`;
+    - a thin brass XP bar showing progress through the current level, full at 12.
+  - **Your team is Blue (user choice, GDD §10, closes D-030's note):**
+    - `displayTeam(team, viewer)` maps the viewer's team to Blue and the enemy to Red; neutral is unchanged;
+    - render applies it to models, HP bars, spawn pads, tracers and the target line;
+    - the HUD uses it for sides and score.
+
+    Playing `?team=red` looks exactly like playing Blue. The sim keeps true teams.
+  - **Stays out:**
+    - minimap, notifications, scoreboard (M4);
+    - the draft tray and brass Ultimate gauge (their rows);
+    - the respawn overlay (M4: the plain countdown stays);
+    - the stencil font and canvas textures (M5).
+  - **Bundle:** +24 kB gzipped (208 kB total).
+- Why: progression and the push state are now readable at a glance during play, and the HUD is the base the draft tray and Ultimate gauge build on.
+- Alternatives: timer only (the user chose the fuller strip); true team colours until later (the user chose now).

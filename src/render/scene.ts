@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Config, MapConfig } from '../data/schema';
 import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
+import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBar } from './hp-bars';
 import { createModel, createSpawnPad, partsOf } from './models';
@@ -56,7 +57,12 @@ interface Interp {
 const lambert = (color: number) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 
 /** Three.js world. Only reads snapshots; never writes sim state. Sim (x, y) → three (x, height, −y). */
-export function createScene(container: HTMLElement, config: Config) {
+/**
+ * `viewer`: the local player's true team. Every team colour is drawn from their side of the
+ * fight: their team in Blue, the enemy in Red (GDD §10, D-039).
+ */
+export function createScene(container: HTMLElement, config: Config, viewer: Team = Team.Blue) {
+  const side = (t: Team) => displayTeam(t, viewer);
   const renderer = new THREE.WebGLRenderer({ antialias: !coarsePointer });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setPixelRatio(Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2));
@@ -77,7 +83,7 @@ export function createScene(container: HTMLElement, config: Config) {
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 80 });
   scene.add(sun, sun.target);
 
-  let arena = buildArena(config.map);
+  let arena = buildArena(config.map, side);
   scene.add(arena.group);
 
   const camera = new THREE.PerspectiveCamera(config.camera.fovDeg, 1, 1, 300);
@@ -117,13 +123,13 @@ export function createScene(container: HTMLElement, config: Config) {
         s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, fellAt: 0 };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
-        const root = createModel(e.kind, e.modelId, e.team);
+        const root = createModel(e.kind, e.modelId, side(e.team));
         scene.add(root);
         meshes.set(e.id, root);
       }
       let bar = bars.get(e.id);
       if (!bar && e.maxHp > 0) {
-        bar = new HpBar(e.kind, e.team);
+        bar = new HpBar(e.kind, side(e.team));
         scene.add(bar.group);
         bars.set(e.id, bar);
       }
@@ -156,7 +162,7 @@ export function createScene(container: HTMLElement, config: Config) {
       s.targetId = e.targetId;
       s.radius = e.radius;
     }
-    tracers.capture(snap.projectiles);
+    tracers.capture(snap.projectiles, viewer);
     ultFx.capture(snap.lobs, snap.zones);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
@@ -277,7 +283,7 @@ export function createScene(container: HTMLElement, config: Config) {
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
     if (me) localTeam = teams.get(localId!);
     if (me && !targetLine) {
-      targetLine = new TargetLine(teams.get(localId!) ?? Team.Blue);
+      targetLine = new TargetLine(side(teams.get(localId!) ?? viewer));
       scene.add(targetLine.group);
     }
     if (me && target) {
@@ -313,7 +319,7 @@ export function createScene(container: HTMLElement, config: Config) {
     arena.group.traverse((o) => {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
     });
-    arena = buildArena(map);
+    arena = buildArena(map, side);
     scene.add(arena.group);
   }
 
@@ -331,14 +337,14 @@ function lerpAngle(a: number, b: number, t: number) {
 }
 
 /** Static map: terrain, the area outside the bounds, spawn pads and obstacle blocks. */
-function buildArena(map: MapConfig) {
+function buildArena(map: MapConfig, side: (t: Team) => Team) {
   const group = new THREE.Group();
   const terrain = buildTerrain(map);
   group.add(terrain.mesh, buildSurround(map));
 
   for (const team of [Team.Blue, Team.Red]) {
     const at = team === Team.Blue ? map.spawn.blue : map.spawn.red;
-    const pad = createSpawnPad(team);
+    const pad = createSpawnPad(side(team));
     pad.position.set(at.x, terrain.heightAt(at.x, at.y), -at.y);
     group.add(pad);
   }

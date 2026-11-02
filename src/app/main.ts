@@ -7,6 +7,8 @@ import { createSim, Team, type PlayerSetup } from '../sim/sim';
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 import { showEndBanner } from './end-banner';
+import { mountHud } from '../ui/hud';
+import { updateHud } from '../ui/store';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -30,7 +32,8 @@ const sim = createSim(config, config.match.defaultSeed, players);
 
 const container = document.getElementById('frame')!;
 
-const view = createScene(container, config);
+const view = createScene(container, config, localTeam);
+mountHud(container);
 const input = createInput(container, () => config.input, 0, localTeam);
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
@@ -71,6 +74,8 @@ const loop = startLoop({
     view.addEvents(events);
     const snap = sim.snapshot();
     view.capture(snap);
+    // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
+    if (snap.tick % 3 === 0 || snap.match.phase === 'ended') updateHud(snap, localEntity, localTeam);
     if (ended) return;
     for (const ev of events) {
       if (ev.type === 'structureDestroyed' && ev.kind === 'hq') cameraFocus = ev.id; // watch it fall

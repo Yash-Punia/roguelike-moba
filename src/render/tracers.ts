@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TICK_HZ } from '../data/schema';
 import { Kind, Team, type ProjectileSnapshot } from '../sim/sim';
+import { displayTeam } from '../sim/sides';
 import { palette } from './palette';
 
 const LENGTH = 0.9;
@@ -47,8 +48,8 @@ export class Tracers {
     this.colours = { [Team.Blue]: bright(palette.blue), [Team.Red]: bright(palette.red), [Team.Neutral]: bright(palette.hazard) };
   }
 
-  /** Copies this tick's projectiles. */
-  capture(projectiles: readonly ProjectileSnapshot[]) {
+  /** Copies this tick's projectiles; `viewer`'s team draws Blue (D-039). */
+  capture(projectiles: readonly ProjectileSnapshot[], viewer: Team = Team.Blue) {
     const n = Math.min(projectiles.length, this.mesh.instanceMatrix.count);
     if (n > this.xs.length) this.grow(n);
     for (let i = 0; i < n; i++) {
@@ -57,7 +58,7 @@ export class Tracers {
       this.ys[i] = p.y;
       this.vxs[i] = p.vx / TICK_HZ;
       this.vys[i] = p.vy / TICK_HZ;
-      this.teams[i] = p.team;
+      this.teams[i] = displayTeam(p.team, viewer);
       const structure = p.ownerKind === Kind.SubBase || p.ownerKind === Kind.HQ;
       const base = p.ownerKind === Kind.Minion ? MINION_SCALE : structure ? STRUCTURE_SCALE : 1;
       this.sizes[i] = base * (1 + (p.boost - 1) * BOOST_GROWTH);
