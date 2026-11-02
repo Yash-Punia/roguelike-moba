@@ -20,6 +20,8 @@ export const palette = {
   concrete: 0x9e9a90,
   concreteShadow: 0x7b776f,
   sandbag: 0xbca67a,
+  sandbagShadow: 0xa58e64,
+  camoNet: 0x66713a,
   wood: 0x8c5a33,
   mud: 0x6b5540,
   scorched: 0x4f3f30,

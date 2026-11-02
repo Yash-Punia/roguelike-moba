@@ -3,16 +3,18 @@ import { ConfigSchema, type Config, type RawConfig } from './schema';
 import match from '../../data/match.json';
 import champions from '../../data/champions.json';
 import map from '../../data/map-3lane.json';
+import structures from '../../data/structures.json';
 import camera from '../../data/camera.json';
 import input from '../../data/input.json';
 
-export const rawConfig: RawConfig = { match, champions, map, camera, input } as RawConfig;
+export const rawConfig: RawConfig = { match, champions, map, structures, camera, input } as RawConfig;
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {
   match: 'match.json',
   champions: 'champions.json',
   map: 'map-3lane.json',
+  structures: 'structures.json',
   camera: 'camera.json',
   input: 'input.json',
 };

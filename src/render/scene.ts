@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Config } from '../data/schema';
 import { Team, type Snapshot } from '../sim/sim';
+import { createModel, createSpawnPad } from './models';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
 
@@ -40,11 +41,6 @@ export function createScene(container: HTMLElement, config: Config) {
 
   const camera = new THREE.PerspectiveCamera(config.camera.fovDeg, 1, 1, 300);
 
-  const championGeo = new THREE.CapsuleGeometry(0.5, 0.8, 2, 8);
-  const noseGeo = new THREE.BoxGeometry(0.5, 0.18, 0.18);
-  const teamMat = { [Team.Blue]: lambert(palette.blue), [Team.Red]: lambert(palette.red), [Team.Neutral]: lambert(palette.olive) };
-  const noseMat = lambert(palette.gunmetal);
-
   const meshes = new Map<number, THREE.Object3D>();
   const interp = new Map<number, Interp>();
   const seen = new Set<number>();
@@ -58,14 +54,7 @@ export function createScene(container: HTMLElement, config: Config) {
       if (!s) {
         s = { px: e.x, py: e.y, pf: e.facing, x: e.x, y: e.y, f: e.facing, vx: 0, vy: 0 };
         interp.set(e.id, s);
-        const body = new THREE.Mesh(championGeo, teamMat[e.team]);
-        const nose = new THREE.Mesh(noseGeo, noseMat);
-        nose.position.set(0.55, 0.2, 0);
-        body.add(nose);
-        body.position.y = 0.9;
-        const root = new THREE.Group();
-        root.add(body);
-        root.traverse((o) => (o.castShadow = true));
+        const root = createModel(e.kind, e.modelId, e.team);
         scene.add(root);
         meshes.set(e.id, root);
       }
@@ -124,24 +113,18 @@ function buildArena(scene: THREE.Scene, config: Config) {
   const terrain = buildTerrain(config.map);
   scene.add(terrain.mesh, buildSurround(config.map));
 
-  // Placeholder blocks until structures become entities with their own models (M2 feature 2).
+  for (const team of [Team.Blue, Team.Red]) {
+    const at = team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red;
+    const pad = createSpawnPad(team);
+    pad.position.set(at.x, terrain.heightAt(at.x, at.y), -at.y);
+    scene.add(pad);
+  }
+
   for (const o of config.map.obstacles) {
-    const height = o.kind === 'hq' ? 3.4 : 1;
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(o.w, height, o.h),
-      lambert(o.kind === 'hq' ? palette.concrete : palette.sandbag),
-    );
-    box.position.set(o.x, height / 2, -o.y);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1, o.h), lambert(palette.sandbag));
+    box.position.set(o.x, 0.5, -o.y);
     box.castShadow = box.receiveShadow = true;
     scene.add(box);
-    if (o.kind === 'hq') {
-      const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(o.w + 0.05, 0.4, o.h + 0.05),
-        lambert(o.y < 0 ? palette.blue : palette.red),
-      );
-      stripe.position.set(o.x, height - 0.3, -o.y);
-      scene.add(stripe);
-    }
   }
   return terrain;
 }

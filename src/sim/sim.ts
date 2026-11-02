@@ -1,7 +1,7 @@
-import { TICK_HZ, type Config } from '../data/schema';
+import { TICK_HZ, type Config, type StructureKind } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
-import { buildGrid } from './grid';
+import { buildGrid, stampFootprint } from './grid';
 import { createStreams, type Streams } from './rng';
 import { movementSystem } from './systems/movement';
 
@@ -10,6 +10,13 @@ export enum Team {
   Blue = 0,
   Red = 1,
   Neutral = 2,
+}
+
+/** What an entity is, so render, UI and bots can tell units apart in snapshots. */
+export enum Kind {
+  Champion = 0,
+  SubBase = 1,
+  HQ = 2,
 }
 
 /** One per player per tick. Move is in world space (D-014), quantised to -127..127. */
@@ -48,9 +55,18 @@ export interface Champion {
   championId: string;
   player: PlayerId;
 }
+/** A Sub-base or HQ. `placement` is its id in `map.structures`. */
+export interface Structure {
+  kind: StructureKind;
+  placement: string;
+  lane: string | undefined;
+}
 
 export interface EntitySnapshot {
   id: Entity;
+  kind: Kind;
+  /** Which model to draw: the champion id, or the structure kind. */
+  modelId: string;
   team: Team;
   x: number;
   y: number;
@@ -78,11 +94,23 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const colliders = world.store<Collider>();
   const teams = world.store<Team>();
   const champions = world.store<Champion>();
+  const kinds = world.store<Kind>();
+  const models = world.store<string>();
+  const structures = world.store<Structure>();
   const rng: Streams = createStreams(seed);
   const events: SimEvent[] = [];
   const playerEntity: Entity[] = [];
   let grid = buildGrid(config.map);
   let tick = 0;
+
+  /** Walkable map plus every structure's footprint (structures never move). */
+  function rebuildGrid() {
+    grid = buildGrid(config.map);
+    for (let i = 0; i < structures.ids.length; i++) {
+      const t = transforms.get(structures.ids[i]!)!;
+      stampFootprint(grid, t.x, t.y, config.structures[structures.data[i]!.kind].footprint);
+    }
+  }
 
   players.forEach((p, player) => {
     const def = config.champions.find((c) => c.id === p.championId);
@@ -94,9 +122,23 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     colliders.add(e, { radius: def.radius });
     teams.add(e, p.team);
     champions.add(e, { championId: def.id, player });
+    kinds.add(e, Kind.Champion);
+    models.add(e, def.id);
     playerEntity[player] = e;
     events.push({ type: 'championSpawned', id: e, player });
   });
+
+  for (const p of config.map.structures) {
+    const e = world.create();
+    const team = p.team === 'blue' ? Team.Blue : Team.Red;
+    transforms.add(e, { x: p.x, y: p.y, facing: team === Team.Blue ? Math.PI / 2 : -Math.PI / 2 });
+    colliders.add(e, { radius: config.structures[p.kind].radius });
+    teams.add(e, team);
+    kinds.add(e, p.kind === 'hq' ? Kind.HQ : Kind.SubBase);
+    models.add(e, p.kind);
+    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane });
+  }
+  rebuildGrid();
 
   const snap: Snapshot = { tick: 0, entities: [] };
 
@@ -131,8 +173,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const e = ids[i]!;
         const t = transforms.data[i]!;
         const m = motions.get(e);
-        const s = (snap.entities[i] ??= { id: 0, team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0 });
+        const s = (snap.entities[i] ??= {
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0,
+        });
         s.id = e;
+        s.kind = kinds.get(e) ?? Kind.Champion;
+        s.modelId = models.get(e) ?? '';
         s.team = teams.get(e) ?? Team.Neutral;
         s.x = t.x;
         s.y = t.y;
@@ -147,7 +193,6 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Live tuning (dev only): swaps config and re-derives cached values from it. */
     setConfig(next: Config) {
       config = next;
-      grid = buildGrid(next.map);
       for (let i = 0; i < champions.ids.length; i++) {
         const e = champions.ids[i]!;
         const def = next.champions.find((c) => c.id === champions.data[i]!.championId);
@@ -155,6 +200,22 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         motions.get(e)!.speed = def.moveSpeed;
         colliders.get(e)!.radius = def.radius;
       }
+      for (let i = 0; i < structures.ids.length; i++) {
+        const e = structures.ids[i]!;
+        const st = structures.data[i]!;
+        const p = next.map.structures.find((m) => m.id === st.placement);
+        if (!p) continue;
+        const t = transforms.get(e)!;
+        t.x = p.x;
+        t.y = p.y;
+        colliders.get(e)!.radius = next.structures[st.kind].radius;
+      }
+      rebuildGrid();
+    },
+
+    /** Current obstacle grid (read-only; for tests and debug overlays). */
+    get grid() {
+      return grid;
     },
 
     entityOf(player: PlayerId): Entity | undefined {

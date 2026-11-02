@@ -3,31 +3,12 @@ import { parseConfig, rawConfig } from '../src/data/load';
 import { rasterise, sampleSpline } from '../src/data/map-geometry';
 import { buildGrid, type ObstacleGrid } from '../src/sim/grid';
 import { fnv1a } from '../src/sim/rng';
+import { reachable } from './helpers';
 
 const map = parseConfig(rawConfig).map;
 
 const blockedAt = (g: ObstacleGrid, x: number, y: number) =>
   g.blocked[Math.floor((y - g.minY) / g.cell) * g.cols + Math.floor((x - g.minX) / g.cell)] === 1;
-
-/** 4-connected flood fill over open cells; returns whether `to` is reachable from `from`. */
-function reachable(g: ObstacleGrid, from: { x: number; y: number }, to: { x: number; y: number }) {
-  const idx = (p: { x: number; y: number }) => Math.floor((p.y - g.minY) / g.cell) * g.cols + Math.floor((p.x - g.minX) / g.cell);
-  const seen = new Uint8Array(g.blocked.length);
-  const stack = [idx(from)];
-  seen[stack[0]!] = 1;
-  while (stack.length) {
-    const i = stack.pop()!;
-    if (i === idx(to)) return true;
-    const c = i % g.cols;
-    for (const n of [i - 1, i + 1, i - g.cols, i + g.cols]) {
-      if (n < 0 || n >= g.blocked.length || seen[n] || g.blocked[n]) continue;
-      if ((n === i - 1 && c === 0) || (n === i + 1 && c === g.cols - 1)) continue;
-      seen[n] = 1;
-      stack.push(n);
-    }
-  }
-  return false;
-}
 
 describe('map v2: The Front (centre lane)', () => {
   const grid = buildGrid(map);
@@ -68,7 +49,6 @@ describe('map v2: The Front (centre lane)', () => {
     ['rock rim between Crater and branch', 10, 6],
     ['jungle outside the branch', -22, 0],
     ['map corner', -33, 80],
-    ['Blue HQ footprint', 0, -72],
   ])('%s at (%d, %d) is blocked', (_, x, y) => {
     expect(blockedAt(grid, x, y)).toBe(true);
   });

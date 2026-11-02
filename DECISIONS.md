@@ -231,3 +231,16 @@ From TDD §13:
 - Why: each commit can then be tested in the browser, and Gate 1 needs kills to matter.
 - Alternatives: build in MILESTONES row order (several commits would be untestable until the HUD and bot exist).
 
+## D-025 — Structures: placements in the map, footprints stamped into the grid
+- Date: 2026-11-02
+- Source: made during development
+- Decision: structure placements (id, kind, team, lane, x, y) live in `map.structures`, from the spec's coordinates; per-kind stats live in the new `data/structures.json`. Each structure has two sizes:
+  - **Footprint**, stamped into the obstacle grid by cell centre so units walk round it. Sub-base: 1.6 m circle, covering the 2.9 m hexagon plus its sandbag ring. HQ: the spec's 5 × 4.2 m rectangle.
+  - **Collider radius**, for targeting and hits measured to the edge (GDD §6). Sub-base 1.45 m (half the hexagon), HQ 2.3 m (between the half-depth and half-width). Neither is in the docs; tune live.
+  - Structures never move, so they need no Motion and the movement system ignores them; live edits rebuild the grid.
+  - Snapshots now carry `kind` and `modelId`, and render builds models from `src/render/models.ts` (pillbox, command bunker, champion placeholder until feature 7).
+  - Spawn pads are render-only map dressing at `map.spawn`, not entities; the pad heal (feature 8) checks distance to `map.spawn`.
+  - Sampled lane routes for minions are deferred to the waves feature, where they are first used.
+- Why: placements are map layout (D-017), stats are gameplay data; stamping keeps one collision system (the grid) for terrain and buildings.
+- Alternatives: static circle-vs-circle colliders for structures (a second collision path in movement; rectangles fit the HQ poorly).
+

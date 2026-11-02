@@ -1,0 +1,12 @@
+{
+  "subBase": {
+    "name": "Pillbox",
+    "radius": 1.45,
+    "footprint": { "shape": "circle", "r": 1.6 }
+  },
+  "hq": {
+    "name": "Command Bunker",
+    "radius": 2.3,
+    "footprint": { "shape": "rect", "w": 5, "h": 4.2 }
+  }
+}

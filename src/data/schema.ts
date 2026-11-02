@@ -37,21 +37,36 @@ const WalkShape = z.discriminatedUnion('shape', [
   z.object({ shape: z.literal('rect'), ...shapeBase, x: z.number(), y: z.number(), w: positive(), h: positive() }),
 ]);
 
+const TeamName = z.enum(['blue', 'red']);
+const StructureKind = z.enum(['subBase', 'hq']);
+
 const MapConfig = z.object({
   id: z.string(),
   bounds: z.object({ minX: z.number(), maxX: z.number(), minY: z.number(), maxY: z.number() }),
   gridCell: positive(),
   /** Catmull-Rom samples per control-point segment. */
   splineSamples: z.number().int().min(1),
-  hq: z.object({ blue: vec, red: vec }),
   spawn: z.object({ blue: vec, red: vec }),
+  /** Structure placements from the map spec; their stats and footprints are in `structures`. */
+  structures: z.array(
+    z.object({ id: z.string(), kind: StructureKind, team: TeamName, lane: z.string().optional(), x: z.number(), y: z.number() }),
+  ),
   /** Everything not covered by a walkable shape is raised jungle ground: blocked. */
   walkable: z.array(WalkShape).min(1),
   /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
   obstacles: z.array(
-    z.object({ kind: z.enum(['hq', 'sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
+    z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
   ),
 });
+
+// Footprint is stamped into the obstacle grid (units walk round it); `radius` is the
+// collider used for targeting and hits, measured to its edge (GDD §6).
+const Footprint = z.discriminatedUnion('shape', [
+  z.object({ shape: z.literal('circle'), r: positive() }),
+  z.object({ shape: z.literal('rect'), w: positive(), h: positive() }),
+]);
+const StructureDef = z.object({ name: z.string(), radius: positive(), footprint: Footprint });
+const Structures = z.object({ subBase: StructureDef, hq: StructureDef });
 
 // Camera runs in real time (render), so its seconds stay seconds.
 const Camera = z.object({
@@ -76,6 +91,7 @@ export const ConfigSchema = z.object({
   match: Match,
   champions: z.array(Champion).min(1),
   map: MapConfig,
+  structures: Structures,
   camera: Camera,
   input: Input,
 });
@@ -85,5 +101,8 @@ export type Config = z.output<typeof ConfigSchema>;
 export type MapConfig = Config['map'];
 export type WalkShape = MapConfig['walkable'][number];
 export type SurfaceKind = z.output<typeof Surface>;
+export type StructureKind = z.output<typeof StructureKind>;
+export type StructureDef = z.output<typeof StructureDef>;
+export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type Vec2 = z.output<typeof vec>;
