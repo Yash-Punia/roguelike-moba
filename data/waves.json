@@ -1,8 +1,10 @@
 {
   "enabled": true,
-  "firstSeconds": 15,
-  "intervalSeconds": 25,
-  "soldiers": 3,
-  "spacing": 1.1,
-  "lanes": ["centre"]
+  "firstSeconds": 5,
+  "intervalSeconds": 15,
+  "soldiers": 5,
+  "spacing": 1.5,
+  "lanes": [
+    "centre"
+  ]
 }
