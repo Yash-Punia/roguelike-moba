@@ -230,9 +230,9 @@ const MinionDef = z.object({
   /** Takes this much less damage from structures (GDD §5 Bazooka Tank 50%). */
   structureResistPct: pct().default(0),
 });
-const Units = z.object({ mgSoldier: MinionDef, bazookaTank: MinionDef });
+const Units = z.object({ mgSoldier: MinionDef, shockTrooper: MinionDef, bazookaTank: MinionDef });
 /** Per lane minion type, valued in XP and Ultimate charge. */
-const perUnit = () => z.object({ mgSoldier: z.number().nonnegative(), bazookaTank: z.number().nonnegative() });
+const perUnit = () => z.object({ mgSoldier: z.number().nonnegative(), shockTrooper: z.number().nonnegative(), bazookaTank: z.number().nonnegative() });
 
 /** XP and levels (GDD §8). */
 const Progression = z.object({
@@ -371,8 +371,10 @@ const Waves = z.object({
   spawnGapSeconds: secs().refine((t) => t >= 1, 'gap must be at least one tick'),
   /** Soldiers spawn with this much more HP and damage per minute of match time (GDD §5 +6%/min; D-051). */
   scalePctPerMinute: pct(),
-  /** Shock Troops, minimal (GDD §5; D-051): HP and damage multiplier for a team's soldiers in a lane whose enemy Sub-base has fallen. */
+  /** Shock Troops (GDD §5; D-051, D-054): in a lane whose enemy Sub-base has fallen, a team's waves are Shock Troopers plus a tank every wave, all with this HP and damage multiplier. */
   shockTroopsMult: z.number().min(1),
+  /** Extra Shock Troopers per wave in such a lane (GDD §5: 1). */
+  shockExtraSoldiers: z.number().int().min(0).default(0),
   /** Every Nth wave also brings a Bazooka Tank at the back of the line (GDD §5; D-053); 0 = none. */
   tankEveryNthWave: z.number().int().min(0).default(0),
   /** Lane ids (from `map.lanes`) that get waves. */

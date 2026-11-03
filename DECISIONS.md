@@ -898,3 +898,15 @@ From TDD §13:
     - **tank 600 HP: median about 5:05, range 3:17–9:12 (shipped).** This keeps the GDD siege damage and the old pace. The seed 1 guard ends at 5:58.
 - Why: the Bazooka Tank is the next M3 row (D-046). It gives waves a siege unit that champions have to deal with.
 - Alternatives: the GDD cadence (median about 4:53 over 10 seeds; declined, the user chose every second wave); halving tank damage (shorter, but weaker sieges); an explosion puff per rocket (draw-call budget).
+
+## D-054 — Shock Troops unit
+- Date: 2026-11-04
+- Source: user choice (keep the D-051 ×3 and add the GDD rule); the rest made during development
+- Decision:
+  - **Rule:** once the enemy Sub-base in a lane falls, that team's waves there have `shockExtraSoldiers` (1) more soldiers, all Shock Troopers, and a Bazooka Tank every wave. All of them, the tank included, carry `shockTroopsMult` ×3. The schema default for `shockExtraSoldiers` is 0, so fixtures that set their own waves are unchanged.
+  - **Unit:** `shockTrooper` in `units.json` copies the MG Soldier's stats; the ×3 makes the difference. Its radius is 12% larger (0.39 m), and it is worth the soldier's 30 XP and +3% charge.
+  - **Single file:** each lane builds its own wave from its own state. The match loop walks slots up to the longest possible wave (soldiers + extra + tank); a lane that is already out skips the rest. A lane that breaks mid-wave switches over from the next slot.
+  - **Model** (UN-01): the MG Soldier's model scaled ×1.12, with goggles on the helmet, a team armband, a bigger pack and spare drums. It keeps the soldier's LMG, not the sheet's SMG; the gun swap is cosmetic and left for later.
+  - **Pacing** (all-bot, headless, HQ cut off): 3v3 seeds 1–20 median about 5:11 (3:29–9:06); 2v2 seeds 1–10 median about 5:34; 5v5 seeds 1–10 median about 5:06. That is inside the 4:30–5:30 target, so no lever was pulled. The lever ready for when matches run short: the tank skips the ×3.
+- Why: the Shock Troops row of M3 (D-046). It turns the D-051 multiplier into the visible unit and wave the GDD describes.
+- Alternatives: replace the ×3 with the GDD rule alone (declined: D-051 showed the ×3 is what ends matches); ×3 on the troopers only (kept in reserve).

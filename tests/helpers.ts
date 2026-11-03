@@ -81,8 +81,8 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpCutEnabled: false, hqHpPerSubBaseLostPct: 0 };
   // No draft offers unless a test restores the catalogue (`withPowers`), so level-ups in older tests change only stats.
   config.powers.powers = [];
-  // Waves off unless a test turns them on (no tanks); MG Soldier and Bazooka Tank pinned to the GDD numbers.
-  config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, spawnGapSeconds: 18, scalePctPerMinute: 0, shockTroopsMult: 1, tankEveryNthWave: 0, lanes: ['centre'] };
+  // Waves off unless a test turns them on (no tanks or extra troopers); the units pinned to the GDD numbers.
+  config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, spawnGapSeconds: 18, scalePctPerMinute: 0, shockTroopsMult: 1, shockExtraSoldiers: 0, tankEveryNthWave: 0, lanes: ['centre'] };
   config.units.bazookaTank = {
     name: 'Bazooka Tank', maxHp: 1100, radius: 0.7, moveSpeed: 2.2,
     weapon: { kind: 'rocket', damage: 100, interval: 60, range: 6, projectileSpeed: 14, coneAngle: 0, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1, splashRadius: 1.5, vsStructuresPct: 1 },
@@ -93,6 +93,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
     weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, coneAngle: 0, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1, splashRadius: 0, vsStructuresPct: 0 },
     acquireRange: 7, leash: 6, callForHelp: { radius: 6, seconds: 90 }, structureResistPct: 0,
   };
+  config.units.shockTrooper = { ...config.units.mgSoldier, name: 'Shock Trooper', radius: 0.39 };
   tweak?.(config);
   const players: PlayerSetup[] = [{ team: Team.Blue, championId: 'alpha', spawnAt: { x: 0, y: 0 } }];
   for (const u of units) {

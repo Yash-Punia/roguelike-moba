@@ -55,6 +55,7 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'beta') beta(root, team);
   else if (modelId === 'gamma') gamma(root, team);
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
+  else if (modelId === 'shockTrooper') shockTrooper(root, team);
   else if (modelId === 'bazookaTank') bazookaTank(root, team);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
@@ -390,6 +391,24 @@ function mgSoldier(root: THREE.Object3D, team: Team) {
   partsOf(root).cap = helmet;
   part(helmet, new THREE.SphereGeometry(0.27, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), teamColour(team), 0, 0, 0);
   part(helmet, cyl(0.31, 0.31, 0.035, 12), teamShade(team), 0, 0.01, 0);
+}
+
+/**
+ * Shock Trooper (UN-01): the MG Soldier 12% larger, with goggles on the helmet, a team armband,
+ * a bigger pack and spare drums on the belt. About 470 tris.
+ */
+function shockTrooper(root: THREE.Object3D, team: Team) {
+  mgSoldier(root, team);
+  const { upper, cap } = partsOf(root);
+  for (const z of [-0.09, 0.09]) part(cap!, box(0.06, 0.07, 0.1), palette.goggleGlass, 0.24, 0.05, z);
+  part(cap!, box(0.03, 0.03, 0.42), palette.leather, 0.2, 0.05, 0);
+  part(upper!, box(0.1, 0.1, 0.1), teamColour(team), 0.04, 0.44, -0.15);
+  part(upper!, box(0.2, 0.3, 0.32), palette.khaki, -0.25, 0.47, 0);
+  for (const z of [-0.12, 0.12]) part(upper!, cyl(0.07, 0.07, 0.05, 8), palette.olive, -0.1, 0.3, z).rotation.x = Math.PI / 2;
+  for (const c of root.children) {
+    c.position.multiplyScalar(1.12);
+    c.scale.multiplyScalar(1.12);
+  }
 }
 
 /**

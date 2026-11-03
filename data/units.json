@@ -18,6 +18,25 @@
       "seconds": 3
     }
   },
+  "shockTrooper": {
+    "name": "Shock Trooper",
+    "maxHp": 300,
+    "radius": 0.39,
+    "moveSpeed": 2.6,
+    "weapon": {
+      "kind": "bullet",
+      "damage": 8,
+      "interval": 0.333,
+      "range": 5,
+      "projectileSpeed": 25
+    },
+    "acquireRange": 7,
+    "leash": 6,
+    "callForHelp": {
+      "radius": 6,
+      "seconds": 3
+    }
+  },
   "bazookaTank": {
     "name": "Bazooka Tank",
     "maxHp": 600,

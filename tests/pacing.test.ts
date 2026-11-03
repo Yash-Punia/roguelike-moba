@@ -70,6 +70,21 @@ describe('waves from the caves (D-051)', () => {
     expect(hp(Red, 'left')).toBeCloseTo(300 * scale);
     expect(hp(Blue, 'centre')).toBeCloseTo(300 * scale);
   });
+
+  it('send a Shock Troops lane one more soldier, all Shock Troopers, and a tank every wave (D-054)', () => {
+    const f = front();
+    f.sim.debug.kill(f.structure(Red, 'subBase', 'left'));
+    f.sim.step([]);
+    // The opening wave (no tank elsewhere): every slot out of the cave.
+    while (f.sim.tick < f.config.waves.firstSeconds + 8 * f.config.waves.spawnGapSeconds) f.sim.step([]);
+    const { laneAgents, teams } = f.sim.stores;
+    const wave = (team: Team, lane: string) =>
+      laneAgents.ids.filter((e) => teams.get(e) === team && f.sim.lanes[laneAgents.get(e)!.lane]!.id === lane).map((e) => laneAgents.get(e)!.unit);
+    const n = f.config.waves.soldiers;
+    expect(wave(Blue, 'left')).toEqual([...Array<string>(n + 1).fill('shockTrooper'), 'bazookaTank']);
+    expect(wave(Red, 'left')).toEqual(Array<string>(n).fill('mgSoldier'));
+    expect(wave(Blue, 'centre')).toEqual(Array<string>(n).fill('mgSoldier'));
+  });
 });
 
 describe('draft spacing (D-051)', () => {
