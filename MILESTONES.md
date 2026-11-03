@@ -91,8 +91,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet; Gamma bots prefer the centre and cast Heat Wave by the TDD §7 rule (D-050) | a4c14ef |
 | `[p]` | Pacing pass (user feedback: matches by about 5 minutes): level cap 25, HQ max HP −25% per lost Sub-base, waves +25%/min, minimal Shock Troops (×3), lighter structures, draft every 2nd level; waves leave a cave behind each HQ single file (D-051) | 4f3b5fc |
 | `[p]` | HQ max HP cut is a toggle (`hqHpCutEnabled`), off by default, so it can be tested on and off (D-052) | 22b2f19 |
-| `[p]` | Bazooka Tank (rocket splash, structure bonuses), a tank at the back of every second wave; model per the minions sheet (per-minute scaling already in, D-051); 600 HP for pacing (D-053) | 550b92a |
-| `[c]` | Shock Troops lane upgrade when a Sub-base falls: Shock Troopers, +1 per wave and a tank every wave, all ×3 (D-051); model per the minions sheet (D-054) | |
+| `[p]` | Bazooka Tank (rocket splash, structure bonuses), a tank at the back of every second wave; model per the minions sheet (per-minute scaling already in, D-051); GDD 1,100 HP (D-053, D-055) | 550b92a |
+| `[p]` | Shock Troops lane upgrade when a Sub-base falls: Shock Troopers, +1 per wave and a tank every wave, all ×3 (D-051); model per the minions sheet (D-054) | 476323b |
 | `[ ]` | Full v1 power catalogue as effect records + generic effect systems | |
 | `[ ]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation | |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |

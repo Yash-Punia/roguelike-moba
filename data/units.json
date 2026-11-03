@@ -39,7 +39,7 @@
   },
   "bazookaTank": {
     "name": "Bazooka Tank",
-    "maxHp": 600,
+    "maxHp": 1100,
     "radius": 0.7,
     "moveSpeed": 2.2,
     "weapon": {

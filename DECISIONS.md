@@ -910,3 +910,15 @@ From TDD §13:
   - **Pacing** (all-bot, headless, HQ cut off): 3v3 seeds 1–20 median about 5:11 (3:29–9:06); 2v2 seeds 1–10 median about 5:34; 5v5 seeds 1–10 median about 5:06. That is inside the 4:30–5:30 target, so no lever was pulled. The lever ready for when matches run short: the tank skips the ×3.
 - Why: the Shock Troops row of M3 (D-046). It turns the D-051 multiplier into the visible unit and wave the GDD describes.
 - Alternatives: replace the ×3 with the GDD rule alone (declined: D-051 showed the ×3 is what ends matches); ×3 on the troopers only (kept in reserve).
+
+## D-055 — Bazooka Tank back to the GDD's 1,100 HP
+- Date: 2026-11-04
+- Source: user choice
+- Decision: `units.bazookaTank.maxHp` goes back to 1,100, replacing the 600 HP pacing cut in D-053.
+- Measured (all-bot, headless, HQ cut off, with Shock Troops from D-054):
+  - 3v3, seeds 1–20: median about 5:17, range 3:33–9:17. Five seeds run past 8:00; at 600 HP, one did.
+  - 2v2, seeds 1–10: median about 6:32, range 4:25–11:18.
+  - 5v5, seeds 1–10: median about 4:37.
+  - The seed 1 3v3 guard ends at 5:57, still inside 6 minutes.
+- Why: the user wants the tank at its GDD strength for the playtest. The 3v3 median stays inside the 4:30–5:30 target; the cost is a longer tail and slower 2v2 matches.
+- Alternatives: keep 600 HP (D-053); halve the tank's damage instead (median about 4:30 before Shock Troops).
