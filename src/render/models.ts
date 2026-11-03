@@ -43,7 +43,7 @@ interface PartNames {
   standing?: string[];
   mast?: string;
   shield?: string;
-  steadyRing?: string;
+  traitRing?: string;
 }
 
 /** Builds a model from primitives, then bakes it to one mesh per moving part. */
@@ -52,9 +52,10 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   if (kind === Kind.SubBase) pillbox(root, team);
   else if (kind === Kind.HQ) commandBunker(root, team);
   else if (modelId === 'alpha') alpha(root, team);
+  else if (modelId === 'beta') beta(root, team);
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
   else championPlaceholder(root, team);
-  if (kind === Kind.Champion) addSteadyRing(root);
+  if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : steadyRingMat);
   const parts = partsOf(root);
   // Name every part object (once, even when it fills two slots: a Sub-base's turret both aims and falls).
   let next = 0;
@@ -66,10 +67,10 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
     standing: parts.standing?.map(nameOf),
     mast: parts.mast && nameOf(parts.mast),
     shield: parts.shield && nameOf(parts.shield),
-    steadyRing: parts.steadyRing && nameOf(parts.steadyRing),
+    traitRing: parts.traitRing && nameOf(parts.traitRing),
   };
   const owners = [root, parts.upper, parts.cap, parts.mast, ...(parts.aimParts ?? []), ...(parts.standing ?? [])].filter((o): o is THREE.Object3D => !!o);
-  bake(root, owners, new Set([parts.shield, parts.steadyRing].filter((o): o is THREE.Object3D => !!o)));
+  bake(root, owners, new Set([parts.shield, parts.traitRing].filter((o): o is THREE.Object3D => !!o)));
   root.userData = {}; // clone() JSON-copies userData: no object references in templates
   return { root, names };
 }
@@ -88,7 +89,7 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     standing: names.standing?.map((n) => find(n)!),
     mast: find(names.mast),
     shield: find(names.shield),
-    steadyRing: find(names.steadyRing),
+    traitRing: find(names.traitRing),
   } satisfies ModelParts);
   // Real shadows for champions and structures; soldiers get a cheap ground blob instead (D-044).
   const casts = kind !== Kind.Minion;
@@ -96,16 +97,16 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     o.castShadow = casts;
     o.receiveShadow = true;
   });
-  const { shield, steadyRing } = partsOf(root);
+  const { shield, traitRing } = partsOf(root);
   if (shield) shield.castShadow = shield.receiveShadow = false;
-  if (steadyRing) steadyRing.castShadow = steadyRing.receiveShadow = false;
+  if (traitRing) traitRing.castShadow = traitRing.receiveShadow = false;
   return root;
 }
 
 /** Parts the scene animates: `upper` turns with the aim while the root turns with the legs. */
 export interface ModelParts {
   upper?: THREE.Object3D;
-  steadyRing?: THREE.Object3D;
+  traitRing?: THREE.Object3D;
   /** Headgear that flies off on a knock-out (GDD §11 "bouncing helmet"). */
   cap?: THREE.Object3D;
   /** Structure guns: each turns to the aim while the bunker stays put. */
@@ -119,17 +120,18 @@ export interface ModelParts {
 }
 export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 
-const steadyRingGeo = new THREE.RingGeometry(0.58, 0.7, 28).rotateX(-Math.PI / 2);
+const traitRingGeo = new THREE.RingGeometry(0.58, 0.7, 28).rotateX(-Math.PI / 2);
 const steadyRingMat = new THREE.MeshBasicMaterial({ color: palette.brass, transparent: true, opacity: 0.75, depthWrite: false });
+const lightFeetRingMat = new THREE.MeshBasicMaterial({ color: palette.shearling, transparent: true, opacity: 0.6, depthWrite: false });
 
-/** A faint brass ring at the feet while Steady Hand is active. */
-function addSteadyRing(root: THREE.Object3D) {
-  const ring = new THREE.Mesh(steadyRingGeo, steadyRingMat);
+/** A faint ring at the feet while the trait is active: brass for Steady Hand, dust for Light Feet. */
+function addTraitRing(root: THREE.Object3D, material: THREE.Material) {
+  const ring = new THREE.Mesh(traitRingGeo, material);
   ring.position.y = 0.04;
   ring.visible = false;
   ring.castShadow = ring.receiveShadow = false;
   root.add(ring);
-  partsOf(root).steadyRing = ring;
+  partsOf(root).traitRing = ring;
 }
 
 const SHIRT = 0xeeeae0;
@@ -207,6 +209,75 @@ function alpha(root: THREE.Object3D, team: Team) {
   const brim = part(cap, box(0.24, 0.045, 0.6), palette.leather, 0.4, -0.03, 0);
   brim.rotation.z = -0.15;
   part(cap, box(0.03, 0.08, 0.08), palette.brass, 0.345, 0.1, 0);
+}
+
+/**
+ * Beta, the Runner (CH-02): the slimmest hero, 1.75 m (legs 0.5, jacket 0.62, head 0.66). Khaki
+ * trousers, a short leather bomber jacket with a shearling collar, a canvas pack, and the team
+ * scarf trailing behind (the brightest team read in the roster; cuffs and arm chevrons too).
+ * Round aviator cap with ear flaps and goggles pushed up: the only round-topped hero. The drum
+ * SMG is held forward across the body, scaled up 25% so the drum reads from above. About 600 tris.
+ */
+function beta(root: THREE.Object3D, team: Team) {
+  // Legs and boots: long for her height ("fast").
+  for (const z of [-0.1, 0.1]) {
+    part(root, box(0.15, 0.4, 0.15), palette.khaki, 0, 0.32, z);
+    part(root, box(0.22, 0.12, 0.16), palette.coatShadow, 0.03, 0.06, z);
+  }
+
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+  const team1 = teamColour(team);
+
+  // Jacket: narrow torso, a darker waistband, shearling collar, canvas pack on the back.
+  part(upper, box(0.34, 0.5, 0.44), palette.leather, 0, 0.82, 0);
+  part(upper, box(0.36, 0.08, 0.46), palette.coatShadow, 0, 0.6, 0);
+  part(upper, box(0.36, 0.08, 0.42), palette.shearling, 0.01, 1.08, 0);
+  part(upper, box(0.18, 0.34, 0.34), palette.canvas, -0.26, 0.88, 0);
+
+  // Scarf: wrapped at the neck, a long tail streaming back (static; the sheet's spring chain is cut, D-049).
+  part(upper, box(0.36, 0.09, 0.46), team1, 0, 1.14, 0);
+  const tail = part(upper, box(0.44, 0.06, 0.13), team1, -0.36, 1.12, 0.12);
+  tail.rotation.z = 0.12;
+  const tip = part(upper, box(0.3, 0.05, 0.11), teamShade(team), -0.7, 1.07, 0.16);
+  tip.rotation.z = 0.2;
+
+  // Arms forward round the gun; team cuffs and shoulder chevrons.
+  for (const [z, reach] of [[0.25, 0.32], [-0.25, 0.46]] as const) {
+    part(upper, box(0.13, 0.08, 0.15), team1, 0, 1.0, z * 1.02);
+    part(upper, box(reach, 0.13, 0.13), palette.leather, reach / 2, 0.9, z);
+    part(upper, box(0.05, 0.14, 0.14), team1, reach, 0.9, z);
+    part(upper, box(0.13, 0.13, 0.13), palette.glove, reach + 0.08, 0.9, z * 0.4);
+  }
+
+  // Drum SMG (+25%): receiver, ribbed barrel, wooden stock, and the big drum facing sideways.
+  part(upper, box(0.45, 0.12, 0.1), palette.gunmetal, 0.55, 0.96, 0.02);
+  part(upper, box(0.3, 0.07, 0.07), palette.gunmetal, 0.92, 0.98, 0.02);
+  for (const x of [0.86, 0.96]) part(upper, box(0.03, 0.1, 0.1), palette.iron, x, 0.98, 0.02);
+  part(upper, box(0.22, 0.09, 0.08), palette.wood, 0.25, 0.92, 0.02);
+  const drum = part(upper, cyl(0.15, 0.15, 0.09, 10), palette.gunmetal, 0.52, 0.83, 0.02);
+  drum.rotation.x = Math.PI / 2;
+
+  // Head (front is +x): rounder and smaller than Alpha's; big eyes, a little nose, a braid.
+  part(upper, box(0.46, 0.44, 0.44), palette.skin, 0, 1.42, 0);
+  for (const z of [-0.1, 0.1]) part(upper, box(0.02, 0.1, 0.07), EYES, 0.235, 1.43, z);
+  part(upper, box(0.06, 0.07, 0.07), palette.skin, 0.25, 1.37, 0);
+  part(upper, box(0.12, 0.26, 0.1), palette.hairBrown, -0.26, 1.3, 0);
+
+  // Aviator cap (flies off on a knock-out): a rounded leather dome, ear flaps, goggles pushed up.
+  const cap = new THREE.Group();
+  cap.position.y = 1.62;
+  upper.add(cap);
+  partsOf(root).cap = cap;
+  part(cap, cyl(0.27, 0.26, 0.16, 8), palette.leather, 0, 0, 0);
+  part(cap, cyl(0.16, 0.27, 0.12, 8), palette.leather, 0, 0.14, 0);
+  for (const z of [-0.25, 0.25]) part(cap, box(0.2, 0.26, 0.05), palette.leather, -0.02, -0.18, z);
+  part(cap, box(0.06, 0.05, 0.42), palette.leather, 0.24, 0.02, 0);
+  for (const z of [-0.1, 0.1]) {
+    const lens = part(cap, cyl(0.075, 0.075, 0.05, 8), palette.goggleGlass, 0.25, 0.06, z);
+    lens.rotation.z = Math.PI / 2;
+  }
 }
 
 /**

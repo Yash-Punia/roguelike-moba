@@ -1,4 +1,4 @@
-import type { Config } from '../data/schema';
+import type { ChampionConfig, Config } from '../data/schema';
 import { Team, type PlayerSetup } from './sim';
 
 /** A champion slot: who plays it and the lane it starts in. */
@@ -27,15 +27,33 @@ export function spreadLanes(laneIds: readonly string[], count: number, first?: s
 /**
  * Every champion slot of a match, indexed by player id (D-048): 0 is you, 1 the enemy in your
  * lane, then your team's other slots, then the enemy's. Both teams spread the same way, so each
- * lane faces an equal number. Champions cycle through the roster (duplicates allowed, D-009).
+ * lane faces an equal number. You play `localChampion` (the first champion if unknown); bots
+ * cycle through the roster (duplicates allowed, D-009). Slot 0 of each team keeps the first lane;
+ * among the bots, one with a lane preference (Beta: a side lane, TDD §7) picks first (D-049).
  */
-export function matchSlots(config: Config, opts: { teamSize: number; localTeam: Team.Blue | Team.Red; localLane?: string }): Slot[] {
+export function matchSlots(config: Config, opts: { teamSize: number; localTeam: Team.Blue | Team.Red; localLane?: string; localChampion?: string }): Slot[] {
   const lanes = spreadLanes(config.map.lanes.map((l) => l.id), opts.teamSize, opts.localLane);
   const enemy = opts.localTeam === Team.Blue ? Team.Red : Team.Blue;
   const roster = config.champions;
-  const slot = (team: Team.Blue | Team.Red, i: number): Slot => ({ team, championId: roster[i % roster.length]!.id, lane: lanes[i]! });
-  const slots = [slot(opts.localTeam, 0), slot(enemy, 0)];
-  for (let i = 1; i < opts.teamSize; i++) slots.push(slot(opts.localTeam, i));
-  for (let i = 1; i < opts.teamSize; i++) slots.push(slot(enemy, i));
-  return slots;
+  const local = roster.find((c) => c.id === opts.localChampion) ?? roster[0]!;
+  const team = (side: Team.Blue | Team.Red, first: ChampionConfig): Slot[] => {
+    const champs = [first];
+    for (let i = 1; i < opts.teamSize; i++) champs.push(roster[i % roster.length]!);
+    const free = lanes.slice(1);
+    const lane = new Array<string>(champs.length);
+    lane[0] = lanes[0]!;
+    const take = (i: number, fits: (id: string) => boolean) => {
+      const k = free.findIndex(fits);
+      if (k >= 0) lane[i] = free.splice(k, 1)[0]!;
+    };
+    for (let i = 1; i < champs.length; i++) {
+      const pref = champs[i]!.lanePreference;
+      if (pref) take(i, (id) => (pref === 'centre') === (id === 'centre'));
+    }
+    for (let i = 1; i < champs.length; i++) if (lane[i] === undefined) take(i, () => true);
+    return champs.map((c, i) => ({ team: side, championId: c.id, lane: lane[i] ?? '' }));
+  };
+  const ours = team(opts.localTeam, local);
+  const theirs = team(enemy, roster[0]!);
+  return [ours[0]!, theirs[0]!, ...ours.slice(1), ...theirs.slice(1)];
 }

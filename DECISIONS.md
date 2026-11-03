@@ -751,3 +751,44 @@ From TDD §13:
   - **Tests:** `tests/match-setup.test.ts` covers the spread, the player order, the enemy pick with several enemies, an all-bot 3v3 that repeats exactly for a seed, and every bot standing in its own lane at the first clash (30 s).
 - Why: every later M3 feature (Beta, Gamma, Trenches, fog) is tested in a real 3v3 (D-046).
 - Alternatives: your team first in the player order (would make player 1 an ally and break the debug hooks and tests); spawn offsets on the pad (not needed while champions don't collide).
+
+## D-049 — Beta: Burst SMG, Light Feet, Lead Storm
+- Date: 2026-11-03
+- Source: user choices (move speed 5.7 m/s; bots mix the roster, you pick with `?champ=`, Beta prefers a side lane); the rest made during development
+- Decision:
+  - **Numbers** (`data/champions.json`): GDD §7 values, except:
+    - move speed 5.7 m/s, which keeps the GDD's Beta/Alpha ratio over the user's tuned 5 m/s Alpha;
+    - SMG bullets fly at 25 m/s (not in the GDD; Alpha's speed);
+    - collider radius 0.45 m (the slimmest hero).
+  - **Burst SMG:** every weapon gets `burstCount` (default 1) and `burstGapSeconds`, so there is one weapon path, not a `burst` kind.
+    - A trigger pull fires bullet 1 at the target; the other 3 follow along the current aim 2 ticks apart.
+    - Each bullet rolls ±4° spread on the seeded `spread` stream and its own crit. Straight bullets hit the first enemy on their path, so spread can miss or hit a bystander.
+    - A burst finishes even if its target dies; only a knock-out or a channel cancels it. The 0.85 s cooldown starts with the first bullet.
+  - **Light Feet:** +20% move speed through the stat pipeline, on while `tick − lastCombatTick ≥ 2 s` (stamped by every damage dealt or taken). The trait system now switches on the trait id; `steadyPct` became `traitPct`, and the snapshot's `steady` became `traitActive`.
+  - **Speed factors on `Motion`:** `slowTicks` / `slowMult` and `channelMult`, applied in the movement system on top of the stat speed. They work the same for minions, which have no Stats. No generic `Status` store yet (TDD §5); it can replace these when burns and buffs arrive.
+  - **Lead Storm:**
+    - castable only with a target (GDD §6: the button greys otherwise); a press while channelling is ignored and spends nothing;
+    - a 0.5 s windup shows the red strip before any damage (the GDD's telegraph rule), then 3 s of fire, so the GDD's damage totals hold;
+    - the strip turns towards the Ultimate target (refreshed every tick at 10 m, class order), else her facing, at 90°/s;
+    - it hits every enemy overlapping the 10 × 4 m strip every 0.1 s for 2 bullets' worth (24 at level 1, plus the per-level bonus, then the damage pipeline like the grenade) and refreshes a 35% slow for 1.5 s;
+    - structures take full damage (the GDD says "every enemy in the line");
+    - she moves at 70% for the whole channel and doesn't fire her SMG;
+    - a knock-out ends it (`channelEnd` event).
+  - **Roster mix:** `matchSlots` takes `localChampion` (`?champ=`, unknown ids fall back to the first champion). Bots cycle the roster by team slot, so a 3v3 side is Alpha, Beta, Alpha. Champions may set `lanePreference`; among the bots (slot 0 keeps its lane) those with a preference choose first. Player 1 is still the enemy in your lane.
+  - **Bots:** the lane read's DPS estimate counts the whole burst. Ultimate and draft logic are unchanged.
+  - **Render:**
+    - Beta's model per CH-02, 608 triangles in 4 baked meshes. Her aviator cap is the knock-out `cap`.
+    - The trait ring is brass for Steady Hand and dust-coloured for Light Feet.
+    - Lead Storm: a danger-red strip (solid in the windup, faint while firing) with a looping tracer stream; her upper body sprays along the strip.
+  - **Perf** (seed 11, 3v3, sim advanced to 0:57 with bots idle, so about 80 soldiers): 99–105 draw calls, 80–85k triangles across the left lane, right lane, Crater and Blue trunk. In the browser pane, the long first frames seen in D-048 come from the pane running hidden in the background; with it shown, a match starts in about 5 s.
+  - **Cut for now:**
+    - Extended Mag and Adrenaline (with the power catalogue);
+    - the scarf's spring chain (static tail);
+    - shell casings and dust swirls on slowed units;
+    - line of sight for the SMG and the strip (its own M3 row);
+    - merging Lead Storm's damage numbers (each 0.1 s hit shows its own "24").
+- Why: Beta is the next M3 champion (D-046); her burst, speed and slow are what make her play differently from Alpha.
+- Alternatives:
+  - a `burst` weapon kind (a second fire path);
+  - slows as stat multipliers (minions have no Stats, and multiply-then-divide drifts);
+  - damage from the cast tick with no windup (breaks the telegraph rule).

@@ -4,8 +4,8 @@ import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { HitQueue } from '../hits';
 import type { LobPool } from '../lobs';
-import { len } from '../math';
-import { TargetClass, type Champion, type Collider, type Health, type Team, type Transform } from '../sim';
+import { atan2, cos, len, sin, turnTowards } from '../math';
+import { TargetClass, type Champion, type Collider, type Health, type Motion, type Team, type Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
 import type { Stats } from '../stats';
 import type { ZonePool } from '../zones';
@@ -17,6 +17,7 @@ export interface UltimateContext {
   colliders: Store<Collider>;
   teams: Store<Team>;
   healths: Store<Health>;
+  motions: Store<Motion>;
   stats: Store<Stats>;
   targetClasses: Store<TargetClass>;
   spatial: SpatialIndex;
@@ -88,8 +89,9 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
  * Ultimate charge and casting (TDD §6.5). Passive charge fills 0 → 100 over the champion's
  * charge time, scaled by the Ult-charge stat (kill and damage charge arrive in M2 feature 13).
  * Each champion's target is refreshed every tick (`ultTargetId`, for the button). A cast
- * needs a press this tick, a living champion, full charge and a target: the charge empties
- * and a Frag Grenade is lobbed at where the target is now.
+ * needs a press this tick, a living champion, full charge, a target and no channel already
+ * running: the charge empties, then a Frag Grenade is lobbed at where the target is now, or
+ * Lead Storm starts its channel aimed at the target.
  */
 export function ultimateSystem(ctx: UltimateContext, tick: number) {
   const { champions, transforms, healths, stats, lobs, teams, events } = ctx;
@@ -106,12 +108,19 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
     }
     addUltCharge(c, stats.get(e), 100 / Math.max(1, c.def.ultChargeSeconds));
     c.ultTargetId = ultTarget(e, ctx, tick, reach);
-    if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0) continue;
+    if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0 || c.channelTicks > 0) continue;
 
     const t = transforms.get(e)!;
     const tt = transforms.get(c.ultTargetId)!;
+    const ult = c.def.ultimate;
     c.ultCharge = 0;
-    lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, c.def.ultimate.flightSeconds);
+    if (ult.id === 'fragGrenade') {
+      lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, ult.flightSeconds);
+    } else {
+      c.channelTicks = ult.windupSeconds + ult.seconds;
+      c.channelAngle = atan2(tt.y - t.y, tt.x - t.x);
+      ctx.motions.get(e)!.channelMult = ult.moveSpeedPct;
+    }
     events.push({ type: 'ultCast', id: e, target: c.ultTargetId, x: tt.x, y: tt.y });
   }
 }
@@ -148,8 +157,8 @@ export function lobSystem(ctx: UltimateContext) {
     const y = lobs.y1[i]!;
     lobs.release(i);
     const c = champions.get(owner);
-    if (!c) continue;
-    const ult = c.def.ultimate;
+    const ult = c?.def.ultimate;
+    if (!c || ult?.id !== 'fragGrenade') continue;
     const up = c.level - 1;
     const damage = ult.damage + ult.damagePerLevel * up;
     const hitList = enemiesIn(ctx, x, y, ult.radius, team, reach);
@@ -159,6 +168,76 @@ export function lobSystem(ctx: UltimateContext) {
     const perHit = (z.dps + z.dpsPerLevel * up) * (z.tickSeconds / TICK_HZ);
     zones.spawn(owner, team, x, y, z.radius, z.seconds, z.tickSeconds, perHit, z.structurePct);
   }
+}
+
+/**
+ * Fills `inside` with living enemies whose collider overlaps the strip starting at (x, y) and
+ * running `length` along `angle`, `width` wide; ascending ids.
+ */
+function enemiesInStrip(ctx: UltimateContext, x: number, y: number, angle: number, length: number, width: number, team: number, reach: number): Entity[] {
+  inside.length = 0;
+  const dx = cos(angle);
+  const dy = sin(angle);
+  ctx.spatial.query(x + (dx * length) / 2, y + (dy * length) / 2, len(length / 2, width / 2) + reach, nearby);
+  for (let k = 0; k < nearby.length; k++) {
+    const o = nearby[k]!;
+    if (ctx.teams.get(o) === team) continue;
+    const h = ctx.healths.get(o);
+    if (!h || h.hp <= 0) continue;
+    const ot = ctx.transforms.get(o)!;
+    const r = ctx.colliders.get(o)?.radius ?? 0;
+    const along = (ot.x - x) * dx + (ot.y - y) * dy;
+    const across = (ot.y - y) * dx - (ot.x - x) * dy;
+    if (along >= -r && along <= length + r && Math.abs(across) <= width / 2 + r) inside.push(o);
+  }
+  return inside;
+}
+
+/**
+ * Lead Storm channels (TDD §6.5), before new casts. The strip turns towards the caster's
+ * Ultimate target (else her facing) at `turnRate`. After the windup, every `tickSeconds` it
+ * hits every enemy in the strip for the bullets that landed meanwhile and refreshes their
+ * slow. The channel ends when its time runs out or the caster is knocked out.
+ */
+export function leadStormSystem(ctx: UltimateContext) {
+  const { champions, transforms, healths, motions, hits, events } = ctx;
+  const reach = maxRadius(ctx.colliders);
+  for (let i = 0; i < champions.ids.length; i++) {
+    const c = champions.data[i]!;
+    if (c.channelTicks === 0) continue;
+    const e = champions.ids[i]!;
+    const ult = c.def.ultimate;
+    const m = motions.get(e)!;
+    if (ult.id !== 'leadStorm' || healths.get(e)!.hp <= 0) {
+      endChannel(c, m, e, events);
+      continue;
+    }
+    const t = transforms.get(e)!;
+    const tt = c.ultTargetId !== 0 ? transforms.get(c.ultTargetId) : undefined;
+    c.channelAngle = turnTowards(c.channelAngle, tt ? atan2(tt.y - t.y, tt.x - t.x) : t.facing, ult.turnRate / TICK_HZ);
+    const fired = ult.seconds - c.channelTicks + 1; // ticks of fire so far, this one included (≤ 0 in the windup)
+    if (fired > 0 && fired % ult.tickSeconds === 0) {
+      const team = ctx.teams.get(e)!;
+      const damage = (ult.damage + ult.damagePerLevel * (c.level - 1)) * ult.bulletsPerSecond * (ult.tickSeconds / TICK_HZ);
+      const hitList = enemiesInStrip(ctx, t.x, t.y, c.channelAngle, ult.length, ult.width, team, reach);
+      for (let k = 0; k < hitList.length; k++) {
+        const o = hitList[k]!;
+        hits.push(e, o, damage, 1, ult.structurePct);
+        const om = motions.get(o);
+        if (om) {
+          om.slowTicks = ult.slowSeconds;
+          om.slowMult = 1 - ult.slowPct;
+        }
+      }
+    }
+    if (--c.channelTicks === 0) endChannel(c, m, e, events);
+  }
+}
+
+function endChannel(c: Champion, m: Motion, e: Entity, events: SimEvent[]) {
+  c.channelTicks = 0;
+  m.channelMult = 1;
+  events.push({ type: 'channelEnd', id: e });
 }
 
 /** Zones hit every enemy inside once per period, the last time on their final tick, then vanish. */

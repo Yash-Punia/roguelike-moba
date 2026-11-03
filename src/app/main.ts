@@ -27,14 +27,16 @@ const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
 // Every slot but yours is a lane bot (D-048): `?size=2..5` champions per team (default
 // match.json), `?lane=left|centre|right` picks yours. `?nobot` plays alone; `?dummy` is a 1v1
 // against an idle, unarmed Alpha in front of your Sub-base, and `?dummy=armed` fires back.
+// `?champ=beta` picks your champion (default the first in champions.json, D-049).
 const teamSize = Math.min(5, Math.max(2, Number(params.get('size')) || config.match.teamSize));
-let players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
+const localChampion = (config.champions.find((c) => c.id === params.get('champ')) ?? config.champions[0]!).id;
+let players: PlayerSetup[] = [{ team: localTeam, championId: localChampion }];
 let botSlots: Slot[] = [];
 if (params.has('dummy')) {
   const spawnAt = { x: 0, y: localTeam === Team.Blue ? -50 : 50 };
   players.push({ team: enemy, championId: 'alpha', spawnAt, unarmed: params.get('dummy') !== 'armed' });
 } else if (!params.has('nobot')) {
-  const slots = matchSlots(config, { teamSize, localTeam, localLane: params.get('lane') ?? undefined });
+  const slots = matchSlots(config, { teamSize, localTeam, localLane: params.get('lane') ?? undefined, localChampion });
   players = slots;
   botSlots = slots.slice(1);
 }

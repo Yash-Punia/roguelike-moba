@@ -22,6 +22,8 @@ export type SimEvent =
   | { type: 'shot'; id: Entity; target: Entity }
   /** An Ultimate was cast at `target`; a lobbed one lands at (x, y). */
   | { type: 'ultCast'; id: Entity; target: Entity; x: number; y: number }
+  /** A channelled Ultimate (Lead Storm) stopped: ran out, or its caster was knocked out. */
+  | { type: 'channelEnd'; id: Entity }
   /** A grenade went off (for the flash, smoke and sound). */
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick. */

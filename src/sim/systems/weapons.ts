@@ -20,6 +20,10 @@ export interface WeaponsContext {
   events: SimEvent[];
   /** Seeded stream for critical-hit rolls. */
   crit: Rng;
+  /** Seeded stream for bullet spread. */
+  spread: Rng;
+  /** True while the unit can't use its weapon (channelling an Ultimate). */
+  holdFire(e: Entity): boolean;
   /** Damage multiplier for a shot fired now (structure warm-up); 1 for most shooters. */
   shotMultiplier(e: Entity, target: Entity): number;
   /** A second target for weapons that hit two (HQ flak), or 0. */
@@ -38,7 +42,7 @@ export interface WeaponsContext {
  * a crit carries `critMultiplier` into the damage pipeline.
  */
 export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, cfg: Config['combat']['weapons'], critMultiplier: number) {
-  const { transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events } = ctx;
+  const { transforms, motions, healths, weapons, targetings, stats } = ctx;
   const turnPerTick = cfg.aimTurnRate / TICK_HZ;
 
   for (let i = 0; i < shooters.length; i++) {
@@ -51,12 +55,17 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
 
     const st = stats.get(e);
     if (w.cooldown > 0) w.cooldown -= st ? stat(st, Stat.FireRate) : 1;
+    if (ctx.holdFire(e)) {
+      w.burstLeft = 0;
+      continue;
+    }
 
     const target = tg.targetId;
     const tt = target !== 0 ? transforms.get(target) : undefined;
     const th = target !== 0 ? healths.get(target) : undefined;
     if (!tt || !th || th.hp <= 0) {
       w.aim = turnTowards(w.aim, t.facing, turnPerTick); // no target: the upper body follows the legs
+      burst(e, w, t, ctx, cfg, critMultiplier);
       continue;
     }
 
@@ -73,20 +82,18 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     }
     const desired = atan2(ay - t.y, ax - t.x);
     w.aim = turnTowards(w.aim, desired, turnPerTick);
+    if (burst(e, w, t, ctx, cfg, critMultiplier)) continue; // a burst in flight finishes first
 
     if (tg.holdTicks > 0 || w.cooldown > 0 || Math.abs(wrapAngle(desired - w.aim)) > cfg.fireCone) continue;
 
-    const perTick = w.projectileSpeed / TICK_HZ;
-    const dx = cos(desired);
-    const dy = sin(desired);
-    const muzzle = colliders.get(e)?.radius ?? 0;
-    const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
-    const critMult = w.critChance > 0 && ctx.crit() < w.critChance ? critMultiplier : 1;
+    const critMult = critRoll(w, ctx, critMultiplier);
     const boost = ctx.shotMultiplier(e, target);
-    const team = teams.get(e)!;
-    pool.spawn(e, team, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, w.damage * boost, critMult, life, boost);
+    fire(e, w, t, ctx, cfg, target, desired, w.damage * boost, critMult, boost);
     w.cooldown += w.interval;
-    events.push({ type: 'shot', id: e, target });
+    // A burst weapon (Beta's SMG) queues the rest along its aim, `burstGapSeconds` apart (TDD §6.3).
+    w.burstLeft = w.burstCount - 1;
+    w.burstWait = w.burstGapSeconds;
+    w.burstTarget = target;
 
     // A second bullet at the second target (HQ flak hits two, TDD §6.3), aimed straight at it.
     const second = w.targets >= 2 ? ctx.secondaryOf(e) : 0;
@@ -100,13 +107,39 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
         bx += m2.vx * lead;
         by += m2.vy * lead;
       }
-      const dir2 = atan2(by - t.y, bx - t.x);
-      const ux = cos(dir2);
-      const uy = sin(dir2);
-      pool.spawn(e, team, second, cfg.bulletAim === 'homing', t.x + ux * muzzle, t.y + uy * muzzle, ux * perTick, uy * perTick, w.damage, critMult, life, 1);
-      events.push({ type: 'shot', id: e, target: second });
+      fire(e, w, t, ctx, cfg, second, atan2(by - t.y, bx - t.x), w.damage, critMult, 1);
     }
   }
+}
+
+const critRoll = (w: Weapon, ctx: WeaponsContext, mult: number) => (w.critChance > 0 && ctx.crit() < w.critChance ? mult : 1);
+
+/** One bullet towards `dir`, turned by up to ± the weapon's spread (rolled on the seeded `spread` stream). */
+function fire(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Config['combat']['weapons'], target: Entity, dir: number, damage: number, critMult: number, boost: number) {
+  if (w.spread > 0) dir += (ctx.spread() * 2 - 1) * w.spread;
+  const perTick = w.projectileSpeed / TICK_HZ;
+  const dx = cos(dir);
+  const dy = sin(dir);
+  const muzzle = ctx.colliders.get(e)?.radius ?? 0;
+  const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
+  ctx.pool.spawn(e, ctx.teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, critMult, life, boost);
+  ctx.events.push({ type: 'shot', id: e, target });
+}
+
+/**
+ * The rest of a burst: the next bullet flies along the current aim once its gap has passed,
+ * whether or not the target still stands (a burst is a trigger pull, not a lock). True while
+ * bullets are still to come.
+ */
+function burst(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Config['combat']['weapons'], critMultiplier: number): boolean {
+  if (w.burstLeft <= 0) return false;
+  if (--w.burstWait <= 0) {
+    const boost = ctx.shotMultiplier(e, w.burstTarget);
+    fire(e, w, t, ctx, cfg, w.burstTarget, w.aim, w.damage * boost, critRoll(w, ctx, critMultiplier), boost);
+    w.burstLeft--;
+    w.burstWait = w.burstGapSeconds;
+  }
+  return w.burstLeft > 0;
 }
 
 /**

@@ -7,8 +7,9 @@ import type { Collider, Health, Motion, Transform } from '../sim';
 const RESOLVE_PASSES = 3;
 
 /**
- * Moves every unit by intent × speed, then pushes its circle out of blocked cells so it
- * slides along walls, and clamps it inside the map (TDD §6.1).
+ * Moves every unit by intent × speed × its slow and channel factors, then pushes its circle
+ * out of blocked cells so it slides along walls, and clamps it inside the map (TDD §6.1).
+ * Slows count down here, knocked out or not.
  * ponytail: no swept test; fine while a tick's step (≤0.2 m) is well under a radius.
  */
 export function movementSystem(
@@ -25,6 +26,8 @@ export function movementSystem(
     const m = motions.data[i]!;
     const t = transforms.get(e);
     if (!t) continue;
+    const slowed = m.slowTicks > 0;
+    if (slowed) m.slowTicks--;
     const h = healths.get(e);
     if (h && h.hp <= 0) {
       m.vx = m.vy = 0; // knocked out: stays where it fell
@@ -39,8 +42,9 @@ export function movementSystem(
       ix /= mag;
       iy /= mag;
     }
-    m.vx = ix * m.speed;
-    m.vy = iy * m.speed;
+    const speed = m.speed * m.channelMult * (slowed ? m.slowMult : 1);
+    m.vx = ix * speed;
+    m.vy = iy * speed;
     if (m.vx === 0 && m.vy === 0) continue;
 
     let x = t.x + m.vx * dt;

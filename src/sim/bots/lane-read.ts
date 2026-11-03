@@ -63,7 +63,7 @@ const kindName = (k: Kind) => (k === Kind.HQ ? 'hq' : 'subBase');
 export function championDps(cfg: Config, e: EntitySnapshot): number {
   const def = cfg.champions.find((c) => c.id === e.modelId);
   if (!def) return 0;
-  return (def.weapon.damage * (1 + def.growth.damagePct * Math.max(0, e.level - 1))) / (def.weapon.interval / 30);
+  return (def.weapon.damage * def.weapon.burstCount * (1 + def.growth.damagePct * Math.max(0, e.level - 1))) / (def.weapon.interval / 30);
 }
 
 /**

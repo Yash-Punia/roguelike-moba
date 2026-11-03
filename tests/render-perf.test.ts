@@ -24,6 +24,7 @@ describe('baked models (D-044)', () => {
   // Triangle counts of the unbaked primitive builds (measured before the bake).
   const cases: [Kind, string, number, number][] = [
     [Kind.Champion, 'alpha', 612, 4], // legs, upper, cap + Steady Hand ring
+    [Kind.Champion, 'beta', 608, 4], // legs, upper, cap + Light Feet ring
     [Kind.Minion, 'mgSoldier', 454, 3], // legs, upper, helmet
     [Kind.SubBase, 'subBase', 284, 3], // body, turret, flag
     [Kind.HQ, 'hq', 736, 5], // body, 2 flak mounts, mast, shield dome
@@ -37,8 +38,8 @@ describe('baked models (D-044)', () => {
 
   it('keeps the animation pivots: turning the upper body moves only its geometry', () => {
     const m = createModel(Kind.Champion, 'alpha', Team.Blue);
-    const { upper, cap, steadyRing } = partsOf(m);
-    expect(upper && cap && steadyRing).toBeTruthy();
+    const { upper, cap, traitRing } = partsOf(m);
+    expect(upper && cap && traitRing).toBeTruthy();
     expect(cap!.parent).toBe(upper);
     const legs = m.children.flatMap((c) => (c instanceof THREE.Mesh ? [c] : c.children.filter((x): x is THREE.Mesh => x instanceof THREE.Mesh)));
     const before = new THREE.Box3().setFromObject(legs[0]!);

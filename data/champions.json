@@ -46,5 +46,57 @@
         "tickSeconds": 0.5
       }
     }
+  },
+  {
+    "id": "beta",
+    "name": "Beta",
+    "maxHp": 750,
+    "moveSpeed": 5.7,
+    "radius": 0.45,
+    "ultChargeSeconds": 55,
+    "growth": {
+      "hpPct": 5,
+      "damagePct": 4
+    },
+    "weapon": {
+      "kind": "bullet",
+      "damage": 24,
+      "interval": 0.85,
+      "range": 6,
+      "projectileSpeed": 25,
+      "spread": 4,
+      "burstCount": 4,
+      "burstGapSeconds": 0.067
+    },
+    "trait": {
+      "id": "lightFeet",
+      "outOfCombatSeconds": 2,
+      "moveSpeedPct": 20
+    },
+    "ultimate": {
+      "id": "leadStorm",
+      "castRange": 10,
+      "targetOrder": [
+        "champion",
+        "hq",
+        "subBase",
+        "minion",
+        "neutral"
+      ],
+      "windupSeconds": 0.5,
+      "seconds": 3,
+      "length": 10,
+      "width": 4,
+      "turnRate": 90,
+      "damage": 12,
+      "damagePerLevel": 1,
+      "bulletsPerSecond": 20,
+      "tickSeconds": 0.1,
+      "slowPct": 35,
+      "slowSeconds": 1.5,
+      "moveSpeedPct": 70,
+      "structurePct": 100
+    },
+    "lanePreference": "side"
   }
 ]

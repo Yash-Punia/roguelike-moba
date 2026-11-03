@@ -30,6 +30,9 @@ const Weapon = z.object({
   spread: deg().default(0),
   /** Targets hit per shot (HQ flak hits 2). */
   targets: z.number().int().min(1).default(1),
+  /** Bullets per trigger pull (Beta's Burst SMG fires 4), `burstGapSeconds` apart (TDD §6.3). */
+  burstCount: z.number().int().min(1).default(1),
+  burstGapSeconds: secs().refine((t) => t >= 1, 'burst gap must be at least one tick').default(1), // default is the output: 1 tick
 });
 
 /** Auto-target classes in the order an Ultimate prefers them (GDD §6). */
@@ -58,6 +61,33 @@ const FragGrenade = z.object({
   }),
 });
 
+/**
+ * Beta's Lead Storm (GDD §7, TDD §6.5): after a red-strip windup, a channelled barrage that hits
+ * every enemy in a `length` × `width` strip in front of her and slows them; the strip turns
+ * towards her Ultimate target at `turnRate`. She moves at `moveSpeedPct` meanwhile.
+ */
+const LeadStorm = z.object({
+  id: z.literal('leadStorm'),
+  castRange: positive(),
+  targetOrder: z.array(UltTargetClass).min(1),
+  /** The strip shows this long before it hits (GDD §10: telegraphs ≥ 0.5 s). */
+  windupSeconds: secs(),
+  seconds: secs().refine((t) => t >= 1, 'channel must be at least one tick'),
+  length: positive(),
+  width: positive(),
+  /** Degrees per second. */
+  turnRate: deg(),
+  /** Per bullet; `bulletsPerSecond` × `tickSeconds` bullets land per hit. */
+  damage: z.number().nonnegative(),
+  damagePerLevel: z.number().nonnegative(),
+  bulletsPerSecond: positive(),
+  tickSeconds: secs().refine((t) => t >= 1, 'tick must be at least one tick'),
+  slowPct: pct(),
+  slowSeconds: secs(),
+  moveSpeedPct: pct(),
+  structurePct: pct(),
+});
+
 const Champion = z.object({
   id: z.string(),
   name: z.string(),
@@ -69,9 +99,15 @@ const Champion = z.object({
   /** Per-level growth on top of level 1 (GDD §7). */
   growth: z.object({ hpPct: pct(), damagePct: pct() }),
   weapon: Weapon,
-  /** Alpha's Steady Hand (GDD §7): still this long → + fire rate until moving again. */
-  trait: z.object({ id: z.literal('steadyHand'), stillSeconds: secs(), fireRatePct: pct() }),
-  ultimate: FragGrenade,
+  trait: z.discriminatedUnion('id', [
+    /** Alpha's Steady Hand (GDD §7): still this long → + fire rate until moving again. */
+    z.object({ id: z.literal('steadyHand'), stillSeconds: secs(), fireRatePct: pct() }),
+    /** Beta's Light Feet (GDD §7): this long without dealing or taking damage → + move speed. */
+    z.object({ id: z.literal('lightFeet'), outOfCombatSeconds: secs(), moveSpeedPct: pct() }),
+  ]),
+  ultimate: z.discriminatedUnion('id', [FragGrenade, LeadStorm]),
+  /** Bots of this champion take a lane of this kind first (TDD §7 lane assignment). */
+  lanePreference: z.enum(['centre', 'side']).optional(),
 });
 
 /** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
@@ -383,6 +419,8 @@ export type StructureDef = z.output<typeof StructureDef>;
 export type MinionDef = z.output<typeof MinionDef>;
 export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
+export type FragGrenadeConfig = z.output<typeof FragGrenade>;
+export type LeadStormConfig = z.output<typeof LeadStorm>;
 export type Vec2 = z.output<typeof vec>;
 export type WeaponConfig = z.output<typeof Weapon>;
 export type UltTargetClass = z.output<typeof UltTargetClass>;

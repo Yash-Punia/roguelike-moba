@@ -45,4 +45,9 @@ export const palette = {
   glove: 0x7a735f,
   skin: 0xe9b48e,
   haze: 0x4a4436,
+  // Beta (CH-02)
+  hairBrown: 0x5a3a24,
+  shearling: 0xe8dcc0,
+  canvas: 0x9c9470,
+  goggleGlass: 0x9fc4d8,
 } as const;

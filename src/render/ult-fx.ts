@@ -28,6 +28,24 @@ const flashGeo = new THREE.IcosahedronGeometry(1, 1);
 const smokeGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
 const pillarGeo = new THREE.CylinderGeometry(0.55, 0.7, 2.4, 16, 1, true).translate(0, 1.2, 0);
 const LEVEL_FLASH_MS = 600;
+// Lead Storm: a strip lying along local +x from the caster, and bright streaks flying down it.
+const stripGeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
+const stripWindupMat = basic(palette.danger, 0.32);
+const stripFireMat = basic(palette.danger, 0.14);
+const streakGeo = new THREE.BoxGeometry(0.8, 0.04, 0.04);
+const streakMat = new THREE.MeshBasicMaterial({ color: palette.muzzle, toneMapped: false });
+const STREAKS = 12;
+/** Streak passes down the strip per second, and the gun height they fly from. */
+const STREAK_RATE = 2.2;
+const GUN_HEIGHT = 0.9;
+
+interface Storm {
+  group: THREE.Group;
+  strip: THREE.Mesh;
+  streaks: THREE.Mesh[];
+  length: number;
+  width: number;
+}
 
 interface Lob {
   telegraph: THREE.Group;
@@ -58,6 +76,7 @@ export class UltFx {
   readonly group = new THREE.Group();
   private readonly lobs = new Map<number, Lob>();
   private readonly pools = new Map<number, Pool>();
+  private readonly storms = new Map<number, Storm>();
   private blasts: Blast[] = [];
   private flashes: { ring: THREE.Mesh; pillar: THREE.Mesh; born: number }[] = [];
   private readonly seen = new Set<number>();
@@ -101,6 +120,45 @@ export class UltFx {
       if (this.seen.has(id)) continue;
       this.group.remove(pool.group);
       this.pools.delete(id);
+    }
+  }
+
+  /**
+   * Beta's Lead Storm for champion `id` (GDD §11): a red strip on the ground during the windup
+   * (`channel` 1), fainter with a tracer stream while firing (2); removed at 0.
+   */
+  storm(id: number, channel: 0 | 1 | 2, length: number, width: number) {
+    let st = this.storms.get(id);
+    if (channel === 0) {
+      if (st) this.group.remove(st.group);
+      this.storms.delete(id);
+      return;
+    }
+    if (!st) {
+      const group = new THREE.Group();
+      const strip = new THREE.Mesh(stripGeo, stripWindupMat);
+      strip.scale.set(length, 1, width);
+      strip.renderOrder = 5;
+      const streaks: THREE.Mesh[] = [];
+      for (let k = 0; k < STREAKS; k++) streaks.push(new THREE.Mesh(streakGeo, streakMat));
+      group.add(strip, ...streaks);
+      this.group.add(group);
+      this.storms.set(id, (st = { group, strip, streaks, length, width }));
+    }
+    st.strip.material = channel === 1 ? stripWindupMat : stripFireMat;
+    for (const s of st.streaks) s.visible = channel === 2;
+  }
+
+  /** Moves a storm with its caster (interpolated sim position and strip angle) and runs its streaks. */
+  placeStorm(id: number, x: number, y: number, angle: number, now: number) {
+    const st = this.storms.get(id);
+    if (!st) return;
+    st.group.position.set(x, this.heightAt(x, y) + 0.06, -y);
+    st.group.rotation.y = angle;
+    for (let k = 0; k < st.streaks.length; k++) {
+      const t = ((now / 1000) * STREAK_RATE + k / STREAKS) % 1;
+      const lateral = (((k * 0.618) % 1) - 0.5) * st.width * 0.85;
+      st.streaks[k]!.position.set(0.6 + t * (st.length - 0.6), GUN_HEIGHT * (1 - t) + 0.15, lateral * t);
     }
   }
 

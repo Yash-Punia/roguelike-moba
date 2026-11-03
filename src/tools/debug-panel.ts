@@ -49,13 +49,18 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
   if (seed !== undefined) match.add({ seed }, 'seed').name('seed (?seed=N)').disable();
-  // Team size is fixed once a match starts (D-048): picking one reloads with `?size=N`.
+  // Team size and champion are fixed once a match starts (D-048, D-049): picking one reloads.
   const url = new URL(location.href);
-  const size = { teamSize: Number(url.searchParams.get('size')) || raw.match.teamSize };
-  match.add(size, 'teamSize', [2, 3, 4, 5]).name('team size (?size=N)').onChange((n: number) => {
-    url.searchParams.set('size', String(n));
+  const reloadWith = (key: string) => (v: number | string) => {
+    url.searchParams.set(key, String(v));
     location.assign(url);
-  });
+  };
+  const setup = {
+    teamSize: Number(url.searchParams.get('size')) || raw.match.teamSize,
+    champion: localEntity === undefined ? '' : (sim.stores.champions.get(localEntity)?.championId ?? ''),
+  };
+  match.add(setup, 'teamSize', [2, 3, 4, 5]).name('team size (?size=N)').onChange(reloadWith('size'));
+  match.add(setup, 'champion', raw.champions.map((c) => c.id)).name('champion (?champ=id)').onChange(reloadWith('champ'));
   if (bot) {
     const botFolder = gui.addFolder('Bot');
     botFolder.add(bot, 'goal').name('mode').disable().listen();

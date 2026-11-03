@@ -14,7 +14,7 @@ import { damageSystem, isInvulnerable, type DamageContext } from './damage';
 import { DamageLog } from './damage-log';
 import { LobPool } from './lobs';
 import { ZonePool } from './zones';
-import { steadyHandSystem } from './systems/traits';
+import { traitSystem } from './systems/traits';
 import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
@@ -26,7 +26,7 @@ import {
   backdoorSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, updateHqGate, warmupShot,
   type StructureContext,
 } from './systems/structures';
-import { lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
+import { leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
@@ -85,6 +85,11 @@ export interface Motion {
   speed: number;
   intentX: number;
   intentY: number;
+  /** Ticks left on a slow (Lead Storm), and its speed factor while it lasts. */
+  slowTicks: number;
+  slowMult: number;
+  /** Speed factor while channelling (Lead Storm ×0.7); 1 otherwise. */
+  channelMult: number;
 }
 export interface Collider {
   radius: number;
@@ -105,8 +110,12 @@ export interface Champion {
   castQueued: boolean;
   /** Ticks the stick has been at rest (Steady Hand). */
   stillTicks: number;
-  /** Fire-rate bonus Steady Hand currently adds (0 when inactive). */
-  steadyPct: number;
+  /** The bonus its trait currently adds (Steady Hand fire rate, Light Feet move speed; 0 when inactive). */
+  traitPct: number;
+  /** Ticks left in a channelled Ultimate (Lead Storm, windup included); 0 when not channelling. */
+  channelTicks: number;
+  /** Where the channel's strip points (radians, like `facing`). */
+  channelAngle: number;
   /** Ticks until redeploying; 0 while alive. */
   respawnTicks: number;
   /** Owned powers: stacks per power id (read through the catalogue's order, never iterated). */
@@ -143,6 +152,10 @@ export interface Weapon extends WeaponConfig {
   critChance: number;
   /** Upper-body aim (radians, like `facing`); turns towards the target at the aim turn rate. */
   aim: number;
+  /** Bullets of the current burst still to fire, ticks until the next, and the burst's target. */
+  burstLeft: number;
+  burstWait: number;
+  burstTarget: Entity;
 }
 /** Auto-target state (TDD §6.2), filled by the targeting system. 0 = none. */
 export interface Targeting {
@@ -227,12 +240,17 @@ export interface EntitySnapshot {
   /** Champions: takedowns landed and times knocked out. */
   kills: number;
   deaths: number;
-  /** Champions: Ultimate charge 0–100, whether it has a target now, and Steady Hand active. */
+  /** Champions: Ultimate charge 0–100, whether it has a target now, and its trait active (Steady Hand, Light Feet). */
   ultCharge: number;
   ultTargetable: boolean;
   /** What the Ultimate would hit right now (0 = nothing in range). */
   ultTargetId: Entity;
-  steady: boolean;
+  traitActive: boolean;
+  /** Lead Storm: 0 none, 1 windup (strip shown, no damage), 2 firing; and where the strip points. */
+  channel: 0 | 1 | 2;
+  channelAngle: number;
+  /** Moving slower from a slow (Lead Storm). */
+  slowed: boolean;
 }
 
 /** A grenade in flight: thrown from (x0, y0), lands at (x1, y1) after `total` ticks. */
@@ -375,7 +393,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   }
 
   const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0 });
+  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
   players.forEach((p, player) => {
@@ -384,7 +402,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     const spawn = p.spawnAt ?? (p.team === Team.Blue ? config.map.spawn.blue : config.map.spawn.red);
     const e = world.create();
     transforms.add(e, { x: spawn.x, y: spawn.y, facing: p.team === Team.Blue ? Math.PI / 2 : -Math.PI / 2 });
-    motions.add(e, { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0 });
+    motions.add(e, { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
     colliders.add(e, { radius: 0 });
     teams.add(e, p.team);
     healths.add(e, newHealth(0));
@@ -393,7 +411,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, steadyPct: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -421,7 +439,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const pool = new ProjectilePool();
   const hits = new HitQueue();
   const weaponsContext: WeaponsContext = {
-    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events, crit: rng.crit,
+    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events, crit: rng.crit, spread: rng.spread,
+    holdFire: (e) => (champions.get(e)?.channelTicks ?? 0) > 0,
     shotMultiplier: (e, target) => {
       const st = structures.get(e);
       return st ? warmupShot(st, target, kinds.get(target), config.structures.rules) : 1;
@@ -434,7 +453,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const lobs = new LobPool();
   const zones = new ZonePool();
   const ultimateContext: UltimateContext = {
-    champions, transforms, colliders, teams, healths, stats, targetClasses, spatial, lobs, zones, hits, events,
+    champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events,
   };
   const minionContext: MinionContext = {
     world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events,
@@ -516,7 +535,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       separationSystem(minionContext);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
-      steadyHandSystem(champions, motions, stats, healths);
+      traitSystem(champions, motions, stats, healths, tick);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
       backdoorSystem(structureContext, config.structures.rules);
       structureTargetingSystem(structureContext, config.structures.rules, damageLog, tick);
@@ -528,6 +547,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       // exactly its flight time later and a new fire pool first burns a full period after landing.
       zoneSystem(ultimateContext);
       lobSystem(ultimateContext);
+      leadStormSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
@@ -563,7 +583,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, steady: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -603,7 +623,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
         s.ultTargetId = c?.ultTargetId ?? 0;
-        s.steady = (c?.steadyPct ?? 0) > 0;
+        s.traitActive = (c?.traitPct ?? 0) > 0;
+        const ult = c?.def.ultimate;
+        s.channel = !c || c.channelTicks === 0 ? 0 : ult?.id === 'leadStorm' && c.channelTicks > ult.seconds ? 1 : 2;
+        s.channelAngle = c?.channelAngle ?? 0;
+        s.slowed = (m?.slowTicks ?? 0) > 0;
       }
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {
@@ -632,8 +656,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         l.y1 = lobs.y1[i]!;
         l.elapsed = lobs.elapsed[i]!;
         l.total = lobs.total[i]!;
-        l.radius = ult?.radius ?? 0;
-        l.arcHeight = ult?.arcHeight ?? 0;
+        const frag = ult?.id === 'fragGrenade' ? ult : undefined;
+        l.radius = frag?.radius ?? 0;
+        l.arcHeight = frag?.arcHeight ?? 0;
       }
       snap.lobs.length = n;
       n = 0;

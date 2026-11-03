@@ -34,19 +34,19 @@ describe('Steady Hand', () => {
   it('adds +20% fire rate after 0.5 s still, and drops it on the first move', () => {
     const a = field([{ team: Red, x: 0, y: 20 }], steady);
     a.run(14);
-    expect(a.champ(a.shooter).steadyPct).toBe(0);
+    expect(a.champ(a.shooter).traitPct).toBe(0);
     a.run();
-    expect(a.champ(a.shooter).steadyPct).toBeCloseTo(0.2);
-    expect(a.sim.snapshot().entities.find((e) => e.id === a.shooter)!.steady).toBe(true);
+    expect(a.champ(a.shooter).traitPct).toBeCloseTo(0.2);
+    expect(a.sim.snapshot().entities.find((e) => e.id === a.shooter)!.traitActive).toBe(true);
     a.run(1, [cmd(0, { moveX: 127 })]);
-    expect(a.champ(a.shooter).steadyPct).toBe(0);
+    expect(a.champ(a.shooter).traitPct).toBe(0);
     expect(a.sim.stores.stats.get(a.shooter)!.pct[1]).toBeCloseTo(0); // FireRate back to +0%
   });
 
   it('never turns on while moving', () => {
     const a = field([{ team: Red, x: 0, y: 20 }], steady);
     a.run(100, [cmd(0, { moveX: 60 })]);
-    expect(a.champ(a.shooter).steadyPct).toBe(0);
+    expect(a.champ(a.shooter).traitPct).toBe(0);
   });
 
   it('gives 1.2× the shots while standing still, stacking with other fire-rate sources', () => {

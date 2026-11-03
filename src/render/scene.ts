@@ -152,17 +152,24 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       bar?.set(e.hp, e.maxHp);
       if (bar && e.kind === Kind.Champion) bar.setLevel(e.level);
       if (bar) bar.visible = e.hp > 0;
+      // While channelling Lead Storm the upper body sprays along the strip, not at the weapon target.
+      const aim = e.channel !== 0 ? e.channelAngle : e.aim;
       // A jump this big in one tick is a teleport (respawn): don't streak across the map.
       if (Math.abs(e.x - s.x) + Math.abs(e.y - s.y) > SNAP_DISTANCE) {
         s.x = e.x;
         s.y = e.y;
         s.l = e.facing;
-        s.f = e.aim;
+        s.f = aim;
       }
       s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
-      s.x = e.x; s.y = e.y; s.f = e.aim; s.l = e.facing;
+      s.x = e.x; s.y = e.y; s.f = aim; s.l = e.facing;
+      if (e.kind === Kind.Champion) {
+        const ult = e.channel !== 0 ? config.champions.find((c) => c.id === e.modelId)?.ultimate : undefined;
+        if (ult?.id === 'leadStorm') ultFx.storm(e.id, e.channel, ult.length, ult.width);
+        else ultFx.storm(e.id, 0, 0, 0);
+      }
       const parts = partsOf(meshes.get(e.id)!);
-      if (parts.steadyRing) parts.steadyRing.visible = e.steady && e.hp > 0;
+      if (parts.traitRing) parts.traitRing.visible = e.traitActive && e.hp > 0;
       if (parts.shield) parts.shield.visible = e.invulnerable && !e.destroyed;
       if (e.destroyed && s.fellAt === 0) {
         const root = meshes.get(e.id)!;
@@ -295,6 +302,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       const { upper, aimParts } = partsOf(mesh);
       mesh.rotation.y = upper || aimParts ? facing : aim;
       if (upper) upper.rotation.y = aim - facing;
+      if (s.kind === Kind.Champion) ultFx.placeStorm(id, x, y, aim, now);
       if (aimParts && s.fellAt === 0) for (const g of aimParts) g.rotation.y = aim - facing;
       if (s.fellAt > 0) {
         const t = Math.min(1, (now - s.fellAt) / COLLAPSE_MS);

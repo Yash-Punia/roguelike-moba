@@ -111,18 +111,18 @@ function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: numbe
   const facing = team === Team.Blue ? Math.PI / 2 : -Math.PI / 2;
   const b: MinionBundle = ctx.pool.pop() ?? {
     transform: { x: 0, y: 0, facing: 0 },
-    motion: { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0 },
+    motion: { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 },
     collider: { radius: 0 },
     health: { hp: 0, maxHp: 0, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 },
-    weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0 },
+    weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0 },
     targeting: { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 },
     agent: { unit: 'mgSoldier', lane: 0, branch: 0, waypoint: 0, offset: 0, helpTarget: 0, helpTicks: 0 },
   };
   Object.assign(b.transform, { x, y, facing });
-  Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0 });
+  Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
   b.collider.radius = def.radius;
   Object.assign(b.health, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0 });
+  Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0 });
   Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
   Object.assign(b.agent, { unit: 'mgSoldier', lane, branch, waypoint: 1, offset, helpTarget: 0, helpTicks: 0 });
   ctx.transforms.add(e, b.transform);

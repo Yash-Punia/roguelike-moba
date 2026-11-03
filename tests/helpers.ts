@@ -1,5 +1,5 @@
 import { parseConfig, rawConfig } from '../src/data/load';
-import type { Config, RawConfig } from '../src/data/schema';
+import type { Config, FragGrenadeConfig, RawConfig } from '../src/data/schema';
 import { createSim, Team, type Command, type PlayerSetup } from '../src/sim/sim';
 import type { ObstacleGrid } from '../src/sim/grid';
 import openMap from './fixtures/map-open.json';
@@ -56,8 +56,9 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   Object.assign(alpha.weapon, { damage: 95, interval: 25, range: 7, projectileSpeed: 25, spread: 0, targets: 1 });
   // Steady Hand off unless a test turns it on, so shot counts stay at the plain fire rate.
   Object.assign(alpha.trait, { stillSeconds: 15, fireRatePct: 0 });
-  Object.assign(alpha.ultimate, { castRange: 9, flightSeconds: 18, radius: 3, damage: 250, damagePerLevel: 20 });
-  Object.assign(alpha.ultimate.zone, { radius: 3, seconds: 120, dps: 50, dpsPerLevel: 5, structurePct: 0.5, tickSeconds: 15 });
+  const frag = alpha.ultimate as FragGrenadeConfig;
+  Object.assign(frag, { castRange: 9, flightSeconds: 18, radius: 3, damage: 250, damagePerLevel: 20 });
+  Object.assign(frag.zone, { radius: 3, seconds: 120, dps: 50, dpsPerLevel: 5, structurePct: 0.5, tickSeconds: 15 });
   alpha.ultChargeSeconds = 1500;
   config.combat.targeting = { stickyRange: 0.5, sameClassSwitch: 1.5, tieBand: 0.5, overrideSeconds: 5, retargetPauseSeconds: 6 };
   config.combat.weapons = { aimTurnRate: 4 * Math.PI, fireCone: Math.PI / 18, bulletAim: 'lead', bulletRadius: 0.1, bulletOvershoot: 2 };
@@ -72,7 +73,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
   config.units.mgSoldier = {
     name: 'MG Soldier', maxHp: 300, radius: 0.35, moveSpeed: 2.6,
-    weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, spread: 0, targets: 1 },
+    weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1 },
     acquireRange: 7, leash: 6, callForHelp: { radius: 6, seconds: 90 },
   };
   tweak?.(config);
