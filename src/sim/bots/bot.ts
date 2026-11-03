@@ -24,8 +24,6 @@ const FIGHTING = new Set<BotMode>(['trade', 'allin', 'defend', 'siege']);
 /** How far ahead along the lane it aims while travelling (m; beyond a Sub-base the lane runs through), and when it has arrived. */
 const LOOKAHEAD = 6;
 const ARRIVED = 0.4;
-/** An enemy champion further than this (m) isn't contesting the lane, so being behind doesn't matter. */
-const FREEZE_THREAT = 18;
 /** Clearance kept from structure footprints while steering (m). */
 const AVOID_MARGIN = 0.25;
 
@@ -130,7 +128,7 @@ export function createBot(
     // Behind: freeze near its own tower (MOBA "behind → freeze, farm safe").
     // Only an enemy close enough to contest the lane makes it play safe.
     const behind = -levelGap >= 2 || hpMe < hpEnemy - 0.3;
-    desires.freeze = behind && enemyAlive && dist < FREEZE_THREAT ? 0.5 + 0.2 * (1 - aggr) : 0;
+    desires.freeze = behind && enemyAlive && dist < cfg.bots.lane.threatRadius ? 0.5 + 0.2 * (1 - aggr) : 0;
 
     // Contest the wave: the steady default.
     desires.contest = 0.4;

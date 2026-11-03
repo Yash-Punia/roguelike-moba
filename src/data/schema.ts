@@ -12,6 +12,8 @@ const positive = () => z.number().positive();
 
 const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
+  /** Champions per team (D-009); `?size=` overrides it. Every slot but yours is a bot. */
+  teamSize: z.number().int().min(2).max(5),
   /** Respawn timer (GDD §9): base + perLevel × level, capped. Stays in seconds: level is runtime. */
   respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive() }),
   /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9). */
@@ -278,6 +280,8 @@ const Bots = z.object({
     allInSeconds: positive(),
     /** Minions further than this from the branch it walks are on the other Crater branch: out of reach, not read (m). */
     branchReach: positive(),
+    /** An enemy champion further than this isn't contesting the lane: being behind doesn't matter, and a nearer knocked-out one is read instead (m). */
+    threatRadius: positive(),
   }),
   /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
   ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),

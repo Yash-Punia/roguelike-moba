@@ -22,6 +22,6 @@
     "max": 0.5
   },
   "hesitation": { "chance": 0.02, "minSeconds": 0.3, "maxSeconds": 0.6 },
-  "lane": { "clashWindow": 12, "aheadOfWave": 4, "holdAhead": 4, "callForHelpRadius": 6, "allInSeconds": 2.5, "branchReach": 6 },
+  "lane": { "clashWindow": 12, "aheadOfWave": 4, "holdAhead": 4, "callForHelpRadius": 6, "allInSeconds": 2.5, "branchReach": 6, "threatRadius": 18 },
   "ult": { "minionCluster": 3, "clusterRadius": 3 }
 }

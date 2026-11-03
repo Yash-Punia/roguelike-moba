@@ -734,3 +734,20 @@ From TDD §13:
   - **Tests:** the lane-read test pinned 3 soldiers implicitly and broke with the wave-config commit (`1ddb04b`); it now sets them. The determinism test gets a 30 s timeout for the busier map (about 4.5 s per run).
 - Why: the full map is the frame for every other M3 feature.
 - Alternatives: the spec's trench floors flat at −0.85 m with a step into the lanes (looks like a cliff); separate short ramp shapes at each entry (more data for the same look).
+
+## D-048 — Match config and bot slots: default 3v3
+- Date: 2026-11-03
+- Source: made during development (plan approved by the user)
+- Decision:
+  - **Team size:** `match.teamSize` (2–5, default 3) in `data/match.json`; `?size=N` overrides it, and the debug panel's Match folder has a team-size picker that reloads with `?size=N` (a match can't be resized once it starts). Every slot but yours is a lane bot. `?lane=left|centre|right` picks your lane (default centre).
+  - **Lane count deferred:** `map-2lane.json` (The Bridgehead) doesn't exist yet and is last in D-046, so the lane-count switch moves to the Bridgehead row. No `?lanes=` param until it does something.
+  - **Lane spread** (`src/sim/match-setup.ts`, D-009, TDD §7): your lane goes to slot 0; each other slot takes the lane with the fewest champions so far, ties to the centre and then the map's other lanes in file order. 3 → C L R; 4 → C L R C; 5 → C L R C L. Both teams spread the same way, so every lane faces an equal number. Champion lane preferences (Gamma centre, Beta a side lane) come with Beta and Gamma.
+  - **Champions:** bots cycle through the roster in order (all Alpha today; duplicates allowed, D-009).
+  - **Player ids:** 0 is you, 1 the enemy in your lane, then your team's other slots, then the enemy's. Input (player 0), the debug panel's bot folder and "Kill enemy" (player 1) and the existing tests keep working unchanged. Bots are created and asked for commands in ascending player id, because they share the `ai` stream.
+  - **`?nobot` and `?dummy`** keep their meaning (you alone; a 1v1 against a dummy) and skip the slot filler.
+  - **Which enemy a bot reads:** the lane read used the last enemy champion in the snapshot, which in 3v3 is the highest id anywhere on the map. It now takes the nearest live enemy champion within `bots.lane.threatRadius` (18 m, the old `FREEZE_THREAT` constant moved to data), else the nearest enemy in any state. A lane opponent knocked out nearby still reads as down (the push bonus) while its teammates play other lanes. With one enemy the pick is unchanged, so the 1v1 bot tests and D-047's measurements still hold.
+  - **No spawn offsets:** champions never push each other (separation moves only minions), so a team stacks on its pad and fans out as the bots walk to their lanes. Two bots sharing a lane at 4v4+ can overlap; they diverge through their personalities.
+  - **Perf** (seed 11, 3v3, D-047 method, software GL in the desktop app's browser pane, so only calls and triangles count): at 0:55–1:01 with about 60 soldiers, 89–117 draw calls and 64–81k triangles across the left lane, right lane, Crater and Blue trunk. Within the ≤ 120 / ≤ 150k mobile budget; soldier instancing stays the next lever. The pane's first 5v5 frame took about 16 s (shader and shadow setup in software GL); 3v3 starts in a few seconds there.
+  - **Tests:** `tests/match-setup.test.ts` covers the spread, the player order, the enemy pick with several enemies, an all-bot 3v3 that repeats exactly for a seed, and every bot standing in its own lane at the first clash (30 s).
+- Why: every later M3 feature (Beta, Gamma, Trenches, fog) is tested in a real 3v3 (D-046).
+- Alternatives: your team first in the player order (would make player 1 an ally and break the debug hooks and tests); spawn offsets on the pad (not needed while champions don't collide).

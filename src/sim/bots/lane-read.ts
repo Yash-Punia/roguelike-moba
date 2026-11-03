@@ -90,7 +90,6 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   for (let i = 0; i < list.length; i++) {
     const e = list[i]!;
     if (e.id === self) r.me = e;
-    else if (e.kind === Kind.Champion && e.team !== team) r.enemy = e;
     else if (e.kind === Kind.Minion && e.hp > 0) {
       if (e.lane !== laneId) continue;
       const f = forward(e.x, e.y);
@@ -111,6 +110,26 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   }
   const me = r.me;
   if (!me) return;
+  // The enemy (D-048): the nearest live enemy champion within `threatRadius`, else the nearest
+  // in any state, so a lane opponent knocked out here still reads as down while its teammates
+  // play other lanes. With one enemy this is always that one.
+  let nearAlive = Infinity;
+  let nearAny = Infinity;
+  let any: EntitySnapshot | undefined;
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i]!;
+    if (e.kind !== Kind.Champion || e.team === team) continue;
+    const d = len(e.x - me.x, e.y - me.y);
+    if (e.hp > 0 && d <= b.lane.threatRadius && d < nearAlive) {
+      nearAlive = d;
+      r.enemy = e;
+    }
+    if (d < nearAny) {
+      nearAny = d;
+      any = e;
+    }
+  }
+  r.enemy ??= any;
   r.fMe = forward(me.x, me.y);
   r.range = cfg.champions.find((c) => c.id === me.modelId)?.weapon.range ?? 7;
   const enemy = r.enemy;

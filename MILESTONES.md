@@ -81,9 +81,9 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[c]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | |
-| `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice | |
-| `[ ]` | Match config: team size 2v2–5v5 and lane count 2/3 via URL params + debug panel; map chosen by lane count; duplicate champions allowed (D-009) | |
+| `[p]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | b317a2d |
+| `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048) | |
+| `[c]` | Match config: team size 2v2–5v5 via `?size=` + debug panel, default 3v3 (`match.json`), your lane via `?lane=`; duplicate champions allowed (D-009, D-048) | |
 | `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms | |
 | `[ ]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018) | |
 | `[ ]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010) | |
@@ -96,7 +96,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
 | `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
-| `[ ]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count | |
+| `[c]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count; bots read the nearest enemy champion (D-048) | |
 
 **Exit criteria:** full matches run start to finish without errors for every team size (2v2 to 5v5) on both maps.
 

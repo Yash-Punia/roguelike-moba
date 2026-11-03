@@ -7,6 +7,7 @@ import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot }
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
+import { matchSlots, type Slot } from '../sim/match-setup';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
@@ -22,23 +23,28 @@ if (params.has('curved')) raw.map.splineSamples = 16;
 // `?nowaves`: no minion waves, for clean duels (also switchable live: F1 → waves.json → enabled).
 if (params.has('nowaves')) raw.waves.enabled = false;
 let config = parseConfig(raw);
-const players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
 const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
-// The opponent (D-042): a bot Alpha by default; `?nobot` plays alone. `?dummy` replaces it
-// with an idle, unarmed Alpha in front of your Sub-base, and `?dummy=armed` fires back.
-const withBot = !params.has('dummy') && !params.has('nobot');
+// Every slot but yours is a lane bot (D-048): `?size=2..5` champions per team (default
+// match.json), `?lane=left|centre|right` picks yours. `?nobot` plays alone; `?dummy` is a 1v1
+// against an idle, unarmed Alpha in front of your Sub-base, and `?dummy=armed` fires back.
+const teamSize = Math.min(5, Math.max(2, Number(params.get('size')) || config.match.teamSize));
+let players: PlayerSetup[] = [{ team: localTeam, championId: 'alpha' }];
+let botSlots: Slot[] = [];
 if (params.has('dummy')) {
   const spawnAt = { x: 0, y: localTeam === Team.Blue ? -50 : 50 };
   players.push({ team: enemy, championId: 'alpha', spawnAt, unarmed: params.get('dummy') !== 'armed' });
-} else if (withBot) {
-  players.push({ team: enemy, championId: 'alpha' });
+} else if (!params.has('nobot')) {
+  const slots = matchSlots(config, { teamSize, localTeam, localLane: params.get('lane') ?? undefined });
+  players = slots;
+  botSlots = slots.slice(1);
 }
 // A fresh seed per page load, so every match plays differently; `?seed=N` replays one (D-043).
 const seed = params.has('seed') ? Number(params.get('seed')) >>> 0 : (Math.random() * 0x7fffffff) >>> 0;
 console.info(`Warfront match seed ${seed} (replay with ?seed=${seed})`);
 const sim = createSim(config, seed, players);
-const bot = withBot ? createBot(1, enemy, () => config, () => sim.lanes, sim.rng.ai) : undefined;
-const botEntity = sim.entityOf(1);
+// Created and asked in ascending player id: they share the `ai` stream (D-048).
+const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), entity: sim.entityOf(i + 1)! }));
+const bot = bots[0]?.bot; // the enemy in your lane, shown in the debug panel
 let lastSnap = sim.snapshot();
 
 const container = document.getElementById('frame')!;
@@ -89,7 +95,7 @@ const loop = startLoop({
     const t0 = debug ? performance.now() : 0;
     // The bot answers the previous snapshot (TDD §4), like a player reacting to what they saw.
     const commands = [input.sample(sim.tick)];
-    if (bot && botEntity !== undefined) commands.push(bot.command(lastSnap, sim.tick, botEntity));
+    for (const b of bots) commands.push(b.bot.command(lastSnap, sim.tick, b.entity));
     const { events } = sim.step(commands);
     if (debug) stats.simMs = performance.now() - t0;
     // Events first: a minion knocked out this tick is already gone from the snapshot, and its
