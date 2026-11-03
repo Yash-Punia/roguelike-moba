@@ -19,7 +19,7 @@ import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './s
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
-  callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnFromCaves, spawnWave, waveDue, type MinionContext,
+  callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnFromCaves, spawnWave, waveDue, waveLength, type MinionContext,
 } from './systems/minions';
 import { buildLanes, type LanePath } from '../data/map-geometry';
 import {
@@ -295,6 +295,8 @@ export interface ProjectileSnapshot {
   ownerKind: Kind;
   /** Damage multiplier added at fire time (structure warm-up, 1–2): drawn brighter and bigger. */
   boost: number;
+  /** A rocket (it splashes): drawn as a heavier round. */
+  rocket: boolean;
   x: number;
   y: number;
   vx: number;
@@ -344,8 +346,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   let lanes: LanePath[] = buildLanes(config.map);
   /** Waves spawned so far, scheduled or debug: wave n takes branch n mod branches (D-035). */
   let waveCount = 0;
-  /** The current wave's soldiers still in the cave (D-051), and the tick the next one steps out. */
-  let waveQueued = 0;
+  /** The current wave's next unit to leave the cave (D-051; past its length: all out), and the tick it steps out. */
+  let waveSlot = Infinity;
   let nextSoldierTick = 0;
   const { bounds } = config.map;
   const spatial = new SpatialIndex(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
@@ -494,7 +496,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, dealtMult: (s) => heatWaveMult(ultimateContext, s) };
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, dealtMult: (s) => heatWaveMult(ultimateContext, s), structureResist: (t) => {
+    const a = laneAgents.get(t);
+    return a ? config.units[a.unit].structureResistPct : 0;
+  } };
   const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, defs: () => config.structures };
   updateHqGate(structureContext);
 
@@ -547,12 +552,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       if (waveDue(config.waves, tick)) {
         events.push({ type: 'waveSpawned', wave: waveCount++ });
-        waveQueued = config.waves.soldiers;
+        waveSlot = 0;
         nextSoldierTick = tick;
       }
-      if (waveQueued > 0 && tick >= nextSoldierTick) {
-        spawnFromCaves(minionContext, config, waveCount - 1, tick);
-        waveQueued--;
+      if (waveSlot < waveLength(config.waves, waveCount - 1) && tick >= nextSoldierTick) {
+        spawnFromCaves(minionContext, config, waveCount - 1, tick, waveSlot++);
         nextSoldierTick += config.waves.spawnGapSeconds;
       }
       spatial.rebuild(healths.ids, transforms);
@@ -663,11 +667,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {
         if (!pool.active[i]) continue;
-        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, ownerKind: Kind.Champion, boost: 1, x: 0, y: 0, vx: 0, vy: 0 });
+        const p = (snap.projectiles[n++] ??= { id: 0, team: Team.Neutral, ownerKind: Kind.Champion, boost: 1, rocket: false, x: 0, y: 0, vx: 0, vy: 0 });
         p.id = pool.id[i]!;
         p.team = pool.team[i]! as Team;
         p.ownerKind = kinds.get(pool.owner[i]!) ?? Kind.Minion;
         p.boost = pool.boost[i]!;
+        p.rocket = pool.splash[i]! > 0;
         p.x = pool.x[i]!;
         p.y = pool.y[i]!;
         p.vx = pool.vx[i]! * TICK_HZ;

@@ -17,5 +17,27 @@
       "radius": 6,
       "seconds": 3
     }
+  },
+  "bazookaTank": {
+    "name": "Bazooka Tank",
+    "maxHp": 600,
+    "radius": 0.7,
+    "moveSpeed": 2.2,
+    "weapon": {
+      "kind": "rocket",
+      "damage": 100,
+      "interval": 2,
+      "range": 6,
+      "projectileSpeed": 14,
+      "splashRadius": 1.5,
+      "vsStructuresPct": 100
+    },
+    "acquireRange": 8,
+    "leash": 6,
+    "callForHelp": {
+      "radius": 6,
+      "seconds": 3
+    },
+    "structureResistPct": 50
   }
 }

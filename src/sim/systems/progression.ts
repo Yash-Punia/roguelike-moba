@@ -76,8 +76,9 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
         }
         continue;
       }
-      // A minion: shared by presence.
+      // A minion: shared by presence, worth what its unit is worth.
       const team = ev.team;
+      const unit = ev.unit ?? 'mgSoldier';
       spatial.query(ev.x, ev.y, Math.max(p.shareRadius, p.ultCharge.minionRadius) + 1, nearby);
       sharers.length = 0;
       for (let k = 0; k < nearby.length; k++) {
@@ -87,9 +88,9 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
         const d = len(t.x - ev.x, t.y - ev.y);
         if (d <= p.shareRadius) sharers.push(o);
         // Ultimate charge: each champion near a dying minion, not split (GDD §8).
-        if (d <= p.ultCharge.minionRadius) addUltCharge(champions.get(o)!, ctx.stats.get(o), p.ultCharge.minion.mgSoldier);
+        if (d <= p.ultCharge.minionRadius) addUltCharge(champions.get(o)!, ctx.stats.get(o), p.ultCharge.minion[unit]);
       }
-      const xp = p.minionXp.mgSoldier;
+      const xp = p.minionXp[unit];
       for (let k = 0; k < sharers.length; k++) grantXp(ctx, p, sharers[k]!, xp / sharers.length);
     } else if (ev.type === 'structureDestroyed' && ev.kind === 'subBase') {
       for (let k = 0; k < champions.ids.length; k++) {

@@ -11,5 +11,6 @@
   ],
   "spawnGapSeconds": 0.6,
   "scalePctPerMinute": 25,
-  "shockTroopsMult": 3
+  "shockTroopsMult": 3,
+  "tankEveryNthWave": 2
 }

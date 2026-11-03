@@ -878,3 +878,23 @@ From TDD §13:
 - Decision: `structures.rules.hqHpCutEnabled` (default `false`) switches the D-051 HQ max HP cut on or off; `hqHpPerSubBaseLostPct` keeps the size (25). It is a checkbox in the debug panel under structures.json, and a live change re-cuts the HQ at once, keeping its HP fraction.
 - Why: the user wants to playtest without the cut first.
 - Measured (all-bot 3v3, seeds 1–10): cut off, median 4:55, range 3:04–7:04; cut on, median 4:31, range 3:03–7:03. Shock Troops do most of the work, so the 6-minute guard test still passes with the cut off. The cut tests turn it on explicitly.
+
+## D-053 — Bazooka Tank and wave composition
+- Date: 2026-11-04
+- Source: user choice (a tank every second wave, from the start); the rest made during development
+- Decision:
+  - **Cadence:** `waves.tankEveryNthWave` 2. Counted from 1, so the opening wave is soldiers only and waves 2, 4, 6 … bring a tank. The GDD's "every third, every second from 5:00" doesn't fit 15 s waves and 5-minute matches. Schema default 0 (no tanks), so test fixtures that set their own waves are unchanged.
+  - **Single file:** the tank is the last slot of its lane's wave and leaves the cave `spawnGapSeconds` after the last soldier, so it marches behind them. The match loop counts slots, not soldiers. The debug wave puts the tank in the middle of the soldier row.
+  - **Numbers** (`data/units.json`): GDD §5 (100-damage rocket every 2 s, 6 m range, 1.5 m splash, 2.2 m/s, 80 XP, +8% charge), except **600 HP instead of 1,100** (pacing, below). Rockets fly at 14 m/s. `minionXp` and `ultCharge.minion` gain a `bazookaTank` entry. Death events now carry the minion's `unit`, since the entity is gone by the time progression reads them.
+  - **Rocket:** weapon kind `rocket` with `splashRadius`, fired down the bullet path. The projectile pool stores the splash radius and the structure multiplier at fire time, because the tank may be dead when its rocket lands. On impact, every other living enemy whose collider is within the splash takes the same hit, in ascending id order from the spatial query. Allies are never hit.
+  - **Structure bonuses:**
+    - +100% vs structures (`weapon.vsStructuresPct`) rides on the hit's existing `structureMult`, which until now carried only the fire pool's 50%. Minions have no Stats, so the stat route doesn't apply.
+    - 50% less damage from structures (`structureResistPct` on the unit) is applied in the damage pipeline's structure step whenever the source is a structure.
+  - **Render:** primitive model per UN-01, baked to a hull plus a turret that tracks targets; the gunner's helmet flies off on a knock-out. No marching bob. Rockets draw as fat, low tracers. No impact puff: the current explosion effect costs about 6 draw calls per blast, with the budget already near 117 of 120 (D-048). Impact puffs come with the M5 particle pool.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, HQ cut off):
+    - no tanks: median about 5:09;
+    - GDD tank (1,100 HP): median about 5:46, range 3:49–9:20. Matches got longer: each side's tank holds its lane and wipes the other side's soldiers with splash, so lane clashes stay even.
+    - tank damage 50: median about 4:30;
+    - **tank 600 HP: median about 5:05, range 3:17–9:12 (shipped).** This keeps the GDD siege damage and the old pace. The seed 1 guard ends at 5:58.
+- Why: the Bazooka Tank is the next M3 row (D-046). It gives waves a siege unit that champions have to deal with.
+- Alternatives: the GDD cadence (median about 4:53 over 10 seeds; declined, the user chose every second wave); halving tank damage (shorter, but weaker sieges); an explosion puff per rocket (draw-call budget).

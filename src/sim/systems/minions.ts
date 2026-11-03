@@ -50,6 +50,7 @@ export interface MinionBundle {
   targeting: Targeting;
   agent: LaneAgent;
 }
+type UnitId = keyof Config['units'];
 const nearby: Entity[] = [];
 const dead: Entity[] = [];
 
@@ -86,14 +87,24 @@ export function distToLane(pts: Float64Array, x: number, y: number): number {
 /** Soldiers spawn with `scalePctPerMinute` more HP and damage per minute of match time (GDD §5; D-051). */
 export const waveScale = (cfg: Config, tick: number) => 1 + (cfg.waves.scalePctPerMinute * tick) / (60 * TICK_HZ);
 
+/** Every `tankEveryNthWave`th wave (counting from 1, so the opener is soldiers only) brings a Bazooka Tank (D-053). */
+export const tankWave = (w: Config['waves'], wave: number) => w.tankEveryNthWave > 0 && (wave + 1) % w.tankEveryNthWave === 0;
+
+/** Units in one lane's wave: the soldiers, then a tank on tank waves. */
+export const waveLength = (w: Config['waves'], wave: number) => w.soldiers + (tankWave(w, wave) ? 1 : 0);
+
+/** The unit at place `slot` in a wave's line: soldiers first, the tank last, so it marches behind them. */
+const waveUnit = (w: Config['waves'], slot: number): UnitId => (slot < w.soldiers ? 'mgSoldier' : 'bazookaTank');
+
 /**
- * One soldier per configured lane for both teams, at each lane's start: the cave mouth behind
- * the HQ (D-051). A match wave calls this `soldiers` times, `spawnGapSeconds` apart, so the wave
- * leaves the cave single file and marches as a line, like LoL's minions.
+ * Unit `slot` of wave `wave` per configured lane for both teams, at each lane's start: the cave
+ * mouth behind the HQ (D-051). A match wave calls this for each slot, `spawnGapSeconds` apart, so
+ * the wave leaves the cave single file and marches as a line, like LoL's minions.
  */
-export function spawnFromCaves(ctx: MinionContext, cfg: Config, wave: number, tick: number) {
+export function spawnFromCaves(ctx: MinionContext, cfg: Config, wave: number, tick: number, slot: number) {
+  if (slot >= waveLength(cfg.waves, wave)) return;
   const lanes = ctx.lanes();
-  const def = cfg.units.mgSoldier;
+  const unit = waveUnit(cfg.waves, slot);
   const scale = waveScale(cfg, tick);
   for (const laneId of cfg.waves.lanes) {
     const lane = lanes.findIndex((l) => l.id === laneId);
@@ -103,16 +114,16 @@ export function spawnFromCaves(ctx: MinionContext, cfg: Config, wave: number, ti
     for (const team of [Team.Blue, Team.Red]) {
       waypoint(pts, team, 0, wa);
       const shock = ctx.laneBroken(team, laneId) ? cfg.waves.shockTroopsMult : 1;
-      spawnMinion(ctx, def, team, lane, branch, 0, wa.x, wa.y, scale * shock);
+      spawnMinion(ctx, cfg, unit, team, lane, branch, 0, wa.x, wa.y, scale * shock);
     }
   }
 }
 
-/** Spawns a whole wave at once on every configured lane for both teams: a row of soldiers at each lane's start (debug and tests). */
+/** Spawns a whole wave at once on every configured lane for both teams: a row of soldiers at each lane's start, and a tank in the middle on tank waves (debug and tests). */
 export function spawnWave(ctx: MinionContext, cfg: Config, wave: number, tick = 0) {
   const lanes = ctx.lanes();
-  const def = cfg.units.mgSoldier;
   const scale = waveScale(cfg, tick);
+  const tank = tankWave(cfg.waves, wave);
   for (const laneId of cfg.waves.lanes) {
     const lane = lanes.findIndex((l) => l.id === laneId);
     if (lane < 0) continue;
@@ -127,15 +138,17 @@ export function spawnWave(ctx: MinionContext, cfg: Config, wave: number, tick = 
       const py = side.y;
       for (let s = 0; s < cfg.waves.soldiers; s++) {
         const offset = (s - (cfg.waves.soldiers - 1) / 2) * cfg.waves.spacing;
-        spawnMinion(ctx, def, team, lane, branch, offset, sx + px * offset, sy + py * offset, scale);
+        spawnMinion(ctx, cfg, 'mgSoldier', team, lane, branch, offset, sx + px * offset, sy + py * offset, scale);
       }
+      if (tank) spawnMinion(ctx, cfg, 'bazookaTank', team, lane, branch, 0, sx, sy, scale);
     }
   }
   ctx.events.push({ type: 'waveSpawned', wave });
 }
 
-/** `scale` multiplies the soldier's HP and damage (wave scaling). */
-function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: number, branch: number, offset: number, x: number, y: number, scale: number) {
+/** `scale` multiplies the unit's HP and damage (wave scaling). */
+function spawnMinion(ctx: MinionContext, cfg: Config, unit: UnitId, team: Team, lane: number, branch: number, offset: number, x: number, y: number, scale: number) {
+  const def: MinionDef = cfg.units[unit];
   const e = ctx.world.create();
   const facing = team === Team.Blue ? Math.PI / 2 : -Math.PI / 2;
   const b: MinionBundle = ctx.pool.pop() ?? {
@@ -153,7 +166,7 @@ function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: numbe
   Object.assign(b.health, { hp: def.maxHp * scale, maxHp: def.maxHp * scale, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
   Object.assign(b.weapon, def.weapon, { damage: def.weapon.damage * scale, cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
   Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
-  Object.assign(b.agent, { unit: 'mgSoldier', lane, branch, waypoint: 1, offset, helpTarget: 0, helpTicks: 0 });
+  Object.assign(b.agent, { unit, lane, branch, waypoint: 1, offset, helpTarget: 0, helpTicks: 0 });
   ctx.transforms.add(e, b.transform);
   ctx.motions.add(e, b.motion);
   ctx.colliders.add(e, b.collider);
@@ -163,7 +176,7 @@ function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: numbe
   ctx.targetings.add(e, b.targeting);
   ctx.targetClasses.add(e, TargetClass.Minion);
   ctx.kinds.add(e, Kind.Minion);
-  ctx.models.add(e, 'mgSoldier');
+  ctx.models.add(e, unit);
   ctx.laneAgents.add(e, b.agent);
 }
 
@@ -357,7 +370,7 @@ export function callForHelpSystem(ctx: MinionContext, log: DamageLog, units: Con
     const team = teams.get(victim);
     if (team === undefined || teams.get(src) === team) continue;
     const vt = transforms.get(victim)!;
-    spatial.query(vt.x, vt.y, units.mgSoldier.callForHelp.radius, nearby);
+    spatial.query(vt.x, vt.y, Math.max(units.mgSoldier.callForHelp.radius, units.bazookaTank.callForHelp.radius), nearby);
     for (let n = 0; n < nearby.length; n++) {
       const o = nearby[n]!;
       const a = laneAgents.get(o);
@@ -429,7 +442,7 @@ export function minionDeathSystem(ctx: MinionContext) {
     const h = healths.get(e)!;
     if (h.hp > 0) continue;
     const t = transforms.get(e)!;
-    events.push({ type: 'death', id: e, team: ctx.teams.get(e)!, killer: h.killer, x: t.x, y: t.y });
+    events.push({ type: 'death', id: e, team: ctx.teams.get(e)!, killer: h.killer, x: t.x, y: t.y, unit: laneAgents.data[i]!.unit });
     dead.push(e);
   }
   for (const e of dead) {

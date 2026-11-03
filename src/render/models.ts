@@ -55,6 +55,7 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'beta') beta(root, team);
   else if (modelId === 'gamma') gamma(root, team);
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
+  else if (modelId === 'bazookaTank') bazookaTank(root, team);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
@@ -91,6 +92,7 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     mast: find(names.mast),
     shield: find(names.shield),
     traitRing: find(names.traitRing),
+    tracked: modelId === 'bazookaTank',
   } satisfies ModelParts);
   // Real shadows for champions and structures; soldiers get a cheap ground blob instead (D-044).
   const casts = kind !== Kind.Minion;
@@ -118,6 +120,8 @@ export interface ModelParts {
   mast?: THREE.Object3D;
   /** Translucent dome shown while the structure is invulnerable (HQ gate). */
   shield?: THREE.Object3D;
+  /** Rolls on treads: no marching bob. */
+  tracked?: boolean;
 }
 export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 
@@ -386,6 +390,51 @@ function mgSoldier(root: THREE.Object3D, team: Team) {
   partsOf(root).cap = helmet;
   part(helmet, new THREE.SphereGeometry(0.27, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), teamColour(team), 0, 0, 0);
   part(helmet, cyl(0.31, 0.31, 0.035, 12), teamShade(team), 0, 0.01, 0);
+}
+
+/**
+ * Bazooka Tank (UN-01): a stubby 1.5 m tracked runabout in olive, about the soldier's height.
+ * Dark treads with road wheels, a sloped hull with headlights and team stripes front and back,
+ * and a round turret (the `upper` part, so it tracks targets apart from the hull) carrying
+ * twin rocket tubes and a gunner in the hatch wearing the team helmet. About 900 tris.
+ */
+function bazookaTank(root: THREE.Object3D, team: Team) {
+  // Treads and road wheels.
+  for (const z of [-0.5, 0.5]) {
+    part(root, box(1.5, 0.34, 0.3), palette.gunmetal, 0, 0.2, z);
+    for (const x of [-0.5, -0.17, 0.17, 0.5]) {
+      const wheel = part(root, cyl(0.12, 0.12, 0.06, 8), palette.iron, x, 0.17, z * 1.33);
+      wheel.rotation.x = Math.PI / 2;
+    }
+  }
+  // Hull: a wide deck over the treads, a sloped glacis, headlights, team stripes front and back.
+  part(root, box(1.42, 0.24, 1.18), palette.olive, 0, 0.46, 0);
+  part(root, box(1.1, 0.16, 0.9), palette.olive, -0.06, 0.64, 0);
+  const glacis = part(root, box(0.3, 0.06, 0.9), palette.olive, 0.62, 0.6, 0);
+  glacis.rotation.z = -0.5;
+  for (const z of [-0.34, 0.34]) part(root, cyl(0.06, 0.06, 0.05, 8), palette.shearling, 0.72, 0.52, z).rotation.z = Math.PI / 2;
+  for (const x of [0.72, -0.72]) part(root, box(0.04, 0.07, 1.0), teamColour(team), x, 0.5, 0);
+  part(root, box(1.0, 0.03, 0.08), teamColour(team), -0.06, 0.73, 0.3);
+  part(root, box(1.0, 0.03, 0.08), teamColour(team), -0.06, 0.73, -0.3);
+  // Turret: ring, twin rocket tubes on the right, gunner in the hatch.
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+  part(upper, cyl(0.34, 0.38, 0.2, 10), palette.olive, -0.1, 0.82, 0);
+  for (const y of [0.98, 1.16]) {
+    const tube = part(upper, cyl(0.09, 0.09, 0.8, 8), palette.olive, 0.15, y, -0.22);
+    tube.rotation.z = Math.PI / 2;
+    const mouth = part(upper, cyl(0.065, 0.065, 0.02, 8), palette.gunmetal, 0.56, y, -0.22);
+    mouth.rotation.z = Math.PI / 2;
+  }
+  part(upper, box(0.2, 0.3, 0.12), palette.olive, -0.05, 1.05, -0.22);
+  part(upper, new THREE.IcosahedronGeometry(0.16, 1), palette.skin, -0.14, 1.03, 0.08);
+  const helmet = new THREE.Group();
+  helmet.position.set(-0.14, 1.08, 0.08);
+  upper.add(helmet);
+  partsOf(root).cap = helmet;
+  part(helmet, new THREE.SphereGeometry(0.19, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), teamColour(team), 0, 0, 0);
+  part(helmet, cyl(0.22, 0.22, 0.03, 12), teamShade(team), 0, 0.01, 0);
 }
 
 /** Until each champion gets its sheet model (Beta and Gamma: M3). */

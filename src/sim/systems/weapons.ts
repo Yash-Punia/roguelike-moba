@@ -164,7 +164,7 @@ function fire(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Conf
   const dy = sin(dir);
   const muzzle = ctx.colliders.get(e)?.radius ?? 0;
   const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
-  ctx.pool.spawn(e, ctx.teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, critMult, life, boost);
+  ctx.pool.spawn(e, ctx.teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, critMult, life, boost, w.splashRadius, 1 + w.vsStructuresPct);
   ctx.events.push({ type: 'shot', id: e, target });
 }
 

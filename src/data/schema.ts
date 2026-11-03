@@ -22,8 +22,8 @@ const Match = z.object({
 
 /** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */
 const Weapon = z.object({
-  /** `cone` (Gamma's flamethrower): no projectile, hits every enemy in a `coneAngle` sector out to `range`. */
-  kind: z.enum(['bullet', 'flak', 'cone']),
+  /** `cone` (Gamma's flamethrower): no projectile, hits every enemy in a `coneAngle` sector out to `range`. `rocket` (Bazooka Tank): a bullet that bursts for `splashRadius` where it hits. */
+  kind: z.enum(['bullet', 'flak', 'cone', 'rocket']),
   damage: positive(),
   interval: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
   range: positive(),
@@ -37,6 +37,10 @@ const Weapon = z.object({
   /** Bullets per trigger pull (Beta's Burst SMG fires 4), `burstGapSeconds` apart (TDD §6.3). */
   burstCount: z.number().int().min(1).default(1),
   burstGapSeconds: secs().refine((t) => t >= 1, 'burst gap must be at least one tick').default(1), // default is the output: 1 tick
+  /** A rocket also hits every other enemy whose collider is within this distance of the impact (m). */
+  splashRadius: z.number().nonnegative().default(0),
+  /** Extra damage to structures (GDD §5 Bazooka Tank +100%). */
+  vsStructuresPct: pct().default(0),
 });
 
 /** Auto-target classes in the order an Ultimate prefers them (GDD §6). */
@@ -223,8 +227,12 @@ const MinionDef = z.object({
   leash: positive(),
   /** An enemy champion hitting an allied champion within `radius` pulls these minions onto it for `seconds`. */
   callForHelp: z.object({ radius: positive(), seconds: secs() }),
+  /** Takes this much less damage from structures (GDD §5 Bazooka Tank 50%). */
+  structureResistPct: pct().default(0),
 });
-const Units = z.object({ mgSoldier: MinionDef });
+const Units = z.object({ mgSoldier: MinionDef, bazookaTank: MinionDef });
+/** Per lane minion type, valued in XP and Ultimate charge. */
+const perUnit = () => z.object({ mgSoldier: z.number().nonnegative(), bazookaTank: z.number().nonnegative() });
 
 /** XP and levels (GDD §8). */
 const Progression = z.object({
@@ -232,7 +240,7 @@ const Progression = z.object({
   xpPerLevel: z.array(positive()).min(1),
   /** A minion's XP is split between allied champions within this distance of where it fell. */
   shareRadius: positive(),
-  minionXp: z.object({ mgSoldier: z.number().nonnegative() }),
+  minionXp: perUnit(),
   /** Champion takedown: base + perVictimLevel × victim level, plus a bonus for the killer. */
   championKill: z.object({ base: z.number().nonnegative(), perVictimLevel: z.number().nonnegative(), killerBonus: z.number().nonnegative() }),
   /** Whole-team XP for destroying a structure. */
@@ -240,7 +248,7 @@ const Progression = z.object({
   /** Ultimate charge from kills, in points of the 0–100 meter (GDD §8). */
   ultCharge: z.object({
     /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
-    minion: z.object({ mgSoldier: z.number().nonnegative() }),
+    minion: perUnit(),
     minionRadius: positive(),
     /** The champion who lands a takedown (killer only until assists, D-024). */
     championTakedown: z.number().nonnegative(),
@@ -365,6 +373,8 @@ const Waves = z.object({
   scalePctPerMinute: pct(),
   /** Shock Troops, minimal (GDD §5; D-051): HP and damage multiplier for a team's soldiers in a lane whose enemy Sub-base has fallen. */
   shockTroopsMult: z.number().min(1),
+  /** Every Nth wave also brings a Bazooka Tank at the back of the line (GDD §5; D-053); 0 = none. */
+  tankEveryNthWave: z.number().int().min(0).default(0),
   /** Lane ids (from `map.lanes`) that get waves. */
   lanes: z.array(z.string()),
 });

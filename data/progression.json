@@ -27,7 +27,8 @@
   ],
   "shareRadius": 10,
   "minionXp": {
-    "mgSoldier": 30
+    "mgSoldier": 30,
+    "bazookaTank": 80
   },
   "championKill": {
     "base": 120,
@@ -39,7 +40,8 @@
   },
   "ultCharge": {
     "minion": {
-      "mgSoldier": 3
+      "mgSoldier": 3,
+      "bazookaTank": 8
     },
     "minionRadius": 10,
     "championTakedown": 25

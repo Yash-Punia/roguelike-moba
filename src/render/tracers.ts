@@ -15,6 +15,9 @@ const MINION_LIFT = 0.5;
 const STRUCTURE_SCALE = 1.3;
 const STRUCTURE_LIFT = 1.6;
 const BOOST_GROWTH = 0.6;
+/** Bazooka Tank rockets: fat and slow, from the launcher tubes. */
+const ROCKET_SCALE = 2;
+const ROCKET_LIFT = 0.75;
 
 /**
  * Bullet tracers (GDD §11, TDD §8): one instanced, flat, stretched quad per projectile in its
@@ -60,9 +63,9 @@ export class Tracers {
       this.vys[i] = p.vy / TICK_HZ;
       this.teams[i] = displayTeam(p.team, viewer);
       const structure = p.ownerKind === Kind.SubBase || p.ownerKind === Kind.HQ;
-      const base = p.ownerKind === Kind.Minion ? MINION_SCALE : structure ? STRUCTURE_SCALE : 1;
+      const base = p.rocket ? ROCKET_SCALE : p.ownerKind === Kind.Minion ? MINION_SCALE : structure ? STRUCTURE_SCALE : 1;
       this.sizes[i] = base * (1 + (p.boost - 1) * BOOST_GROWTH);
-      this.lifts[i] = p.ownerKind === Kind.Minion ? MINION_LIFT : structure ? STRUCTURE_LIFT : LIFT;
+      this.lifts[i] = p.rocket ? ROCKET_LIFT : p.ownerKind === Kind.Minion ? MINION_LIFT : structure ? STRUCTURE_LIFT : LIFT;
     }
     this.count = n;
   }

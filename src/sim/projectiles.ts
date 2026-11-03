@@ -28,6 +28,9 @@ export class ProjectilePool {
   critMult = new Float64Array(0);
   /** Damage multiplier the shooter added at fire time (structure warm-up), for render. */
   boost = new Float64Array(0);
+  /** Rockets: splash radius (0 = a plain bullet) and damage multiplier vs structures, both fixed at fire time (the shooter may be gone when it lands). */
+  splash = new Float64Array(0);
+  structureMult = new Float64Array(0);
   life = new Int32Array(0);
   private free: number[] = [];
   private nextId = 1;
@@ -36,7 +39,7 @@ export class ProjectilePool {
     this.grow(initial);
   }
 
-  spawn(owner: Entity, team: number, target: Entity, homing: boolean, x: number, y: number, vx: number, vy: number, damage: number, critMult: number, life: number, boost = 1): number {
+  spawn(owner: Entity, team: number, target: Entity, homing: boolean, x: number, y: number, vx: number, vy: number, damage: number, critMult: number, life: number, boost = 1, splash = 0, structureMult = 1): number {
     if (this.free.length === 0) this.grow(this.capacity * 2);
     const i = this.free.pop()!;
     this.active[i] = 1;
@@ -53,6 +56,8 @@ export class ProjectilePool {
     this.damage[i] = damage;
     this.critMult[i] = critMult;
     this.boost[i] = boost;
+    this.splash[i] = splash;
+    this.structureMult[i] = structureMult;
     this.life[i] = life;
     this.live++;
     return i;
@@ -86,6 +91,8 @@ export class ProjectilePool {
     this.damage = copy(this.damage, (n) => new Float64Array(n));
     this.critMult = copy(this.critMult, (n) => new Float64Array(n));
     this.boost = copy(this.boost, (n) => new Float64Array(n));
+    this.splash = copy(this.splash, (n) => new Float64Array(n));
+    this.structureMult = copy(this.structureMult, (n) => new Float64Array(n));
     this.life = copy(this.life, (n) => new Int32Array(n));
     // Push new slots highest first so the lowest index is handed out first.
     for (let i = size - 1; i >= old; i--) this.free.push(i);

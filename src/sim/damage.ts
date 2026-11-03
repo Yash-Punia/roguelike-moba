@@ -21,6 +21,8 @@ export interface DamageContext {
   structures: Store<Structure>;
   /** Aura multiplier on what `source` deals right now (Heat Wave ±20%); 1 outside any. */
   dealtMult(source: Entity): number;
+  /** Share of structure fire a unit shrugs off (Bazooka Tank 0.5); 0 for most. */
+  structureResist(target: Entity): number;
 }
 
 const eventPool: DamageEvent[] = [];
@@ -69,11 +71,13 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // 4. The target's modifiers.
     const ts = stats.get(target);
     if (ts) amount *= stat(ts, Stat.DamageTaken);
-    // Structure rules: the hit's own structure share (fire pool 50%), then backdoor protection;
-    // the Bazooka Tank's resistance to structure fire (M3) joins here.
+    // Structure rules: the hit's own structure share (fire pool 50%, Bazooka Tank rockets 200%),
+    // then backdoor protection; the other way round, the Bazooka Tank's resistance to structure fire.
     if (kind === Kind.SubBase || kind === Kind.HQ) {
       amount *= hits.structureMult[k]!;
       if (ctx.structures.get(target)?.backdoor) amount *= 1 - backdoorPct; // no enemy minion near (GDD §5)
+    } else if (ctx.structures.has(source)) {
+      amount *= 1 - ctx.structureResist(target);
     }
     if (amount < 0) amount = 0;
 

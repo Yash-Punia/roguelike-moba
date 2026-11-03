@@ -297,7 +297,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         blobs.setMatrixAt(blobCount++, blobMatrix);
       }
       // Minions march with a bouncy stride (UN-01).
-      if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0)) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
+      if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0) && !partsOf(mesh).tracked) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
       // Units turn their legs with the movement facing and the upper body with the aim;
       // structures stay put and turn only their guns.
       const aim = lerpAngle(s.pf, s.f, alpha);

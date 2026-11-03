@@ -26,8 +26,8 @@ export type SimEvent =
   | { type: 'channelEnd'; id: Entity }
   /** A grenade went off (for the flash, smoke and sound). */
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
-  /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick. */
-  | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number }
+  /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick, so they carry their `unit`. */
+  | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number; unit?: 'mgSoldier' | 'bazookaTank' }
   /** An HQ fell: the match is over and the sim stops advancing (TDD §6.12 `Ended`). */
   | { type: 'matchOver'; winner: number; tick: number }
   /** A draft offer was queued for a champion (power ids). */
