@@ -4,9 +4,21 @@ import { createSim, Team, type Command, type PlayerSetup } from '../src/sim/sim'
 import type { ObstacleGrid } from '../src/sim/grid';
 import openMap from './fixtures/map-open.json';
 
-/** Shipped config on a fixed open test map (36 × 110 m, all walkable), so tests don't move when the real map does. */
+/**
+ * Shipped config on a fixed open test map (36 × 110 m, all walkable), so tests don't move when
+ * the real map does. The level table, draft spacing and structure stats stay pinned to the
+ * values the tests were written against (D-051 retuned them for 5-minute matches): 12 levels
+ * with an offer every level, a 6000 HP Sub-base firing 200, a 10 000 HP HQ firing 300 that regenerates.
+ */
 export function fixtureConfig(): Config {
-  return parseConfig({ ...rawConfig, map: openMap as RawConfig['map'] });
+  const c = parseConfig({ ...rawConfig, map: openMap as RawConfig['map'] });
+  c.progression.xpPerLevel = [100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300];
+  c.powers.draft.levelsPerOffer = 1;
+  Object.assign(c.structures.subBase, { maxHp: 6000 });
+  Object.assign(c.structures.subBase.weapon, { damage: 200 });
+  Object.assign(c.structures.hq, { maxHp: 10000, regen: true });
+  Object.assign(c.structures.hq.weapon, { damage: 300 });
+  return c;
 }
 
 type Point = { x: number; y: number };
@@ -66,11 +78,11 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
   // Structure rules: warm-up as in the GDD; backdoor protection and regen off unless a test turns them on.
-  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12 };
+  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpPerSubBaseLostPct: 0 };
   // No draft offers unless a test restores the catalogue (`withPowers`), so level-ups in older tests change only stats.
   config.powers.powers = [];
   // Waves off unless a test turns them on; MG Soldier pinned to the GDD numbers.
-  config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
+  config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, spawnGapSeconds: 18, scalePctPerMinute: 0, shockTroopsMult: 1, lanes: ['centre'] };
   config.units.mgSoldier = {
     name: 'MG Soldier', maxHp: 300, radius: 0.35, moveSpeed: 2.6,
     weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, coneAngle: 0, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1 },

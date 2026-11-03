@@ -129,6 +129,7 @@ export function draftSystem(ctx: DraftContext, p: Powers, events: readonly SimEv
   for (let k = 0; k < end; k++) {
     const ev = events[k]!;
     if (ev.type !== 'levelUp') continue;
+    if ((ev.level - 1) % p.draft.levelsPerOffer !== 0) continue; // an offer every few levels (D-051)
     const c = champions.get(ev.id);
     if (!c) continue;
     if (c.draftQueue.length > p.draft.maxQueued) resolveFront(ctx, p, ev.id, recommended(p, c, c.draftQueue[0]!.cards), true);

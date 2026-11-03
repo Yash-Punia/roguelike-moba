@@ -5,7 +5,7 @@ import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBars, type HpBar } from './hp-bars';
-import { createModel, createSpawnPad, partsOf } from './models';
+import { createCave, createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
 import { bake } from './bake';
 import { Knockouts } from './knockout';
@@ -388,6 +388,14 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     const pad = createSpawnPad(side(team));
     pad.position.set(at.x, terrain.heightAt(at.x, at.y), -at.y);
     group.add(pad);
+  }
+  // Wave caves behind the HQs (D-051), mouths facing their HQ.
+  for (const c of map.caves) {
+    const team = c.team === 'blue' ? Team.Blue : Team.Red;
+    const cave = createCave(side(team));
+    cave.position.set(c.x, terrain.heightAt(c.x, c.y), -c.y);
+    cave.rotation.y = team === Team.Blue ? 0 : Math.PI;
+    group.add(cave);
   }
 
   // Sandbag blocks, baked into one mesh (D-044).

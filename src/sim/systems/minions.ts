@@ -1,4 +1,4 @@
-import type { Config, MinionDef } from '../../data/schema';
+import { TICK_HZ, type Config, type MinionDef } from '../../data/schema';
 import type { LanePath } from '../../data/map-geometry';
 import { segmentDistSq } from '../../data/map-geometry';
 import { isInvulnerable } from '../damage';
@@ -36,6 +36,8 @@ export interface MinionContext {
   /** Structures (ascending ids), and the radius to steer around each one's footprint. */
   structureIds: () => readonly Entity[];
   footprintRadius: (e: Entity) => number;
+  /** True once the enemy Sub-base in this lane has fallen: this team's waves there are Shock Troops (GDD §5; D-051). */
+  laneBroken: (team: Team, laneId: string) => boolean;
 }
 
 /** Component objects of a removed minion, reused by the next spawn (no per-wave allocation). */
@@ -81,10 +83,36 @@ export function distToLane(pts: Float64Array, x: number, y: number): number {
   return Math.sqrt(best);
 }
 
-/** Spawns one wave on every configured lane for both teams (GDD §5): a row of soldiers at each lane's start. */
-export function spawnWave(ctx: MinionContext, cfg: Config, wave: number) {
+/** Soldiers spawn with `scalePctPerMinute` more HP and damage per minute of match time (GDD §5; D-051). */
+export const waveScale = (cfg: Config, tick: number) => 1 + (cfg.waves.scalePctPerMinute * tick) / (60 * TICK_HZ);
+
+/**
+ * One soldier per configured lane for both teams, at each lane's start: the cave mouth behind
+ * the HQ (D-051). A match wave calls this `soldiers` times, `spawnGapSeconds` apart, so the wave
+ * leaves the cave single file and marches as a line, like LoL's minions.
+ */
+export function spawnFromCaves(ctx: MinionContext, cfg: Config, wave: number, tick: number) {
   const lanes = ctx.lanes();
   const def = cfg.units.mgSoldier;
+  const scale = waveScale(cfg, tick);
+  for (const laneId of cfg.waves.lanes) {
+    const lane = lanes.findIndex((l) => l.id === laneId);
+    if (lane < 0) continue;
+    const branch = wave % lanes[lane]!.branches.length;
+    const pts = lanes[lane]!.branches[branch]!;
+    for (const team of [Team.Blue, Team.Red]) {
+      waypoint(pts, team, 0, wa);
+      const shock = ctx.laneBroken(team, laneId) ? cfg.waves.shockTroopsMult : 1;
+      spawnMinion(ctx, def, team, lane, branch, 0, wa.x, wa.y, scale * shock);
+    }
+  }
+}
+
+/** Spawns a whole wave at once on every configured lane for both teams: a row of soldiers at each lane's start (debug and tests). */
+export function spawnWave(ctx: MinionContext, cfg: Config, wave: number, tick = 0) {
+  const lanes = ctx.lanes();
+  const def = cfg.units.mgSoldier;
+  const scale = waveScale(cfg, tick);
   for (const laneId of cfg.waves.lanes) {
     const lane = lanes.findIndex((l) => l.id === laneId);
     if (lane < 0) continue;
@@ -99,14 +127,15 @@ export function spawnWave(ctx: MinionContext, cfg: Config, wave: number) {
       const py = side.y;
       for (let s = 0; s < cfg.waves.soldiers; s++) {
         const offset = (s - (cfg.waves.soldiers - 1) / 2) * cfg.waves.spacing;
-        spawnMinion(ctx, def, team, lane, branch, offset, sx + px * offset, sy + py * offset);
+        spawnMinion(ctx, def, team, lane, branch, offset, sx + px * offset, sy + py * offset, scale);
       }
     }
   }
   ctx.events.push({ type: 'waveSpawned', wave });
 }
 
-function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: number, branch: number, offset: number, x: number, y: number) {
+/** `scale` multiplies the soldier's HP and damage (wave scaling). */
+function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: number, branch: number, offset: number, x: number, y: number, scale: number) {
   const e = ctx.world.create();
   const facing = team === Team.Blue ? Math.PI / 2 : -Math.PI / 2;
   const b: MinionBundle = ctx.pool.pop() ?? {
@@ -121,8 +150,8 @@ function spawnMinion(ctx: MinionContext, def: MinionDef, team: Team, lane: numbe
   Object.assign(b.transform, { x, y, facing });
   Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
   b.collider.radius = def.radius;
-  Object.assign(b.health, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
+  Object.assign(b.health, { hp: def.maxHp * scale, maxHp: def.maxHp * scale, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
+  Object.assign(b.weapon, def.weapon, { damage: def.weapon.damage * scale, cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
   Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
   Object.assign(b.agent, { unit: 'mgSoldier', lane, branch, waypoint: 1, offset, helpTarget: 0, helpTicks: 0 });
   ctx.transforms.add(e, b.transform);

@@ -254,7 +254,11 @@ export function createBot(
       let aim: { x: number; y: number } | undefined;
       if (mode === 'retreat') {
         const pad = team === Team.Blue ? cfg.map.spawn.blue : cfg.map.spawn.red;
-        aim = read.fMe > LOOKAHEAD ? track!.pointAt(fromForward(read.fMe - LOOKAHEAD), p) : pad;
+        // Follow the lane home until level with the pad, then walk onto it. The track starts at
+        // the cave behind the HQ (D-051), so following it to its start would end behind the bunker.
+        const along = track!.project(pad.x, pad.y);
+        const fPad = team === Team.Blue ? along : track!.length - along;
+        aim = read.fMe > fPad + LOOKAHEAD ? track!.pointAt(fromForward(read.fMe - LOOKAHEAD), p) : pad;
         if (len(pad.x - me.x, pad.y - me.y) < 0.6) aim = undefined; // on the pad: heal
       } else if ((mode === 'trade' || mode === 'allin') && enemy && enemy.hp > 0) {
         const dx = me.x - enemy.x;

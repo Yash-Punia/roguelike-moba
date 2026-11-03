@@ -18,6 +18,8 @@ export interface StructureContext {
   kinds: Store<Kind>;
   spatial: SpatialIndex;
   events: SimEvent[];
+  /** Current structure config (live edits included). */
+  defs(): Config['structures'];
 }
 
 type Rules = Config['structures']['rules'];
@@ -176,7 +178,12 @@ export function structureDeathSystem(ctx: StructureContext) {
   }
 }
 
-/** The HQ gate (GDD §5): an HQ is invulnerable while every Sub-base of its team stands (a team with none has no gate). */
+/**
+ * The HQ gate (GDD §5): an HQ is invulnerable while every Sub-base of its team stands (a team
+ * with none has no gate). Its max HP also drops by `hqHpPerSubBaseLostPct` of its base for every
+ * Sub-base its team has lost (D-051), keeping its HP fraction, so taking Sub-bases shortens the
+ * siege and losing them costs more.
+ */
 export function updateHqGate(ctx: StructureContext) {
   const { structures, healths, teams } = ctx;
   for (let i = 0; i < structures.ids.length; i++) {
@@ -191,7 +198,14 @@ export function updateHqGate(ctx: StructureContext) {
       if (sb.destroyed) fallen++;
       else standing++;
     }
-    healths.get(hq)!.invulnerable = standing > 0 && fallen === 0;
+    const h = healths.get(hq)!;
+    h.invulnerable = standing > 0 && fallen === 0;
+    const defs = ctx.defs();
+    const maxHp = Math.max(1, defs.hq.maxHp * (1 - defs.rules.hqHpPerSubBaseLostPct * fallen));
+    if (maxHp !== h.maxHp && h.maxHp > 0) {
+      h.hp *= maxHp / h.maxHp;
+      h.maxHp = maxHp;
+    }
   }
 }
 

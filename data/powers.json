@@ -3,6 +3,7 @@
     "cards": 3,
     "autoPickSeconds": 10,
     "maxQueued": 2,
+    "levelsPerOffer": 2,
     "stackCaps": { "common": 3, "rare": 2, "epic": 1 }
   },
   "powers": [

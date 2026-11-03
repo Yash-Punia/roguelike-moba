@@ -19,7 +19,7 @@ import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './s
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
-  callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnWave, waveDue, type MinionContext,
+  callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnFromCaves, spawnWave, waveDue, type MinionContext,
 } from './systems/minions';
 import { buildLanes, type LanePath } from '../data/map-geometry';
 import {
@@ -344,6 +344,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   let lanes: LanePath[] = buildLanes(config.map);
   /** Waves spawned so far, scheduled or debug: wave n takes branch n mod branches (D-035). */
   let waveCount = 0;
+  /** The current wave's soldiers still in the cave (D-051), and the tick the next one steps out. */
+  let waveQueued = 0;
+  let nextSoldierTick = 0;
   const { bounds } = config.map;
   const spatial = new SpatialIndex(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
   const rng: Streams = createStreams(seed);
@@ -467,6 +470,13 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events,
     lanes: () => lanes,
     grid: () => grid,
+    laneBroken: (team, laneId) => {
+      for (let i = 0; i < structures.ids.length; i++) {
+        const st = structures.data[i]!;
+        if (st.kind === 'subBase' && st.lane === laneId && st.destroyed && teams.get(structures.ids[i]!) !== team) return true;
+      }
+      return false;
+    },
     pool: [],
     structureIds: () => structures.ids,
     footprintRadius: (e) => {
@@ -485,7 +495,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, dealtMult: (s) => heatWaveMult(ultimateContext, s) };
-  const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events };
+  const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, defs: () => config.structures };
   updateHqGate(structureContext);
 
   const targetingContext: TargetingContext = {
@@ -535,7 +545,16 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         m.intentY = c.moveY / 127;
         if (c.ult) champions.get(e!)!.castQueued = true;
       }
-      if (waveDue(config.waves, tick)) spawnWave(minionContext, config, waveCount++);
+      if (waveDue(config.waves, tick)) {
+        events.push({ type: 'waveSpawned', wave: waveCount++ });
+        waveQueued = config.waves.soldiers;
+        nextSoldierTick = tick;
+      }
+      if (waveQueued > 0 && tick >= nextSoldierTick) {
+        spawnFromCaves(minionContext, config, waveCount - 1, tick);
+        waveQueued--;
+        nextSoldierTick += config.waves.spawnGapSeconds;
+      }
       spatial.rebuild(healths.ids, transforms);
       minionSystem(minionContext, config.units, tick);
       movementSystem(motions, transforms, colliders, healths, grid, config.map.bounds, 1 / TICK_HZ);
@@ -712,6 +731,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         setMaxHp(healths.get(e)!, def.maxHp);
         Object.assign(weapons.get(e)!, def.weapon);
       }
+      updateHqGate(structureContext); // re-cut HQ max HP for fallen Sub-bases (D-051)
       for (let i = 0; i < laneAgents.ids.length; i++) {
         const e = laneAgents.ids[i]!;
         const def = next.units[laneAgents.data[i]!.unit];
@@ -778,7 +798,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       },
       /** Spawns the next wave now on every wave lane. */
       spawnWave() {
-        spawnWave(minionContext, config, waveCount++);
+        spawnWave(minionContext, config, waveCount++, tick);
       },
       /** A lethal hit through the normal damage pipeline (a lethal save still applies). */
       kill(e: Entity) {

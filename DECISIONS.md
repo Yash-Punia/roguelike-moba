@@ -831,3 +831,44 @@ From TDD §13:
   - Heat Wave as a zone in the zone pool (it would need an attach-to-owner field and still a damage hook);
   - aura buffs as stat multipliers (minions have no Stats);
   - burn through the full pipeline (it would scale with Gamma's level and his own +20%).
+
+## D-051 — Pacing pass: matches by about 5 minutes; waves from caves behind the HQs
+- Date: 2026-11-03
+- Source: user feedback (3v3 matches run too long, aim for about 5 minutes; level cap 25 and HQ max HP −25% per lost Sub-base proposed by the user; waves spawning in your face at the HQ, so add a cave behind each HQ with single-file waves like LoL). User choices: no hard end (no base burning or score at 5:00), level cap reached around 4:30, waves stay 5 every 15 s. The rest made during development.
+- Decision:
+  - **Baseline** (all-bot 3v3, seeds 1–3, headless in the dev page): no match ended within 20 minutes. One or two Sub-bases fell per match, every champion sat at level 12 from minutes 5–8, and the HQs were never even scratched.
+    - Why: HQ flak (300 damage to 2 targets per second) killed every soldier in one hit and outranged the champions. Bots never sieged without soldiers to soak the shots, and the HQ regenerated 100 HP/s whenever clear.
+    - Each side's fresh waves met the other's mid-lane and traded evenly, so even a team that had taken a Sub-base never reached the HQ.
+    - Halving structure HP alone changed almost nothing.
+  - **What shipped:**
+    - **Level cap 25** (`xpPerLevel` 60, 66 … 198): the leading champion reaches 25 at about 4:00–4:30. Growth stays +5% HP and +4% damage per level.
+    - **Draft offers every second level** (`draft.levelsPerOffer` 2: levels 3, 5 … 25), so a match still offers about a dozen cards.
+    - **HQ max HP −25% of base per lost Sub-base** (`hqHpPerSubBaseLostPct`), keeping its HP fraction. With all three lost, an HQ has 25% of its HP. It is recomputed with the HQ gate, and on live config edits.
+    - **Waves grow +25% HP and damage per minute** at spawn (`scalePctPerMinute`; the GDD's +6%/min, raised for 5-minute matches).
+    - **Shock Troops, minimal:** once a team's enemy Sub-base in a lane falls, that team's soldiers in the lane spawn with ×3 HP and damage (`shockTroopsMult`). This is the asymmetry that breaks the even mid-lane trades. The Shock Troops unit and model stay on their M3 row.
+    - **Lighter structures:** Sub-base 3,500 HP firing 120; HQ 6,000 HP with flak 150 and no regen.
+  - **Measured** (all-bot, headless, seeds 1–10 for 3v3, 1–4 for 2v2 and 5v5):
+    - 3v3: median 4:43; 8 of 10 seeds end by 5:56, the slowest 7:03 (its first Sub-base fell at 5:12);
+    - 2v2: median 5:32, all by 6:07;
+    - 5v5: median 4:55, all by 5:21.
+    - Bots are a cautious proxy: they only siege with soldiers soaking tower fire. A human who commits to a push should end it sooner.
+    - A regression test guards that seed 1 3v3 ends inside 6 minutes.
+  - **Levers tried and their effect** (3v3, a few seeds each):
+    - half structure HP: no match ended within 15 minutes;
+    - level cap 25 alone: all 3 Sub-bases of a side by about 5:40, but no HQ;
+    - adding no HQ regen and flak 150: seeds from 4:40 to past 12 minutes;
+    - adding waves +25–40%/min: still past 10 minutes in some seeds (both sides scale alike);
+    - adding a respawn cap of 30 s: little change;
+    - adding Shock Troops: every seed ended, median 5:50;
+    - adding Sub-base guns at 120 and a 6,000 HP HQ: median 4:43 (shipped).
+  - **Caves:**
+    - each lane's route now starts at a cave mouth behind its team's HQ, at (0, ∓80);
+    - 4 m dirt paths skirt the bunker: the left lane round its left side, the centre and right lanes round its right (`blue-cave-*`, `red-cave-*` in `map-3lane.json`);
+    - `map.caves` places the render model: a rock mound on the back edge with a timber-framed dark mouth, sandbags and a team sign.
+    - A wave now leaves the cave **single file**: one soldier per lane every 0.6 s (`spawnGapSeconds`), with no sideways offset, so they march as a line. The debug wave still spawns a whole row at once.
+  - **Bot fix:** a retreating bot followed its lane track to the track's start, which is now the cave, then got stuck behind the HQ, off the healing pad, and stayed in retreat for good. It now leaves the track once level with its pad.
+  - **Tests:** the open-map fixture pins the old level table, draft spacing and structure stats, so the combat tests keep their numbers. New tests cover the HQ cut, Shock Troops, the cave routes, draft spacing, single-file spawning, wave scaling and the match-length guard. One cave path at 3.5 m left an inverted 1.4e-6 m² terrain sliver, so the paths are 4 m.
+- Why: shorter matches were the user's top playtest complaint; the cave stops waves spawning on top of attackers at the HQ.
+- Alternatives (offered, declined for now):
+  - a hard end at 5:00: base burning from 4:00, or a score at 5:00;
+  - also not taken: longer late respawns (measured little effect), and more structure HP cuts alone (no effect without Shock Troops).

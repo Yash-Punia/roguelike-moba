@@ -473,6 +473,34 @@ function commandBunker(root: THREE.Object3D, team: Team) {
 }
 
 /** Spawn pad (ST-01): 4.6 m concrete disc with a team-colour ring and yellow hazard markers. Static map dressing. */
+const CAVE_DARK = 0x1b1a17;
+
+/**
+ * The wave cave behind an HQ (D-051): a rock mound against the map's back edge with a
+ * timber-framed dark mouth, sandbags either side and a team-coloured sign over the lintel. The
+ * mouth faces local −z (towards the HQ once placed); waves walk out of it single file.
+ */
+export function createCave(team: Team): THREE.Object3D {
+  const root = new THREE.Group();
+  // Rock mound, stepped back and up.
+  part(root, box(10, 3.2, 3.2), palette.jungle, 0, 1.6, 1.4);
+  part(root, box(7, 1.6, 2.6), palette.mud, 0, 3.9, 1.8);
+  for (const x of [-5.6, 5.6]) part(root, box(2.4, 2.2, 2.6), palette.jungle, x, 1.1, 1.6);
+  // Dark mouth with a timber frame.
+  part(root, box(3.4, 2.5, 0.6), CAVE_DARK, 0, 1.25, -0.05);
+  for (const x of [-1.85, 1.85]) part(root, box(0.3, 2.8, 0.3), palette.wood, x, 1.4, -0.3);
+  part(root, box(4.2, 0.35, 0.4), palette.wood, 0, 2.95, -0.3);
+  part(root, box(2.4, 0.45, 0.1), teamColour(team), 0, 3.45, -0.5);
+  // Sandbags flanking the entrance.
+  for (const x of [-3, 3]) {
+    part(root, box(1.6, 0.5, 0.8), palette.sandbag, x, 0.25, -0.6);
+    part(root, box(1.2, 0.45, 0.7), palette.sandbagShadow, x, 0.7, -0.6);
+  }
+  bake(root, [root]);
+  root.traverse((o) => (o.castShadow = o.receiveShadow = true));
+  return root;
+}
+
 export function createSpawnPad(team: Team): THREE.Object3D {
   const root = new THREE.Group();
   part(root, cyl(2.3, 2.3, 0.08, 24), palette.concrete, 0, 0.04, 0);

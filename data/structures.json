@@ -1,7 +1,7 @@
 {
   "subBase": {
     "name": "Pillbox",
-    "maxHp": 6000,
+    "maxHp": 3500,
     "radius": 1.45,
     "footprint": {
       "shape": "circle",
@@ -9,7 +9,7 @@
     },
     "weapon": {
       "kind": "bullet",
-      "damage": 200,
+      "damage": 120,
       "interval": 1,
       "range": 8,
       "projectileSpeed": 30
@@ -18,7 +18,7 @@
   },
   "hq": {
     "name": "Command Bunker",
-    "maxHp": 10000,
+    "maxHp": 6000,
     "radius": 2.3,
     "footprint": {
       "shape": "rect",
@@ -27,13 +27,13 @@
     },
     "weapon": {
       "kind": "flak",
-      "damage": 300,
+      "damage": 150,
       "interval": 1,
       "range": 9,
       "projectileSpeed": 30,
       "targets": 2
     },
-    "regen": true
+    "regen": false
   },
   "rules": {
     "warmupPct": 25,
@@ -42,6 +42,7 @@
     "backdoorRadius": 10,
     "backdoorPct": 50,
     "regenPctPerSecond": 1,
-    "regenClearRadius": 12
+    "regenClearRadius": 12,
+    "hqHpPerSubBaseLostPct": 25
   }
 }

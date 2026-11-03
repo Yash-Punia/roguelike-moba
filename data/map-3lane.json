@@ -203,6 +203,30 @@
     },
     { "id": "crater", "shape": "circle", "surface": "crater", "x": 0, "y": 0, "r": 9, "height": -0.55, "centreHeight": -0.9 },
     {
+      "id": "blue-cave-left", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": 0, "y": -80 }, { "x": -5.5, "y": -77 }, { "x": -6.5, "y": -71 }, { "x": -6, "y": -66 }]
+    },
+    {
+      "id": "blue-cave-centre", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": 0, "y": -80 }, { "x": 5.5, "y": -77 }, { "x": 5.5, "y": -70 }, { "x": 0, "y": -67 }]
+    },
+    {
+      "id": "blue-cave-right", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": 0, "y": -80 }, { "x": 5.5, "y": -77 }, { "x": 6.5, "y": -71 }, { "x": 7, "y": -66 }]
+    },
+    {
+      "id": "red-cave-left", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": -7, "y": 66 }, { "x": -6.5, "y": 71 }, { "x": -5.5, "y": 77 }, { "x": 0, "y": 80 }]
+    },
+    {
+      "id": "red-cave-centre", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": 0, "y": 67 }, { "x": -5.5, "y": 70 }, { "x": -5.5, "y": 77 }, { "x": 0, "y": 80 }]
+    },
+    {
+      "id": "red-cave-right", "shape": "path", "surface": "dirt", "width": 4,
+      "points": [{ "x": 6, "y": 66 }, { "x": 6.5, "y": 71 }, { "x": 5.5, "y": 77 }, { "x": 0, "y": 80 }]
+    },
+    {
       "id": "centre-blue", "shape": "path", "surface": "dirt", "width": 8,
       "points": [
         { "x": 0, "y": -67 }, { "x": 3, "y": -56 }, { "x": -2, "y": -46 },
@@ -253,10 +277,11 @@
       ]
     }
   ],
+  "caves": [{ "team": "blue", "x": 0, "y": -81 }, { "team": "red", "x": 0, "y": 81 }],
   "obstacles": [],
   "lanes": [
-    { "id": "left", "route": [["left"]] },
-    { "id": "centre", "route": [["centre-blue"], ["centre-west", "centre-east"], ["centre-red"]] },
-    { "id": "right", "route": [["right"]] }
+    { "id": "left", "route": [["blue-cave-left"], ["left"], ["red-cave-left"]] },
+    { "id": "centre", "route": [["blue-cave-centre"], ["centre-blue"], ["centre-west", "centre-east"], ["centre-red"], ["red-cave-centre"]] },
+    { "id": "right", "route": [["blue-cave-right"], ["right"], ["red-cave-right"]] }
   ]
 }

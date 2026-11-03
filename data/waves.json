@@ -8,5 +8,8 @@
     "left",
     "centre",
     "right"
-  ]
+  ],
+  "spawnGapSeconds": 0.6,
+  "scalePctPerMinute": 25,
+  "shockTroopsMult": 3
 }

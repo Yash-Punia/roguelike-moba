@@ -168,6 +168,8 @@ const MapConfig = z.object({
    * that can be taken there (two at a branch). Red walks the same routes reversed.
    */
   lanes: z.array(z.object({ id: z.string(), route: z.array(z.array(z.string()).min(1)).min(1) })).default([]),
+  /** Cave mouths behind each HQ that waves come out of (D-051; render only: lane routes start there). */
+  caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
   /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
   obstacles: z.array(
     z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
@@ -202,6 +204,8 @@ const StructureRules = z.object({
   regenPctPerSecond: pct(),
   /** Regen pauses while any enemy unit is this close. */
   regenClearRadius: positive(),
+  /** An HQ's max HP drops by this share of its base for every Sub-base its team has lost (D-051); its HP keeps its fraction. */
+  hqHpPerSubBaseLostPct: pct(),
 });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });
 
@@ -276,6 +280,8 @@ const Powers = z.object({
     autoPickSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
     /** Offers waiting behind the live one; one more auto-picks the oldest. */
     maxQueued: z.number().int().min(0),
+    /** An offer every this many levels gained (2 = levels 3, 5, 7 …) (D-051). */
+    levelsPerOffer: z.number().int().min(1).default(1),
     stackCaps: z.object({ common: z.number().int().min(1), rare: z.number().int().min(1), epic: z.number().int().min(1) }),
   }),
   powers: z.array(Power).min(1),
@@ -350,8 +356,14 @@ const Waves = z.object({
   firstSeconds: secs(),
   intervalSeconds: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
   soldiers: z.number().int().min(0),
-  /** Gap between soldiers in a wave's row (m). */
+  /** Gap between soldiers in a row spawned all at once (the debug wave and tests) (m). */
   spacing: z.number().nonnegative(),
+  /** A match wave leaves its cave single file, one soldier per lane this often (D-051). */
+  spawnGapSeconds: secs().refine((t) => t >= 1, 'gap must be at least one tick'),
+  /** Soldiers spawn with this much more HP and damage per minute of match time (GDD §5 +6%/min; D-051). */
+  scalePctPerMinute: pct(),
+  /** Shock Troops, minimal (GDD §5; D-051): HP and damage multiplier for a team's soldiers in a lane whose enemy Sub-base has fallen. */
+  shockTroopsMult: z.number().min(1),
   /** Lane ids (from `map.lanes`) that get waves. */
   lanes: z.array(z.string()),
 });

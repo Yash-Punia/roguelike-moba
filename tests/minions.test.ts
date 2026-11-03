@@ -38,24 +38,40 @@ function field(units: Unit[] = [], tweak?: Tweak) {
 }
 
 describe('waves (GDD §5, TDD §6.6)', () => {
-  it('spawn at 0:15, then every 25 s: 3 per team in a row at their end of the lane', () => {
+  it('spawn at 0:15, then every 25 s: 3 per team, single file from their end of the lane (D-051)', () => {
     const a = field([], (c) => (c.waves.enabled = true));
     a.park();
     a.run(450);
     expect(a.minions()).toHaveLength(0);
     a.run();
     expect(a.events.filter((e) => e.type === 'waveSpawned')).toHaveLength(1);
-    const blue = a.minions(Blue).map(a.pos);
-    const red = a.minions(Red).map(a.pos);
-    expect(blue).toHaveLength(3);
-    expect(red).toHaveLength(3);
-    for (const p of blue) expect(p.y).toBeCloseTo(-42 + 0.087, 1);
-    expect(blue.map((p) => Math.round(p.x * 10) / 10).sort((x, y) => x - y)).toEqual([-1.1, 0, 1.1]);
-    for (const p of red) expect(p.y).toBeCloseTo(42 - 0.087, 1);
-    a.run(749);
-    expect(a.minions()).toHaveLength(6);
+    // One soldier per team steps out at the lane's start, the next 18 ticks (0.6 s) later.
+    expect(a.minions(Blue).map(a.pos)).toHaveLength(1);
+    const first = a.pos(a.minions(Blue)[0]!);
+    expect(first.x).toBeCloseTo(0, 1);
+    expect(first.y).toBeCloseTo(-42 + 0.087, 1);
+    expect(a.pos(a.minions(Red)[0]!).y).toBeCloseTo(42 - 0.087, 1);
+    a.run(17);
+    expect(a.minions()).toHaveLength(2);
     a.run();
-    expect(a.minions()).toHaveLength(12);
+    expect(a.minions()).toHaveLength(4);
+    a.run(18);
+    expect(a.minions()).toHaveLength(6);
+    // They march in a line along the lane, one behind the other.
+    const blue = a.minions(Blue).map(a.pos);
+    for (const p of blue) expect(Math.abs(p.x)).toBeLessThan(0.3);
+    expect(blue.map((p) => p.y).sort((x, y) => y - x).every((y, i, ys) => i === 0 || ys[i - 1]! - y > 1)).toBe(true);
+    a.run(750 - 36);
+    expect(a.events.filter((e) => e.type === 'waveSpawned')).toHaveLength(2); // the next wave, 25 s after the first
+  });
+
+  it('grow +15% HP and damage per minute of match time at spawn (D-051)', () => {
+    const a = field([], (c) => Object.assign(c.waves, { enabled: true, firstSeconds: 1800, scalePctPerMinute: 0.15 }));
+    a.park();
+    a.run(1801);
+    const e = a.minions(Blue)[0]!;
+    expect(a.sim.stores.healths.get(e)!.maxHp).toBeCloseTo(300 * 1.15);
+    expect(a.sim.stores.weapons.get(e)!.damage).toBeCloseTo(8 * 1.15);
   });
 
   it('alternate branches by wave, the same branch for both teams', () => {
