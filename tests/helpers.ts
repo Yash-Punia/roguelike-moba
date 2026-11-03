@@ -73,7 +73,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.waves = { enabled: false, firstSeconds: 450, intervalSeconds: 750, soldiers: 3, spacing: 1.1, lanes: ['centre'] };
   config.units.mgSoldier = {
     name: 'MG Soldier', maxHp: 300, radius: 0.35, moveSpeed: 2.6,
-    weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1 },
+    weapon: { kind: 'bullet', damage: 8, interval: 10, range: 5, projectileSpeed: 25, coneAngle: 0, spread: 0, targets: 1, burstCount: 1, burstGapSeconds: 1 },
     acquireRange: 7, leash: 6, callForHelp: { radius: 6, seconds: 90 },
   };
   tweak?.(config);

@@ -1,5 +1,5 @@
 import type { Config } from '../data/schema';
-import type { Store } from './ecs';
+import type { Entity, Store } from './ecs';
 import { DamageLog, HitFlag } from './damage-log';
 import type { DamageEvent, SimEvent } from './events';
 import type { HitQueue } from './hits';
@@ -19,6 +19,8 @@ export interface DamageContext {
   kinds: Store<Kind>;
   events: SimEvent[];
   structures: Store<Structure>;
+  /** Aura multiplier on what `source` deals right now (Heat Wave ±20%); 1 outside any. */
+  dealtMult(source: Entity): number;
 }
 
 const eventPool: DamageEvent[] = [];
@@ -28,7 +30,8 @@ const eventPool: DamageEvent[] = [];
  * combine predictably:
  *
  * 1. base damage from the weapon or effect;
- * 2. attacker: damage stat, then the vs-champions or vs-structures stat by the target's kind;
+ * 2. attacker: damage stat, then the vs-champions or vs-structures stat by the target's kind,
+ *    then Heat Wave (skipped for exact hits: a burn of the target's max HP);
  * 3. crit multiplier carried by the hit;
  * 4. target: damage-taken stat, then structure rules (the hit's structure share, backdoor protection);
  * 5. shield absorbs first, then HP;
@@ -52,7 +55,9 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
 
     // 1–2. Base, then the attacker's modifiers, read now (a missing attacker counts as ×1).
     let amount = hits.base[k]!;
-    const as = stats.get(source);
+    const exact = hits.exact[k] === 1;
+    const as = exact ? undefined : stats.get(source);
+    if (!exact) amount *= ctx.dealtMult(source);
     if (as) {
       amount *= stat(as, Stat.Damage);
       if (kind === Kind.Champion) amount *= stat(as, Stat.DamageVsChampions);

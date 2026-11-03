@@ -308,8 +308,24 @@ export function createBot(
         cmd.moveY = quantise(dy);
       }
 
-      // Ultimate (TDD §7): on a champion when fighting or it is weak; on bunched minions when pushing.
-      if (me.ultCharge >= 100 && me.ultTargetable && me.ultTargetId !== 0 && mode !== 'retreat') {
+      // Ultimate (TDD §7): Heat Wave with 2+ allies and an enemy champion inside it, or when low
+      // in a fight (retreating included: it heals him); the others on a champion when fighting or
+      // it is weak, or on bunched minions when pushing.
+      const ult = cfg.champions.find((c) => c.id === me.modelId)?.ultimate;
+      if (ult?.id === 'heatWave') {
+        if (me.ultCharge >= 100 && me.aura === 0) {
+          let allies = 0;
+          let enemies = 0;
+          for (let i = 0; i < snap.entities.length; i++) {
+            const e = snap.entities[i]!;
+            if (e.id === me.id || e.hp <= 0 || (e.kind !== Kind.Champion && e.kind !== Kind.Minion)) continue;
+            if (len(e.x - me.x, e.y - me.y) > ult.radius) continue;
+            if (e.team === team) allies++;
+            else if (e.kind === Kind.Champion) enemies++;
+          }
+          cmd.ult = enemies >= 1 && (allies >= 2 || me.hp / me.maxHp < 0.4);
+        }
+      } else if (me.ultCharge >= 100 && me.ultTargetable && me.ultTargetId !== 0 && mode !== 'retreat') {
         const target = byId(snap, me.ultTargetId);
         if (target?.kind === Kind.Champion) cmd.ult = FIGHTING.has(mode) || target.hp / target.maxHp < 0.6 || state.confidence > 0.2;
         else if (target?.kind === Kind.Minion && (mode === 'push' || mode === 'siege' || mode === 'contest' || mode === 'defend')) {

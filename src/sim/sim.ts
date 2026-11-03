@@ -14,7 +14,7 @@ import { damageSystem, isInvulnerable, type DamageContext } from './damage';
 import { DamageLog } from './damage-log';
 import { LobPool } from './lobs';
 import { ZonePool } from './zones';
-import { traitSystem } from './systems/traits';
+import { traitSystem, type TraitContext } from './systems/traits';
 import { deathSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
@@ -26,7 +26,7 @@ import {
   backdoorSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, updateHqGate, warmupShot,
   type StructureContext,
 } from './systems/structures';
-import { leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
+import { heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
@@ -116,6 +116,8 @@ export interface Champion {
   channelTicks: number;
   /** Where the channel's strip points (radians, like `facing`). */
   channelAngle: number;
+  /** Ticks left on an aura Ultimate (Heat Wave); 0 when none. */
+  auraTicks: number;
   /** Ticks until redeploying; 0 while alive. */
   respawnTicks: number;
   /** Owned powers: stacks per power id (read through the catalogue's order, never iterated). */
@@ -156,6 +158,8 @@ export interface Weapon extends WeaponConfig {
   burstLeft: number;
   burstWait: number;
   burstTarget: Entity;
+  /** Tick of the last shot or flame (render shows Gamma's flames from it); −1 before the first. */
+  lastShotTick: number;
 }
 /** Auto-target state (TDD §6.2), filled by the targeting system. 0 = none. */
 export interface Targeting {
@@ -251,6 +255,9 @@ export interface EntitySnapshot {
   channelAngle: number;
   /** Moving slower from a slow (Lead Storm). */
   slowed: boolean;
+  /** Heat Wave ticks left (0 = none), and whether its weapon fired within its interval (Gamma's flames). */
+  aura: number;
+  firing: boolean;
 }
 
 /** A grenade in flight: thrown from (x0, y0), lands at (x1, y1) after `total` ticks. */
@@ -393,7 +400,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   }
 
   const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0 });
+  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
   players.forEach((p, player) => {
@@ -411,7 +418,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined });
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -439,7 +446,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const pool = new ProjectilePool();
   const hits = new HitQueue();
   const weaponsContext: WeaponsContext = {
-    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, events, crit: rng.crit, spread: rng.spread,
+    transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, hits, spatial, events, crit: rng.crit, spread: rng.spread,
     holdFire: (e) => (champions.get(e)?.channelTicks ?? 0) > 0,
     shotMultiplier: (e, target) => {
       const st = structures.get(e);
@@ -452,6 +459,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
   const lobs = new LobPool();
   const zones = new ZonePool();
+  const traitContext: TraitContext = { champions, motions, stats, healths, transforms, teams };
   const ultimateContext: UltimateContext = {
     champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events,
   };
@@ -476,7 +484,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures };
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, dealtMult: (s) => heatWaveMult(ultimateContext, s) };
   const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events };
   updateHqGate(structureContext);
 
@@ -535,19 +543,20 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       separationSystem(minionContext);
       spatial.rebuild(healths.ids, transforms);
       // Structures (aggro rules) and minions get their own targeting with their features.
-      traitSystem(champions, motions, stats, healths, tick);
+      traitSystem(traitContext, tick);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
       backdoorSystem(structureContext, config.structures.rules);
       structureTargetingSystem(structureContext, config.structures.rules, damageLog, tick);
-      weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
-      weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
-      weaponsSystem(structures.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier);
+      weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
+      weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
+      weaponsSystem(structures.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       projectileSystem(projectileContext, config.combat.weapons);
       // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
       // exactly its flight time later and a new fire pool first burns a full period after landing.
       zoneSystem(ultimateContext);
       lobSystem(ultimateContext);
       leadStormSystem(ultimateContext);
+      heatWaveSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
@@ -583,7 +592,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -628,6 +637,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.channel = !c || c.channelTicks === 0 ? 0 : ult?.id === 'leadStorm' && c.channelTicks > ult.seconds ? 1 : 2;
         s.channelAngle = c?.channelAngle ?? 0;
         s.slowed = (m?.slowTicks ?? 0) > 0;
+        s.aura = c?.auraTicks ?? 0;
+        const w = weapons.get(e);
+        s.firing = !!w && w.lastShotTick >= 0 && tick - w.lastShotTick <= w.interval;
       }
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {

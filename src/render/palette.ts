@@ -50,4 +50,12 @@ export const palette = {
   shearling: 0xe8dcc0,
   canvas: 0x9c9470,
   goggleGlass: 0x9fc4d8,
+  // Gamma (CH-03)
+  suitRust: 0xa9532f,
+  suitShadow: 0x7f3c22,
+  armour: 0x3d3e43,
+  mask: 0x2b2c30,
+  fuelTank: 0xa9adb1,
+  hose: 0x4c2e1c,
+  steam: 0xd8d6d0,
 } as const;

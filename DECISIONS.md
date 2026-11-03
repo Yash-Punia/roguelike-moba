@@ -792,3 +792,42 @@ From TDD §13:
   - a `burst` weapon kind (a second fire path);
   - slows as stat multipliers (minions have no Stats, and multiply-then-divide drifts);
   - damage from the cast tick with no windup (breaks the telegraph rule).
+
+## D-050 — Gamma: Flamethrower, Charge, Heat Wave
+- Date: 2026-11-03
+- Source: made during development (plan approved by the user; the speed follows the user's rule for Beta in D-049)
+- Decision:
+  - **Numbers** (`data/champions.json`): GDD §7 values, except move speed 4.3 m/s (the GDD's 3.0 / 3.5 ratio against the tuned 5 m/s Alpha, the rule from D-049) and collider radius 0.6 m (the widest silhouette).
+  - **Flamethrower:** weapon kind `cone`, with no projectile.
+    - It aims and checks its fire cone like a gun. Every 0.2 s (6 ticks) it pushes a hit of 28 on every living enemy whose collider overlaps the 4 m × 40° sector along its aim, through the hit queue.
+    - It ignores sandbags (GDD §4); raised jungle blocks it once line of sight lands.
+    - `projectileSpeed` now defaults to 0, and cones skip lead.
+    - The range is the Range stat, so Range powers already lengthen it. Weapon adaptation for projectile powers comes with the full draft.
+  - **Charge:** +30% move speed while the stick points within 45° of the nearest living enemy champion within 8 m, found by looping the champion store. It needs no visibility until fog of war arrives. It uses the trait system shared with Light Feet (`traitPct`, `speed` refreshed).
+  - **Heat Wave:**
+    - It needs no target: `ultTarget` returns the caster, so the button lights whenever charged. A press while the aura runs does nothing.
+    - The aura is champion state (`auraTicks`), not a zone, so it moves with Gamma.
+    - Every 0.5 s, allied champions and minions inside heal 3%/s of their max HP and enemy ones take a burn of 3%/s of theirs. Structures are skipped.
+    - The burn is an **exact** hit: it skips the attacker's modifiers (Gamma's damage stat and his own wave's +20%) but keeps the target's.
+    - **±20% damage dealt** is step 2 of the pipeline (`dealtMult`): ×1.2 if the source stands in an allied wave, ×0.8 in an enemy one, read from positions at hit time. Each side counts once. It works for minions, which have no Stats.
+    - It ends early on a knock-out.
+  - **Bots:** Gamma prefers the centre lane. In the default 3v3 you hold the centre, so the Gamma bot takes the free side lane (bots take the lanes humans didn't choose, TDD §7).
+    - Heat Wave rule (TDD §7): cast when an enemy champion and 2 or more allied units are inside, or when below 40% HP with an enemy champion inside. Unlike the other Ultimates, it may be cast while retreating, since it heals him.
+  - **Render:**
+    - Gamma's model per CH-03, 692 triangles in 4 baked meshes. The lenses are flat orange in the baked mesh rather than an emissive material (that would add draw calls); the helmet dome is the knock-out `cap`.
+    - A steam-grey trait ring for Charge.
+    - Flame blobs tumble from the nozzle through the sector while `firing`.
+    - A pulsing gold Heat Wave ring and faint floor move with him.
+  - **Perf** (seed 11, 3v3 with a Beta and a Gamma per side, sim advanced to 0:57 with bots idle, 81 soldiers): 90–110 draw calls, 63–84k triangles.
+  - **Cut for now:**
+    - scorch decals;
+    - the gold and red glow on units inside the wave, and embers;
+    - steam bursts for Charge;
+    - the spline hose;
+    - Napalm Tank and Inferno Shell (power catalogue);
+    - weapon adaptation (full draft).
+- Why: Gamma completes the roster, so every later M3 feature is tested with all three kits (D-046).
+- Alternatives:
+  - Heat Wave as a zone in the zone pool (it would need an attach-to-owner field and still a damage hook);
+  - aura buffs as stat multipliers (minions have no Stats);
+  - burn through the full pipeline (it would scale with Gamma's level and his own +20%).

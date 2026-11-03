@@ -39,6 +39,22 @@ const STREAKS = 12;
 const STREAK_RATE = 2.2;
 const GUN_HEIGHT = 0.9;
 
+// Gamma's flamethrower: tumbling blobs from the nozzle, yellow near it, orange out to the tip.
+const FLAME_BLOBS = 9;
+const FLAME_RATE = 3.2;
+const flameBlobGeo = new THREE.IcosahedronGeometry(1, 0);
+const NOZZLE = { x: 1.3, y: 0.95 };
+// Gamma's Heat Wave: a pulsing gold ring with a faint gold floor.
+const waveRingMat = basic(palette.brass, 0.85);
+const waveFillMat = basic(palette.brass, 0.12);
+
+interface Flames {
+  group: THREE.Group;
+  blobs: THREE.Mesh[];
+  range: number;
+  half: number;
+}
+
 interface Storm {
   group: THREE.Group;
   strip: THREE.Mesh;
@@ -77,6 +93,8 @@ export class UltFx {
   private readonly lobs = new Map<number, Lob>();
   private readonly pools = new Map<number, Pool>();
   private readonly storms = new Map<number, Storm>();
+  private readonly flames = new Map<number, Flames>();
+  private readonly waves = new Map<number, THREE.Group>();
   private blasts: Blast[] = [];
   private flashes: { ring: THREE.Mesh; pillar: THREE.Mesh; born: number }[] = [];
   private readonly seen = new Set<number>();
@@ -150,7 +168,7 @@ export class UltFx {
   }
 
   /** Moves a storm with its caster (interpolated sim position and strip angle) and runs its streaks. */
-  placeStorm(id: number, x: number, y: number, angle: number, now: number) {
+  private placeStorm(id: number, x: number, y: number, angle: number, now: number) {
     const st = this.storms.get(id);
     if (!st) return;
     st.group.position.set(x, this.heightAt(x, y) + 0.06, -y);
@@ -160,6 +178,67 @@ export class UltFx {
       const lateral = (((k * 0.618) % 1) - 0.5) * st.width * 0.85;
       st.streaks[k]!.position.set(0.6 + t * (st.length - 0.6), GUN_HEIGHT * (1 - t) + 0.15, lateral * t);
     }
+  }
+
+  /** Shows or hides Gamma's flame cone (GDD §11) for champion `id`; `range` and `angle` are its sector. */
+  flame(id: number, on: boolean, range: number, angle: number) {
+    let f = this.flames.get(id);
+    if (!f) {
+      if (!on) return;
+      const group = new THREE.Group();
+      const blobs: THREE.Mesh[] = [];
+      for (let k = 0; k < FLAME_BLOBS; k++) blobs.push(new THREE.Mesh(flameBlobGeo, flameInnerMat));
+      group.add(...blobs);
+      this.group.add(group);
+      this.flames.set(id, (f = { group, blobs, range, half: angle / 2 }));
+    }
+    f.group.visible = on;
+  }
+
+  /** Shows or hides Gamma's Heat Wave ring (`radius`, GDD §11) for champion `id`. */
+  heatWave(id: number, on: boolean, radius: number) {
+    let g = this.waves.get(id);
+    if (!g) {
+      if (!on) return;
+      g = new THREE.Group();
+      const fill = new THREE.Mesh(discGeo, waveFillMat);
+      const ring = new THREE.Mesh(ringGeo, waveRingMat);
+      fill.renderOrder = ring.renderOrder = 4;
+      g.add(fill, ring);
+      g.scale.set(radius, 1, radius);
+      this.group.add(g);
+      this.waves.set(id, g);
+    }
+    g.visible = on;
+  }
+
+  /**
+   * Moves a champion's flames, Heat Wave and Lead Storm with it (interpolated sim position and
+   * upper-body angle) and animates them.
+   */
+  placeChampion(id: number, x: number, y: number, angle: number, now: number) {
+    const ground = this.heightAt(x, y);
+    const f = this.flames.get(id);
+    if (f?.group.visible) {
+      f.group.position.set(x, ground, -y);
+      f.group.rotation.y = angle;
+      const spread = Math.tan(f.half);
+      for (let k = 0; k < f.blobs.length; k++) {
+        const t = ((now / 1000) * FLAME_RATE + k / FLAME_BLOBS) % 1;
+        const along = NOZZLE.x + t * (f.range - NOZZLE.x + 0.3);
+        const b = f.blobs[k]!;
+        b.position.set(along, NOZZLE.y + t * 0.35, (((k * 0.618) % 1) * 2 - 1) * spread * along * 0.8);
+        b.scale.setScalar(0.12 + 0.32 * t);
+        b.rotation.set(now * 0.004 + k, now * 0.003, 0);
+        b.material = t < 0.35 ? flameInnerMat : flameOuterMat;
+      }
+    }
+    const w = this.waves.get(id);
+    if (w?.visible) {
+      w.position.set(x, ground + 0.05, -y);
+      waveRingMat.opacity = 0.55 + 0.3 * Math.sin(now * 0.008);
+    }
+    this.placeStorm(id, x, y, angle, now);
   }
 
   /** An explosion event at sim (x, y): a fire flash plus smoke. */

@@ -62,6 +62,7 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
   const t = ctx.transforms.get(e);
   if (!c || !t) return 0;
   const ult = c.def.ultimate;
+  if (ult.id === 'heatWave') return e; // needs no target: usable whenever charged (GDD §7)
   const team = ctx.teams.get(e);
   ctx.spatial.query(t.x, t.y, ult.castRange + reach, nearby);
   for (let n = 0; n < ult.targetOrder.length; n++) {
@@ -89,9 +90,9 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
  * Ultimate charge and casting (TDD §6.5). Passive charge fills 0 → 100 over the champion's
  * charge time, scaled by the Ult-charge stat (kill and damage charge arrive in M2 feature 13).
  * Each champion's target is refreshed every tick (`ultTargetId`, for the button). A cast
- * needs a press this tick, a living champion, full charge, a target and no channel already
- * running: the charge empties, then a Frag Grenade is lobbed at where the target is now, or
- * Lead Storm starts its channel aimed at the target.
+ * needs a press this tick, a living champion, full charge, a target and no channel or aura
+ * already running: the charge empties, then a Frag Grenade is lobbed at where the target is
+ * now, Lead Storm starts its channel aimed at the target, or Heat Wave starts its aura.
  */
 export function ultimateSystem(ctx: UltimateContext, tick: number) {
   const { champions, transforms, healths, stats, lobs, teams, events } = ctx;
@@ -108,7 +109,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
     }
     addUltCharge(c, stats.get(e), 100 / Math.max(1, c.def.ultChargeSeconds));
     c.ultTargetId = ultTarget(e, ctx, tick, reach);
-    if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0 || c.channelTicks > 0) continue;
+    if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0 || c.channelTicks > 0 || c.auraTicks > 0) continue;
 
     const t = transforms.get(e)!;
     const tt = transforms.get(c.ultTargetId)!;
@@ -116,6 +117,8 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
     c.ultCharge = 0;
     if (ult.id === 'fragGrenade') {
       lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, ult.flightSeconds);
+    } else if (ult.id === 'heatWave') {
+      c.auraTicks = ult.seconds;
     } else {
       c.channelTicks = ult.windupSeconds + ult.seconds;
       c.channelAngle = atan2(tt.y - t.y, tt.x - t.x);
@@ -232,6 +235,69 @@ export function leadStormSystem(ctx: UltimateContext) {
     }
     if (--c.channelTicks === 0) endChannel(c, m, e, events);
   }
+}
+
+/**
+ * Heat Wave auras (TDD §6.5), moving with Gamma. Every `tickSeconds`, allied champions and
+ * minions inside heal a share of their max HP (capped at full) and enemy ones take a burn hit
+ * of a share of theirs, through the damage pipeline; structures are left alone. The aura ends
+ * when its time runs out or Gamma is knocked out.
+ */
+export function heatWaveSystem(ctx: UltimateContext) {
+  const { champions, transforms, healths, teams, targetClasses, hits } = ctx;
+  const reach = maxRadius(ctx.colliders);
+  for (let i = 0; i < champions.ids.length; i++) {
+    const c = champions.data[i]!;
+    if (c.auraTicks === 0) continue;
+    const e = champions.ids[i]!;
+    const ult = c.def.ultimate;
+    if (ult.id !== 'heatWave' || healths.get(e)!.hp <= 0) {
+      c.auraTicks = 0;
+      continue;
+    }
+    const elapsed = ult.seconds - c.auraTicks + 1;
+    if (elapsed % ult.tickSeconds === 0) {
+      const t = transforms.get(e)!;
+      const team = teams.get(e);
+      const per = ult.tickSeconds / TICK_HZ;
+      ctx.spatial.query(t.x, t.y, ult.radius + reach, nearby);
+      for (let k = 0; k < nearby.length; k++) {
+        const o = nearby[k]!;
+        const cls = targetClasses.get(o);
+        if (cls !== TargetClass.Champion && cls !== TargetClass.Minion) continue;
+        const h = healths.get(o);
+        if (!h || h.hp <= 0) continue;
+        const ot = transforms.get(o)!;
+        if (len(ot.x - t.x, ot.y - t.y) > ult.radius + (ctx.colliders.get(o)?.radius ?? 0)) continue;
+        if (teams.get(o) === team) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * ult.healPctPerSecond * per);
+        else hits.push(e, o, h.maxHp * ult.burnPctPerSecond * per, 1, 1, true);
+      }
+    }
+    c.auraTicks--;
+  }
+}
+
+/**
+ * Heat Wave's effect on damage dealt (TDD §6.4 step 2): ×(1 + pct) if `source` stands inside an
+ * allied Heat Wave, ×(1 − pct) inside an enemy one. Each side counts once, however many overlap.
+ */
+export function heatWaveMult(ctx: UltimateContext, source: Entity): number {
+  const st = ctx.transforms.get(source);
+  if (!st) return 1;
+  const team = ctx.teams.get(source);
+  let up = 0;
+  let down = 0;
+  const { champions } = ctx;
+  for (let i = 0; i < champions.ids.length; i++) {
+    const c = champions.data[i]!;
+    const ult = c.def.ultimate;
+    if (c.auraTicks === 0 || ult.id !== 'heatWave') continue;
+    const t = ctx.transforms.get(champions.ids[i]!)!;
+    if (len(st.x - t.x, st.y - t.y) > ult.radius) continue;
+    if (ctx.teams.get(champions.ids[i]!) === team) up = Math.max(up, ult.damageDealtPct);
+    else down = Math.max(down, ult.damageDealtPct);
+  }
+  return (1 + up) * (1 - down);
 }
 
 function endChannel(c: Champion, m: Motion, e: Entity, events: SimEvent[]) {

@@ -32,27 +32,27 @@ describe('lane spread (D-048)', () => {
     expect(slots.map((s) => [s.team, s.lane, s.championId])).toEqual([
       [Team.Red, 'right', 'alpha'],
       [Team.Blue, 'right', 'alpha'],
-      [Team.Red, 'left', 'beta'], // Beta takes a side lane first (D-049)
-      [Team.Red, 'centre', 'alpha'],
+      [Team.Red, 'left', 'beta'], // Beta takes a side lane (D-049), Gamma the centre (D-050)
+      [Team.Red, 'centre', 'gamma'],
       [Team.Blue, 'left', 'beta'],
-      [Team.Blue, 'centre', 'alpha'],
+      [Team.Blue, 'centre', 'gamma'],
     ]);
   });
 
   it('gives you the champion you pick, falling back to the first for an unknown id', () => {
     const config = parseConfig(rawConfig);
     const pick = (localChampion: string) => matchSlots(config, { teamSize: 3, localTeam: Team.Blue, localChampion }).map((s) => s.championId);
-    expect(pick('beta')).toEqual(['beta', 'alpha', 'beta', 'alpha', 'beta', 'alpha']);
+    expect(pick('beta')).toEqual(['beta', 'alpha', 'beta', 'gamma', 'beta', 'gamma']);
     expect(pick('nobody')[0]).toBe('alpha');
   });
 
-  it('sends Beta bots to side lanes and the rest to what is left', () => {
+  it('sends Beta bots to side lanes, Gamma bots to the centre and the rest to what is left', () => {
     const config = parseConfig(rawConfig);
     const blue = matchSlots(config, { teamSize: 5, localTeam: Team.Blue })
       .filter((s) => s.team === Team.Blue)
       .map((s) => `${s.championId}:${s.lane}`);
-    // Lanes C L R C L (D-048): both Betas take side lanes, the Alphas what is left.
-    expect(blue).toEqual(['alpha:centre', 'beta:left', 'alpha:centre', 'beta:right', 'alpha:left']);
+    // Lanes C L R C L (D-048): the Betas take side lanes and the Gamma the free centre; the Alpha gets what is left.
+    expect(blue).toEqual(['alpha:centre', 'beta:left', 'gamma:centre', 'alpha:left', 'beta:right']);
   });
 });
 

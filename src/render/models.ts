@@ -53,9 +53,10 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (kind === Kind.HQ) commandBunker(root, team);
   else if (modelId === 'alpha') alpha(root, team);
   else if (modelId === 'beta') beta(root, team);
+  else if (modelId === 'gamma') gamma(root, team);
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
   else championPlaceholder(root, team);
-  if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : steadyRingMat);
+  if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
   // Name every part object (once, even when it fills two slots: a Sub-base's turret both aims and falls).
   let next = 0;
@@ -123,8 +124,9 @@ export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 const traitRingGeo = new THREE.RingGeometry(0.58, 0.7, 28).rotateX(-Math.PI / 2);
 const steadyRingMat = new THREE.MeshBasicMaterial({ color: palette.brass, transparent: true, opacity: 0.75, depthWrite: false });
 const lightFeetRingMat = new THREE.MeshBasicMaterial({ color: palette.shearling, transparent: true, opacity: 0.6, depthWrite: false });
+const chargeRingMat = new THREE.MeshBasicMaterial({ color: palette.steam, transparent: true, opacity: 0.6, depthWrite: false });
 
-/** A faint ring at the feet while the trait is active: brass for Steady Hand, dust for Light Feet. */
+/** A faint ring at the feet while the trait is active: brass for Steady Hand, dust for Light Feet, steam for Charge. */
 function addTraitRing(root: THREE.Object3D, material: THREE.Material) {
   const ring = new THREE.Mesh(traitRingGeo, material);
   ring.position.y = 0.04;
@@ -278,6 +280,74 @@ function beta(root: THREE.Object3D, team: Team) {
     const lens = part(cap, cyl(0.075, 0.075, 0.05, 8), palette.goggleGlass, 0.25, 0.06, z);
     lens.rotation.z = Math.PI / 2;
   }
+}
+
+/**
+ * Gamma, the Furnace (CH-03): the biggest hero, 2.1 m (legs 0.44, a barrel body almost as wide
+ * as tall, head 0.76). Rust padded suit, dark armour plates with team-coloured pauldron edges
+ * and chest tabs, a sealed gas-mask helmet with two orange lenses and a canister snout, twin
+ * silver fuel tanks standing up behind the head with team bands, and a hose looping round his
+ * right side to the flamethrower held low and forward. About 650 tris (the sheet's 3,200 is
+ * for the concept render; the hose is two boxes, not a spline tube).
+ */
+function gamma(root: THREE.Object3D, team: Team) {
+  const team1 = teamColour(team);
+  // Short legs, heavy boots.
+  for (const z of [-0.2, 0.2]) {
+    part(root, box(0.22, 0.3, 0.22), palette.suitShadow, 0, 0.29, z);
+    part(root, box(0.3, 0.14, 0.24), palette.mask, 0.03, 0.07, z);
+  }
+
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+
+  // Barrel body with a belt, chest plate and team chest tabs.
+  part(upper, cyl(0.52, 0.48, 0.9, 8), palette.suitRust, 0, 0.9, 0);
+  part(upper, cyl(0.53, 0.53, 0.08, 8), palette.suitShadow, 0, 0.62, 0);
+  part(upper, box(0.1, 0.42, 0.56), palette.armour, 0.46, 0.95, 0);
+  for (const z of [-0.14, 0.14]) part(upper, box(0.04, 0.06, 0.14), team1, 0.52, 1.08, z);
+  // Pauldrons with team edges.
+  for (const z of [-0.55, 0.55]) {
+    part(upper, box(0.36, 0.22, 0.3), palette.armour, 0, 1.28, z);
+    part(upper, box(0.32, 0.06, 0.04), team1, 0, 1.3, z * 1.29);
+  }
+
+  // Twin fuel tanks behind the head, with caps and team bands; the hose loops round his right.
+  for (const z of [-0.2, 0.2]) {
+    part(upper, cyl(0.17, 0.17, 0.95, 8), palette.fuelTank, -0.58, 1.35, z);
+    part(upper, cyl(0.175, 0.175, 0.06, 8), team1, -0.58, 1.1, z);
+    part(upper, cyl(0.06, 0.06, 0.1, 6), palette.iron, -0.58, 1.87, z);
+  }
+  part(upper, box(0.6, 0.08, 0.08), palette.hose, -0.25, 0.78, 0.5);
+  part(upper, box(0.5, 0.08, 0.08), palette.hose, 0.3, 0.8, 0.42);
+
+  // Arms forward to the flamethrower: a long tube, brass ring, dark nozzle.
+  part(upper, box(0.42, 0.2, 0.2), palette.suitRust, 0.25, 1.0, 0.45);
+  part(upper, box(0.2, 0.2, 0.2), palette.armour, 0.5, 0.96, 0.32);
+  part(upper, box(0.5, 0.2, 0.2), palette.suitRust, 0.3, 0.98, -0.38);
+  part(upper, box(0.2, 0.2, 0.2), palette.armour, 0.6, 0.94, -0.18);
+  const tube = part(upper, cyl(0.06, 0.06, 0.8, 6), palette.gunmetal, 0.85, 0.95, 0.06);
+  tube.rotation.z = Math.PI / 2;
+  const ring = part(upper, cyl(0.1, 0.1, 0.05, 6), palette.brass, 1.2, 0.95, 0.06);
+  ring.rotation.z = Math.PI / 2;
+  const nozzle = part(upper, cyl(0.09, 0.08, 0.12, 6), palette.mask, 1.29, 0.95, 0.06);
+  nozzle.rotation.z = Math.PI / 2;
+
+  // Gas-mask head (front is +x): two orange lenses and the canister snout.
+  part(upper, box(0.62, 0.56, 0.6), palette.mask, 0, 1.65, 0);
+  for (const z of [-0.14, 0.14]) {
+    const lens = part(upper, cyl(0.12, 0.12, 0.04, 8), palette.fire, 0.31, 1.7, z);
+    lens.rotation.z = Math.PI / 2;
+  }
+  part(upper, box(0.16, 0.16, 0.16), palette.armour, 0.36, 1.5, 0);
+
+  // Helmet dome (flies off on a knock-out).
+  const cap = new THREE.Group();
+  cap.position.y = 1.97;
+  upper.add(cap);
+  partsOf(root).cap = cap;
+  part(cap, cyl(0.28, 0.36, 0.16, 8), palette.mask, 0, 0, 0);
 }
 
 /**

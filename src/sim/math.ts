@@ -3,6 +3,7 @@
 export const sin = Math.sin;
 export const cos = Math.cos;
 export const atan2 = Math.atan2;
+export const asin = Math.asin;
 
 export function len(x: number, y: number): number {
   return Math.sqrt(x * x + y * y);

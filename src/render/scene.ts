@@ -164,9 +164,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
       s.x = e.x; s.y = e.y; s.f = aim; s.l = e.facing;
       if (e.kind === Kind.Champion) {
-        const ult = e.channel !== 0 ? config.champions.find((c) => c.id === e.modelId)?.ultimate : undefined;
-        if (ult?.id === 'leadStorm') ultFx.storm(e.id, e.channel, ult.length, ult.width);
+        const def = config.champions.find((c) => c.id === e.modelId);
+        const ult = def?.ultimate;
+        if (ult?.id === 'leadStorm' && e.channel !== 0) ultFx.storm(e.id, e.channel, ult.length, ult.width);
         else ultFx.storm(e.id, 0, 0, 0);
+        if (ult?.id === 'heatWave') ultFx.heatWave(e.id, e.aura > 0 && e.hp > 0, ult.radius);
+        if (def?.weapon.kind === 'cone') ultFx.flame(e.id, e.firing && e.hp > 0, def.weapon.range, def.weapon.coneAngle);
       }
       const parts = partsOf(meshes.get(e.id)!);
       if (parts.traitRing) parts.traitRing.visible = e.traitActive && e.hp > 0;
@@ -302,7 +305,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       const { upper, aimParts } = partsOf(mesh);
       mesh.rotation.y = upper || aimParts ? facing : aim;
       if (upper) upper.rotation.y = aim - facing;
-      if (s.kind === Kind.Champion) ultFx.placeStorm(id, x, y, aim, now);
+      if (s.kind === Kind.Champion) ultFx.placeChampion(id, x, y, aim, now);
       if (aimParts && s.fellAt === 0) for (const g of aimParts) g.rotation.y = aim - facing;
       if (s.fellAt > 0) {
         const t = Math.min(1, (now - s.fellAt) / COLLAPSE_MS);

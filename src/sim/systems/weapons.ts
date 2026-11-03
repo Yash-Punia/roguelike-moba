@@ -1,10 +1,12 @@
 import { TICK_HZ, type Config } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
-import { atan2, cos, sin, turnTowards, wrapAngle } from '../math';
+import type { HitQueue } from '../hits';
+import { asin, atan2, cos, len, sin, turnTowards, wrapAngle } from '../math';
 import type { ProjectilePool } from '../projectiles';
 import type { Rng } from '../rng';
 import type { Collider, Health, Motion, Targeting, Team, Transform, Weapon } from '../sim';
+import type { SpatialIndex } from '../spatial';
 import { Stat, stat, type Stats } from '../stats';
 
 export interface WeaponsContext {
@@ -17,6 +19,9 @@ export interface WeaponsContext {
   targetings: Store<Targeting>;
   stats: Store<Stats>;
   pool: ProjectilePool;
+  /** Cone weapons hit directly, through the hit queue. */
+  hits: HitQueue;
+  spatial: SpatialIndex;
   events: SimEvent[];
   /** Seeded stream for critical-hit rolls. */
   crit: Rng;
@@ -39,9 +44,10 @@ export interface WeaponsContext {
  * stat each tick and carries the remainder, so +20% fire rate gives exactly 1.2× the shots.
  * Bullets carry the weapon's base damage; every modifier is applied when they hit (TDD §6.4).
  * Each shot rolls `critChance` on the seeded `crit` stream (only when the chance is above 0);
- * a crit carries `critMultiplier` into the damage pipeline.
+ * a crit carries `critMultiplier` into the damage pipeline. A cone weapon (Gamma) aims the
+ * same way but fires no projectile: each flame hits every enemy in its sector at once.
  */
-export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, cfg: Config['combat']['weapons'], critMultiplier: number) {
+export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, cfg: Config['combat']['weapons'], critMultiplier: number, tick: number) {
   const { transforms, motions, healths, weapons, targetings, stats } = ctx;
   const turnPerTick = cfg.aimTurnRate / TICK_HZ;
 
@@ -72,7 +78,7 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     // Where to shoot.
     let ax = tt.x;
     let ay = tt.y;
-    if (cfg.bulletAim === 'lead') {
+    if (cfg.bulletAim === 'lead' && w.kind !== 'cone') {
       const m = motions.get(target);
       if (m) {
         const lead = interceptTime(tt.x - t.x, tt.y - t.y, m.vx, m.vy, w.projectileSpeed);
@@ -87,6 +93,12 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     if (tg.holdTicks > 0 || w.cooldown > 0 || Math.abs(wrapAngle(desired - w.aim)) > cfg.fireCone) continue;
 
     const critMult = critRoll(w, ctx, critMultiplier);
+    w.lastShotTick = tick;
+    if (w.kind === 'cone') {
+      flame(e, w, t, ctx, critMult);
+      w.cooldown += w.interval;
+      continue;
+    }
     const boost = ctx.shotMultiplier(e, target);
     fire(e, w, t, ctx, cfg, target, desired, w.damage * boost, critMult, boost);
     w.cooldown += w.interval;
@@ -110,6 +122,36 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
       fire(e, w, t, ctx, cfg, second, atan2(by - t.y, bx - t.x), w.damage, critMult, 1);
     }
   }
+}
+
+const nearby: Entity[] = [];
+/** Largest collider radius a cone can reach past its range for (an HQ's footprint). */
+const CONE_REACH = 4;
+
+/**
+ * One flame (TDD §6.3 `cone`): every living enemy whose collider overlaps the sector `range`
+ * long and `coneAngle` wide along the aim takes the weapon's damage, in ascending ids. Flames
+ * pass over sandbag walls, so nothing blocks them.
+ */
+function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult: number) {
+  const range = ctx.rangeOf(e);
+  const half = w.coneAngle / 2;
+  const team = ctx.teams.get(e);
+  ctx.spatial.query(t.x, t.y, range + CONE_REACH, nearby);
+  for (let k = 0; k < nearby.length; k++) {
+    const o = nearby[k]!;
+    if (o === e || ctx.teams.get(o) === team) continue;
+    const h = ctx.healths.get(o);
+    if (!h || h.hp <= 0) continue;
+    const ot = ctx.transforms.get(o)!;
+    const r = ctx.colliders.get(o)?.radius ?? 0;
+    const d = len(ot.x - t.x, ot.y - t.y);
+    if (d - r > range) continue;
+    // Within the half-angle, widened by the angle the collider covers at its distance.
+    if (d > r && Math.abs(wrapAngle(atan2(ot.y - t.y, ot.x - t.x) - w.aim)) > half + asin(r / d)) continue;
+    ctx.hits.push(e, o, w.damage, critMult);
+  }
+  ctx.events.push({ type: 'shot', id: e, target: 0 });
 }
 
 const critRoll = (w: Weapon, ctx: WeaponsContext, mult: number) => (w.critChance > 0 && ctx.crit() < w.critChance ? mult : 1);

@@ -22,11 +22,15 @@ const Match = z.object({
 
 /** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */
 const Weapon = z.object({
-  kind: z.enum(['bullet', 'flak']),
+  /** `cone` (Gamma's flamethrower): no projectile, hits every enemy in a `coneAngle` sector out to `range`. */
+  kind: z.enum(['bullet', 'flak', 'cone']),
   damage: positive(),
   interval: secs().refine((t) => t >= 1, 'interval must be at least one tick'),
   range: positive(),
-  projectileSpeed: positive(),
+  /** Bullet speed (m/s); cones have none. */
+  projectileSpeed: z.number().nonnegative().default(0),
+  /** Full width of a cone weapon's sector. */
+  coneAngle: deg().default(0),
   spread: deg().default(0),
   /** Targets hit per shot (HQ flak hits 2). */
   targets: z.number().int().min(1).default(1),
@@ -88,6 +92,21 @@ const LeadStorm = z.object({
   structurePct: pct(),
 });
 
+/**
+ * Gamma's Heat Wave (GDD §7, TDD §6.5): an aura of `radius` around him for `seconds`, needing no
+ * target. Every `tickSeconds`, allied champions and minions inside heal and enemies inside burn
+ * (shares of their max HP per second); units inside deal ± `damageDealtPct`. Not structures.
+ */
+const HeatWave = z.object({
+  id: z.literal('heatWave'),
+  radius: positive(),
+  seconds: secs().refine((t) => t >= 1, 'aura must last at least one tick'),
+  healPctPerSecond: pct(),
+  burnPctPerSecond: pct(),
+  tickSeconds: secs().refine((t) => t >= 1, 'tick must be at least one tick'),
+  damageDealtPct: pct(),
+});
+
 const Champion = z.object({
   id: z.string(),
   name: z.string(),
@@ -104,8 +123,10 @@ const Champion = z.object({
     z.object({ id: z.literal('steadyHand'), stillSeconds: secs(), fireRatePct: pct() }),
     /** Beta's Light Feet (GDD §7): this long without dealing or taking damage → + move speed. */
     z.object({ id: z.literal('lightFeet'), outOfCombatSeconds: secs(), moveSpeedPct: pct() }),
+    /** Gamma's Charge (GDD §7): moving within `angle` of the nearest enemy champion within `radius` → + move speed. */
+    z.object({ id: z.literal('charge'), radius: positive(), angle: deg(), moveSpeedPct: pct() }),
   ]),
-  ultimate: z.discriminatedUnion('id', [FragGrenade, LeadStorm]),
+  ultimate: z.discriminatedUnion('id', [FragGrenade, LeadStorm, HeatWave]),
   /** Bots of this champion take a lane of this kind first (TDD §7 lane assignment). */
   lanePreference: z.enum(['centre', 'side']).optional(),
 });
@@ -421,6 +442,7 @@ export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type FragGrenadeConfig = z.output<typeof FragGrenade>;
 export type LeadStormConfig = z.output<typeof LeadStorm>;
+export type HeatWaveConfig = z.output<typeof HeatWave>;
 export type Vec2 = z.output<typeof vec>;
 export type WeaponConfig = z.output<typeof Weapon>;
 export type UltTargetClass = z.output<typeof UltTargetClass>;

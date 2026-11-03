@@ -98,5 +98,40 @@
       "structurePct": 100
     },
     "lanePreference": "side"
+  },
+  {
+    "id": "gamma",
+    "name": "Gamma",
+    "maxHp": 1500,
+    "moveSpeed": 4.3,
+    "radius": 0.6,
+    "ultChargeSeconds": 65,
+    "growth": {
+      "hpPct": 5,
+      "damagePct": 4
+    },
+    "weapon": {
+      "kind": "cone",
+      "damage": 28,
+      "interval": 0.2,
+      "range": 4,
+      "coneAngle": 40
+    },
+    "trait": {
+      "id": "charge",
+      "radius": 8,
+      "angle": 45,
+      "moveSpeedPct": 30
+    },
+    "ultimate": {
+      "id": "heatWave",
+      "radius": 7,
+      "seconds": 6,
+      "healPctPerSecond": 3,
+      "burnPctPerSecond": 3,
+      "tickSeconds": 0.5,
+      "damageDealtPct": 20
+    },
+    "lanePreference": "centre"
   }
 ]

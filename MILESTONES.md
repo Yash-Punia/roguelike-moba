@@ -87,8 +87,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[ ]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms | |
 | `[ ]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018) | |
 | `[ ]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010) | |
-| `[c]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow; model per the Beta sheet; `?champ=` and a debug picker; bots mix the roster, Beta prefers a side lane (D-049) | |
-| `[ ]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet | |
+| `[p]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow; model per the Beta sheet; `?champ=` and a debug picker; bots mix the roster, Beta prefers a side lane (D-049) | eccbf39 |
+| `[c]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet; Gamma bots prefer the centre and cast Heat Wave by the TDD §7 rule (D-050) | |
 | `[ ]` | Bazooka Tank (rocket splash, structure bonuses), wave composition by time, +6%/min scaling; model per the minions sheet | |
 | `[ ]` | Shock Troops lane upgrade when a Sub-base falls; model per the minions sheet | |
 | `[ ]` | Full v1 power catalogue as effect records + generic effect systems | |

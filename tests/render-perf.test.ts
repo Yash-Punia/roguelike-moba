@@ -25,6 +25,7 @@ describe('baked models (D-044)', () => {
   const cases: [Kind, string, number, number][] = [
     [Kind.Champion, 'alpha', 612, 4], // legs, upper, cap + Steady Hand ring
     [Kind.Champion, 'beta', 608, 4], // legs, upper, cap + Light Feet ring
+    [Kind.Champion, 'gamma', 692, 4], // legs, upper, helmet + Charge ring
     [Kind.Minion, 'mgSoldier', 454, 3], // legs, upper, helmet
     [Kind.SubBase, 'subBase', 284, 3], // body, turret, flag
     [Kind.HQ, 'hq', 736, 5], // body, 2 flak mounts, mast, shield dome
