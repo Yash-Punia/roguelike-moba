@@ -872,3 +872,9 @@ From TDD §13:
 - Alternatives (offered, declined for now):
   - a hard end at 5:00: base burning from 4:00, or a score at 5:00;
   - also not taken: longer late respawns (measured little effect), and more structure HP cuts alone (no effect without Shock Troops).
+
+## D-052 — HQ max HP cut is a toggle, off by default
+
+- Decision: `structures.rules.hqHpCutEnabled` (default `false`) switches the D-051 HQ max HP cut on or off; `hqHpPerSubBaseLostPct` keeps the size (25). It is a checkbox in the debug panel under structures.json, and a live change re-cuts the HQ at once, keeping its HP fraction.
+- Why: the user wants to playtest without the cut first.
+- Measured (all-bot 3v3, seeds 1–10): cut off, median 4:55, range 3:04–7:04; cut on, median 4:31, range 3:03–7:03. Shock Troops do most of the work, so the 6-minute guard test still passes with the cut off. The cut tests turn it on explicitly.

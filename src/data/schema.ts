@@ -204,7 +204,8 @@ const StructureRules = z.object({
   regenPctPerSecond: pct(),
   /** Regen pauses while any enemy unit is this close. */
   regenClearRadius: positive(),
-  /** An HQ's max HP drops by this share of its base for every Sub-base its team has lost (D-051); its HP keeps its fraction. */
+  /** When on, an HQ's max HP drops by `hqHpPerSubBaseLostPct` of its base for every Sub-base its team has lost (D-051, toggle D-052); its HP keeps its fraction. */
+  hqHpCutEnabled: z.boolean(),
   hqHpPerSubBaseLostPct: pct(),
 });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });

@@ -21,9 +21,16 @@ function front(tweak?: (c: ReturnType<typeof parseConfig>) => void) {
   return { config, sim, structure };
 }
 
-describe('HQ max HP per lost Sub-base (D-051)', () => {
-  it('drops by 25% of its base for every Sub-base its team loses, keeping its HP fraction', () => {
+describe('HQ max HP per lost Sub-base (D-051, D-052)', () => {
+  it('is off by default', () => {
     const f = front();
+    f.sim.debug.kill(f.structure(Blue, 'subBase', 'left'));
+    f.sim.step([]);
+    expect(f.sim.stores.healths.get(f.structure(Blue, 'hq'))!.maxHp).toBe(6000);
+  });
+
+  it('when on, drops by 25% of its base for every Sub-base its team loses, keeping its HP fraction', () => {
+    const f = front((c) => (c.structures.rules.hqHpCutEnabled = true));
     const hq = f.sim.stores.healths.get(f.structure(Blue, 'hq'))!;
     expect(hq.maxHp).toBe(6000);
     hq.hp = 3000;

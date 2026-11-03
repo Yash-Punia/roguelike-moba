@@ -78,7 +78,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
   // Structure rules: warm-up as in the GDD; backdoor protection and regen off unless a test turns them on.
-  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpPerSubBaseLostPct: 0 };
+  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpCutEnabled: false, hqHpPerSubBaseLostPct: 0 };
   // No draft offers unless a test restores the catalogue (`withPowers`), so level-ups in older tests change only stats.
   config.powers.powers = [];
   // Waves off unless a test turns them on; MG Soldier pinned to the GDD numbers.

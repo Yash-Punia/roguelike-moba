@@ -43,6 +43,7 @@
     "backdoorPct": 50,
     "regenPctPerSecond": 1,
     "regenClearRadius": 12,
+    "hqHpCutEnabled": false,
     "hqHpPerSubBaseLostPct": 25
   }
 }
