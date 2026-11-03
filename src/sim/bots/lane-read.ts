@@ -86,12 +86,14 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   r.fEnemyTower = Infinity;
   r.ownTower = undefined;
   r.fOwnTower = -Infinity;
+  // Enemies hidden in a Trench aren't read: bots see exactly what a player on their team sees (D-010).
+  const seen = (e: EntitySnapshot) => e.team === team || (e.visibleMask & (1 << team)) !== 0;
   const list = snap.entities;
   for (let i = 0; i < list.length; i++) {
     const e = list[i]!;
     if (e.id === self) r.me = e;
     else if (e.kind === Kind.Minion && e.hp > 0) {
-      if (e.lane !== laneId) continue;
+      if (e.lane !== laneId || !seen(e)) continue;
       const f = forward(e.x, e.y);
       if (track.lastDistSq > reachSq) continue;
       if (e.team === team) r.ownFront = Math.max(r.ownFront, f);
@@ -118,7 +120,7 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   let any: EntitySnapshot | undefined;
   for (let i = 0; i < list.length; i++) {
     const e = list[i]!;
-    if (e.kind !== Kind.Champion || e.team === team) continue;
+    if (e.kind !== Kind.Champion || e.team === team || (e.hp > 0 && !seen(e))) continue;
     const d = len(e.x - me.x, e.y - me.y);
     if (e.hp > 0 && d <= b.lane.threatRadius && d < nearAlive) {
       nearAlive = d;
@@ -147,7 +149,7 @@ export function readLane(r: LaneRead, snap: Snapshot, self: Entity, team: Team, 
   if (tower) r.towerOnMe = tower.targetId === self;
   for (let i = 0; i < list.length; i++) {
     const e = list[i]!;
-    if (e.kind !== Kind.Minion || e.hp <= 0 || e.lane !== laneId) continue;
+    if (e.kind !== Kind.Minion || e.hp <= 0 || e.lane !== laneId || !seen(e)) continue;
     const f = forward(e.x, e.y);
     if (track.lastDistSq > reachSq) continue;
     const near = Math.abs(f - clash) <= b.lane.clashWindow;

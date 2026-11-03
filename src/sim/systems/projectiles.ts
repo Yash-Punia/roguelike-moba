@@ -4,6 +4,7 @@ import type { ProjectilePool } from '../projectiles';
 import type { Collider, Health, Team, Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
 import type { HitQueue } from '../hits';
+import { rayBlocked, type ObstacleGrid } from '../grid';
 
 export interface ProjectileContext {
   pool: ProjectilePool;
@@ -13,6 +14,7 @@ export interface ProjectileContext {
   healths: Store<Health>;
   spatial: SpatialIndex;
   hits: HitQueue;
+  grid: () => ObstacleGrid;
 }
 
 const nearby: Entity[] = [];
@@ -21,11 +23,13 @@ const nearby: Entity[] = [];
  * Advances every bullet one tick with a swept segment-vs-circle test (TDD §6.3), so fast
  * bullets never tunnel. A straight bullet hits the first living enemy unit along its path
  * (allies don't block); a homing bullet steers onto its target and hits only that. Hits are
- * queued for the damage stage. A rocket also hits every other enemy in its splash. Bullets
- * that fly their full distance expire.
+ * queued for the damage stage. A rocket also hits every other enemy in its splash. A sandbag
+ * (`shotBlocked` cell, GDD §4) stops any bullet before a unit behind it; a rocket bursts there.
+ * Bullets that fly their full distance expire.
  */
 export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['weapons']) {
   const { pool, transforms, colliders, teams, healths, spatial, hits } = ctx;
+  const grid = ctx.grid();
   let maxRadius = 0;
   for (let i = 0; i < colliders.data.length; i++) maxRadius = Math.max(maxRadius, colliders.data[i]!.radius);
 
@@ -67,11 +71,17 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
         hitAt = at;
       }
     }
-    if (hit !== 0) {
+    const wall = rayBlocked(grid, ax, ay, bx, by);
+    if (wall >= 0 && wall <= hitAt) {
+      hit = 0; // the sandbag is in the way first
+      hitAt = wall;
+    }
+    if (hitAt <= 1) {
       const owner = pool.owner[i]!;
       const sm = pool.structureMult[i]!;
-      hits.push(owner, hit, pool.damage[i]!, pool.critMult[i]!, sm);
+      if (hit !== 0) hits.push(owner, hit, pool.damage[i]!, pool.critMult[i]!, sm);
       // A rocket bursts where it hits: every other living enemy within the splash takes the same hit (ascending id, from the spatial query).
+      // ponytail: a burst on a sandbag still reaches units behind it; blast cover comes with line of sight.
       const splash = pool.splash[i]!;
       if (splash > 0) {
         const ix = ax + (bx - ax) * hitAt;

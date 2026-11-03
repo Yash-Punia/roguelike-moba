@@ -42,4 +42,6 @@ export type SimEvent =
   | { type: 'waveSpawned'; wave: number }
   /** A champion redeployed at (x, y). */
   | { type: 'respawn'; id: Entity; x: number; y: number }
+  /** A champion took a Trench medkit (index into `map.medkits`) and healed `amount`. */
+  | { type: 'medkitTaken'; id: Entity; medkit: number; amount: number }
   | DamageEvent;

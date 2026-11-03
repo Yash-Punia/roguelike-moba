@@ -569,6 +569,18 @@ export function createCave(team: Team): THREE.Object3D {
   return root;
 }
 
+/** Trench medkit crate (GDD §4, map spec "cream medkit crate"): a khaki-banded box with a white cross on the lid. */
+export function createMedkit(): THREE.Object3D {
+  const root = new THREE.Group();
+  part(root, box(0.8, 0.5, 0.55), palette.shearling, 0, 0.25, 0);
+  part(root, box(0.82, 0.1, 0.57), palette.khaki, 0, 0.12, 0);
+  part(root, box(0.42, 0.02, 0.13), 0xffffff, 0, 0.51, 0);
+  part(root, box(0.13, 0.02, 0.42), 0xffffff, 0, 0.51, 0);
+  bake(root, [root]);
+  root.traverse((o) => (o.castShadow = o.receiveShadow = true));
+  return root;
+}
+
 export function createSpawnPad(team: Team): THREE.Object3D {
   const root = new THREE.Group();
   part(root, cyl(2.3, 2.3, 0.08, 24), palette.concrete, 0, 0.04, 0);

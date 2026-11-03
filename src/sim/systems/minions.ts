@@ -10,7 +10,7 @@ import { isBlocked } from '../grid';
 import { len } from '../math';
 import {
   Kind, TargetClass, Team,
-  type Collider, type Health, type LaneAgent, type Motion, type Targeting, type Transform, type Weapon,
+  type Collider, type Concealment, type Health, type LaneAgent, type Motion, type Targeting, type Transform, type Weapon,
 } from '../sim';
 import type { SpatialIndex } from '../spatial';
 
@@ -29,6 +29,9 @@ export interface MinionContext {
   models: Store<string>;
   spatial: SpatialIndex;
   events: SimEvent[];
+  concealments: Store<Concealment>;
+  /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
+  seen(e: Entity, team: Team): boolean;
   lanes: () => readonly LanePath[];
   grid: () => ObstacleGrid;
   /** Component objects of removed minions, reused by the next spawns (per sim). */
@@ -49,6 +52,7 @@ export interface MinionBundle {
   weapon: Weapon;
   targeting: Targeting;
   agent: LaneAgent;
+  concealment: Concealment;
 }
 type UnitId = keyof Config['units'];
 const nearby: Entity[] = [];
@@ -167,6 +171,7 @@ function spawnMinion(ctx: MinionContext, cfg: Config, unit: UnitId, team: Team, 
     weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 },
     targeting: { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 },
     agent: { unit: 'mgSoldier', lane: 0, branch: 0, waypoint: 0, offset: 0, helpTarget: 0, helpTicks: 0 },
+    concealment: { zone: 0, visible: 0 },
   };
   Object.assign(b.transform, { x, y, facing });
   Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
@@ -186,6 +191,8 @@ function spawnMinion(ctx: MinionContext, cfg: Config, unit: UnitId, team: Team, 
   ctx.kinds.add(e, Kind.Minion);
   ctx.models.add(e, unit);
   ctx.laneAgents.add(e, b.agent);
+  Object.assign(b.concealment, { zone: 0, visible: 0xff });
+  ctx.concealments.add(e, b.concealment);
 }
 
 function edgeDist(ctx: MinionContext, t: Transform, o: Entity): number {
@@ -193,9 +200,9 @@ function edgeDist(ctx: MinionContext, t: Transform, o: Entity): number {
   return len(ot.x - t.x, ot.y - t.y) - (ctx.colliders.get(o)?.radius ?? 0);
 }
 
-/** A living, targetable enemy the minion could shoot without straying more than `reach` (leash + range) from its lane. */
+/** A living, targetable enemy it can see (not hidden in a Trench) that the minion could shoot without straying more than `reach` (leash + range) from its lane. */
 function isValid(ctx: MinionContext, o: Entity, team: Team, pts: Float64Array, reach: number, tick: number): boolean {
-  if (o === 0 || ctx.teams.get(o) === team) return false;
+  if (o === 0 || ctx.teams.get(o) === team || !ctx.seen(o, team)) return false;
   const h = ctx.healths.get(o);
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
   const ot = ctx.transforms.get(o)!;
@@ -462,6 +469,7 @@ export function minionDeathSystem(ctx: MinionContext) {
       weapon: ctx.weapons.get(e)!,
       targeting: ctx.targetings.get(e)!,
       agent: ctx.laneAgents.get(e)!,
+      concealment: ctx.concealments.get(e)!,
     });
     ctx.world.destroy(e);
   }

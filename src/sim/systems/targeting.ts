@@ -13,6 +13,8 @@ export interface TargetingContext {
   targetClasses: Store<TargetClass>;
   targetings: Store<Targeting>;
   spatial: SpatialIndex;
+  /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
+  seen(e: Entity, team: Team): boolean;
   /** Current weapon range of a shooter (stat-modified for champions). */
   rangeOf(e: Entity): number;
 }
@@ -21,8 +23,8 @@ const candidates: Entity[] = [];
 
 /**
  * Champion auto-targeting, GDD §6 / TDD §6.2:
- * 1. Candidates are living, targetable enemies whose collider edge is within weapon range.
- *    (Line of sight and fog join in M3.)
+ * 1. Candidates are living, targetable enemies seen by the shooter's team (not hidden in a
+ *    Trench) whose collider edge is within weapon range. (Line of sight and fog join in M3.)
  * 2. The highest class with a candidate wins; within it the nearest unit, and units within
  *    `tieBand` of the nearest go to the lowest HP%.
  * 3. Keep the current target while it stays valid within range + `stickyRange`.
@@ -44,7 +46,7 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
   };
   const targetable = (e: Entity, team: Team) => {
     const h = healths.get(e);
-    return h !== undefined && h.hp > 0 && !isInvulnerable(h, tick) && teams.get(e) !== team;
+    return h !== undefined && h.hp > 0 && !isInvulnerable(h, tick) && teams.get(e) !== team && ctx.seen(e, team);
   };
 
   for (let i = 0; i < shooters.length; i++) {

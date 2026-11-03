@@ -17,5 +17,14 @@
     "logSeconds": 8,
     "lethalSaveSeconds": 1.5,
     "critMultiplier": 2
+  },
+  "trench": {
+    "revealRadius": 3,
+    "revealSeconds": 1
+  },
+  "medkit": {
+    "healPct": 25,
+    "respawnSeconds": 45,
+    "pickupRadius": 1.2
   }
 }

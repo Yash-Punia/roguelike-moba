@@ -322,7 +322,7 @@ export function createBot(
           let enemies = 0;
           for (let i = 0; i < snap.entities.length; i++) {
             const e = snap.entities[i]!;
-            if (e.id === me.id || e.hp <= 0 || (e.kind !== Kind.Champion && e.kind !== Kind.Minion)) continue;
+            if (e.id === me.id || e.hp <= 0 || (e.kind !== Kind.Champion && e.kind !== Kind.Minion) || (e.visibleMask & (1 << team)) === 0) continue;
             if (len(e.x - me.x, e.y - me.y) > ult.radius) continue;
             if (e.team === team) allies++;
             else if (e.kind === Kind.Champion) enemies++;
@@ -336,7 +336,7 @@ export function createBot(
           let near = 0;
           for (let i = 0; i < snap.entities.length; i++) {
             const e = snap.entities[i]!;
-            if (e.kind === Kind.Minion && e.team !== team && e.hp > 0 && len(e.x - target.x, e.y - target.y) <= b.ult.clusterRadius) near++;
+            if (e.kind === Kind.Minion && e.team !== team && e.hp > 0 && (e.visibleMask & (1 << team)) !== 0 && len(e.x - target.x, e.y - target.y) <= b.ult.clusterRadius) near++;
           }
           cmd.ult = near >= b.ult.minionCluster;
         }

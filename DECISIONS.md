@@ -922,3 +922,39 @@ From TDD §13:
   - The seed 1 3v3 guard ends at 5:57, still inside 6 minutes.
 - Why: the user wants the tank at its GDD strength for the playtest. The 3v3 median stays inside the 4:30–5:30 target; the cost is a longer tail and slower 2v2 matches.
 - Alternatives: keep 600 HP (D-053); halve the tank's damage instead (median about 4:30 before Shock Troops).
+
+## D-056 — Trenches: concealment, sandbags and medkits
+- Date: 2026-11-04
+- Source: user choices (the GDD concealment rule, sandbags in trench rooms only, an Ultimate cast reveals, arenas don't conceal); the rest made during development
+- Decision:
+  - **Zones:** every grid cell whose walkable shape has surface `trench` (trenches and the 12 rooms) gets a zone, numbered 1–4 by quadrant (sign of x and y). No trench crosses x = 0 or y = 0. Lanes painted over trench mouths, boss arenas and the Crater have no zone. "Entries" are the D-047 lane mouths; nothing new was built for them.
+  - **Concealment** (GDD §4, over TDD §6.9's narrower rule): a unit in a zone is hidden from the enemy team unless one of these holds:
+    - an enemy unit stands in the same zone;
+    - an enemy unit is within `combat.trench.revealRadius` (3 m);
+    - the unit fired, cast an Ultimate, or is channelling one within `revealSeconds` (1 s = 30 ticks).
+  - **How it runs:** structures neither hide nor reveal.
+    - `visibilitySystem` runs after movement and before any targeting, and keeps a per-team bit mask on a `Concealment` component (champions and minions).
+    - Champion, structure, minion and Ultimate targeting all skip hidden units, as does Gamma's Charge.
+    - Bots skip hidden enemies through the snapshot's `visibleMask`. Hidden units stay in the snapshot, because allies need them.
+    - Area damage ignores concealment: rocket splash, fire pool, Heat Wave, Lead Storm, flames.
+  - **Sandbags:** the map's existing `obstacles` (kind `sandbag`) now also fill a `shotBlocked` grid. The spec gives no coordinates, so they are placed by hand:
+    - each medkit room gets a short wall (0.5 × 1.5 m), 1.25 m from the crate towards the room's lane mouth;
+    - each sniper nest gets a three-piece horseshoe in the room's dead side, open to the back. These are axis-aligned rects, 2 m across.
+    - The Red half is the (−x, −y) twin.
+    - A test checks that every trench point stays reachable for a champion-sized unit.
+    - Arena and Crater covers come with the bosses in M4.
+  - **Bullets:** each tick, a grid ray march (`rayBlocked`) runs along the bullet's path. A bullet that reaches a sandbag before any unit stops there, and a rocket bursts there.
+    - The splash still reaches units behind the wall. Grenade lobs and flames ignore sandbags.
+    - Blast cover and targeting line of sight come with the next row. Until then, a unit can target an enemy behind a wall and waste shots on it.
+  - **Medkits:** `map.medkits` holds the M1–M4 room centres. A ready crate goes to the first living champion (ascending id) below max HP within `combat.medkit.pickupRadius` (1.2 m). It heals 25% of max HP and returns after 45 s.
+    - Crates start ready. Minions don't take them. The sim emits a `medkitTaken` event.
+  - **Render:**
+    - Enemies hidden from your team fade out over 0.2 s, using transparent copies of their materials, and fade back in when revealed. Their HP bar, blob shadow, flames, Heat Wave ring and damage numbers are hidden meanwhile. A knock-out ends the fade first.
+    - Sandbags now sit on the ground they stand on, which is sunk in a trench, in two courses.
+    - Crates are cream with a khaki band and a white cross, shown while ready.
+  - **Measured:** about 80–96 draw calls by the Blue base with the room in view (budget 120).
+- Why: the Trenches row of M3 (D-046). Trenches become LoL-style brush with cover and sustain, and the next row (line of sight) only has to mark raised ground in `shotBlocked` and reuse `rayBlocked`.
+- Alternatives:
+  - The TDD rule (3 m or fired only, no same-zone sight). Declined: the GDD says enemies outside the trench.
+  - Zones as flood-filled connected trench pieces. Quadrants match the GDD's "4 Trench zones" and need no fill.
+  - Rotated sandbag shapes. Axis-aligned rects reuse the existing obstacle stamp.

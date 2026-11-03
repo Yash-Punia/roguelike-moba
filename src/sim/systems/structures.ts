@@ -18,6 +18,8 @@ export interface StructureContext {
   kinds: Store<Kind>;
   spatial: SpatialIndex;
   events: SimEvent[];
+  /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
+  seen(e: Entity, team: Team): boolean;
   /** Current structure config (live edits included). */
   defs(): Config['structures'];
 }
@@ -32,9 +34,9 @@ function edge(ctx: StructureContext, t: Transform, o: Entity): number {
   return len(ot.x - t.x, ot.y - t.y) - (ctx.colliders.get(o)?.radius ?? 0);
 }
 
-/** A unit this structure may shoot: a living, targetable enemy minion or champion within range. */
+/** A unit this structure may shoot: a living, targetable enemy minion or champion within range, not hidden in a Trench. */
 function shootable(ctx: StructureContext, o: Entity, team: Team, t: Transform, range: number, tick: number): boolean {
-  if (o === 0 || ctx.teams.get(o) === team) return false;
+  if (o === 0 || ctx.teams.get(o) === team || !ctx.seen(o, team)) return false;
   const kind = ctx.kinds.get(o);
   if (kind !== Kind.Minion && kind !== Kind.Champion) return false;
   const h = ctx.healths.get(o);

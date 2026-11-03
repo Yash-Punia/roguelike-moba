@@ -25,6 +25,8 @@ export interface UltimateContext {
   zones: ZonePool;
   hits: HitQueue;
   events: SimEvent[];
+  /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
+  seen(e: Entity, team: Team): boolean;
 }
 
 // A function, not a table: sim.ts imports this module, so its enums aren't ready at load time.
@@ -71,7 +73,7 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
     let bestDist = Infinity;
     for (let k = 0; k < nearby.length; k++) {
       const o = nearby[k]!;
-      if (o === e || ctx.targetClasses.get(o) !== cls || ctx.teams.get(o) === team) continue;
+      if (o === e || ctx.targetClasses.get(o) !== cls || ctx.teams.get(o) === team || !ctx.seen(o, team!)) continue;
       const h = ctx.healths.get(o);
       if (!h || h.hp <= 0 || isInvulnerable(h, tick)) continue;
       const ot = ctx.transforms.get(o)!;
@@ -124,6 +126,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
       c.channelAngle = atan2(tt.y - t.y, tt.x - t.x);
       ctx.motions.get(e)!.channelMult = ult.moveSpeedPct;
     }
+    c.lastCastTick = tick; // casting reveals it in a Trench, like a shot
     events.push({ type: 'ultCast', id: e, target: c.ultTargetId, x: tt.x, y: tt.y });
   }
 }

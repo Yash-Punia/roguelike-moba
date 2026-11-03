@@ -174,7 +174,9 @@ const MapConfig = z.object({
   lanes: z.array(z.object({ id: z.string(), route: z.array(z.array(z.string()).min(1)).min(1) })).default([]),
   /** Cave mouths behind each HQ that waves come out of (D-051; render only: lane routes start there). */
   caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
-  /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). */
+  /** Medkit crates in the Trench medkit rooms (GDD §4). */
+  medkits: z.array(vec).default([]),
+  /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). Sandbags also stop bullets (`blocksShots`, GDD §4). */
   obstacles: z.array(
     z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
   ),
@@ -419,6 +421,10 @@ const Combat = z.object({
     /** Damage × this on a critical hit. */
     critMultiplier: z.number().min(1),
   }),
+  /** Trench concealment (GDD §4, TDD §6.9): a unit in a Trench is hidden from enemies outside its zone, except within `revealRadius` or for `revealSeconds` after it fires or casts. */
+  trench: z.object({ revealRadius: nonneg(), revealSeconds: secs() }),
+  /** Medkit crates (GDD §4): a champion below max HP within `pickupRadius` takes one and heals `healPct` of max HP; it comes back after `respawnSeconds`. */
+  medkit: z.object({ healPct: pct(), respawnSeconds: secs(), pickupRadius: positive() }),
 });
 
 // Camera runs in real time (render), so its seconds stay seconds.

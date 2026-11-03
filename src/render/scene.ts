@@ -5,7 +5,7 @@ import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { HpBars, type HpBar } from './hp-bars';
-import { createCave, createModel, createSpawnPad, partsOf } from './models';
+import { createCave, createMedkit, createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
 import { bake } from './bake';
 import { Knockouts } from './knockout';
@@ -23,6 +23,25 @@ const BLOB_RADIUS = 0.42;
 const RUBBLE_HEIGHT = 0.35;
 const COLLAPSE_MS = 600;
 const rubbleTint = new THREE.Color(palette.scorched);
+/** Enemies hidden in a Trench fade out, and back in when revealed, over this long (TDD §10). */
+const CONCEAL_MS = 200;
+
+/** A concealed enemy's fade: 1 drawn, 0 gone; transparent copies of its materials while below 1. */
+interface Fade {
+  k: number;
+  hidden: boolean;
+  originals: Map<THREE.Mesh, THREE.Material | THREE.Material[]> | undefined;
+  mats: THREE.MeshLambertMaterial[];
+}
+
+/** Puts a model's own materials back and drops the fading copies. */
+function unfade(root: THREE.Object3D, f: Fade) {
+  if (f.originals) for (const [mesh, mat] of f.originals) mesh.material = mat;
+  for (const m of f.mats) m.dispose();
+  f.originals = undefined;
+  f.mats.length = 0;
+  root.visible = true;
+}
 
 /** The HQ's mast falls over this long after the HQ does (GDD §11 "mast topples"). */
 const MAST_FALL_MS = 800;
@@ -129,6 +148,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   const damageNumbers = new DamageNumbers(container);
   /** Team of the followed champion: damage to it and its allies shows white, to enemies gold. */
   let localTeam: Team | undefined;
+  const fades = new Map<number, Fade>();
 
   /** Call after every sim tick: shifts current → previous. */
   function capture(snap: Snapshot) {
@@ -151,7 +171,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       bar?.set(e.hp, e.maxHp);
       if (bar && e.kind === Kind.Champion) bar.setLevel(e.level);
-      if (bar) bar.visible = e.hp > 0;
+      // Trench concealment (TDD §6.9): an enemy the viewer's team can't see fades out (a knock-out ends it, in addEvents).
+      const hidden = e.hp > 0 && (e.visibleMask & (1 << viewer)) === 0;
+      let fade = fades.get(e.id);
+      if (hidden && !fade) fades.set(e.id, (fade = { k: 1, hidden, originals: undefined, mats: [] }));
+      if (fade) fade.hidden = hidden;
+      if (bar) bar.visible = e.hp > 0 && !hidden;
       // While channelling Lead Storm the upper body sprays along the strip, not at the weapon target.
       const aim = e.channel !== 0 ? e.channelAngle : e.aim;
       // A jump this big in one tick is a teleport (respawn): don't streak across the map.
@@ -168,8 +193,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         const ult = def?.ultimate;
         if (ult?.id === 'leadStorm' && e.channel !== 0) ultFx.storm(e.id, e.channel, ult.length, ult.width);
         else ultFx.storm(e.id, 0, 0, 0);
-        if (ult?.id === 'heatWave') ultFx.heatWave(e.id, e.aura > 0 && e.hp > 0, ult.radius);
-        if (def?.weapon.kind === 'cone') ultFx.flame(e.id, e.firing && e.hp > 0, def.weapon.range, def.weapon.coneAngle);
+        if (ult?.id === 'heatWave') ultFx.heatWave(e.id, e.aura > 0 && e.hp > 0 && !hidden, ult.radius);
+        if (def?.weapon.kind === 'cone') ultFx.flame(e.id, e.firing && e.hp > 0 && !hidden, def.weapon.range, def.weapon.coneAngle);
       }
       const parts = partsOf(meshes.get(e.id)!);
       if (parts.traitRing) parts.traitRing.visible = e.traitActive && e.hp > 0;
@@ -188,6 +213,10 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.targetId = e.targetId;
       s.radius = e.radius;
     }
+    for (let i = 0; i < snap.medkits.length; i++) {
+      const kit = arena.medkits[i];
+      if (kit) kit.visible = snap.medkits[i]!.ready;
+    }
     tracers.capture(snap.projectiles, viewer);
     ultFx.capture(snap.lobs, snap.zones);
     for (const [id, mesh] of meshes) {
@@ -198,6 +227,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       meshes.delete(id);
       interp.delete(id);
       teams.delete(id);
+      fades.delete(id);
       bars.get(id)?.dispose();
       bars.delete(id);
     }
@@ -238,6 +268,9 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       if (ev.type === 'death') {
         const mesh = meshes.get(ev.id);
+        const fade = fades.get(ev.id);
+        if (mesh && fade) unfade(mesh, fade); // the knock-out fades its own copies of the real materials
+        fades.delete(ev.id);
         if (mesh) knockouts.start(ev.id, mesh, now);
         ultFx.smoke(ev.x, ev.y, 1.4, palette.mud, 4, now);
       }
@@ -247,7 +280,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       if (ev.type !== 'damage') continue;
       const s = interp.get(ev.target);
-      if (!s) continue;
+      if (!s || fades.get(ev.target)?.hidden) continue; // splash on a hidden unit doesn't give it away
       const lift = bars.get(ev.target)?.lift ?? 2;
       const ally = teams.get(ev.target) === localTeam;
       const hpLost = ev.amount - ev.absorbed;
@@ -292,7 +325,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.ix = x;
       s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
-      if (s.kind === Kind.Minion && blobCount < blobs.instanceMatrix.count) {
+      if (s.kind === Kind.Minion && blobCount < blobs.instanceMatrix.count && (fades.get(id)?.k ?? 1) > 0) {
         blobMatrix.makeTranslation(x, mesh.position.y + 0.03, -y);
         blobs.setMatrixAt(blobCount++, blobMatrix);
       }
@@ -317,6 +350,29 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     }
     blobs.count = blobCount;
     blobs.instanceMatrix.needsUpdate = true;
+    for (const [id, f] of fades) {
+      const root = meshes.get(id)!;
+      const step = (dt * 1000) / CONCEAL_MS;
+      f.k = f.hidden ? Math.max(0, f.k - step) : Math.min(1, f.k + step);
+      if (f.k >= 1 && !f.hidden) {
+        unfade(root, f);
+        fades.delete(id);
+        continue;
+      }
+      if (!f.originals) {
+        f.originals = new Map();
+        root.traverse((o) => {
+          if (!(o instanceof THREE.Mesh) || !(o.material instanceof THREE.MeshLambertMaterial)) return;
+          f.originals!.set(o, o.material);
+          const m = o.material.clone();
+          m.transparent = true;
+          f.mats.push(m);
+          o.material = m;
+        });
+      }
+      for (const m of f.mats) m.opacity = f.k;
+      root.visible = f.k > 0;
+    }
     knockouts.update(now, dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
@@ -398,18 +454,29 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     group.add(cave);
   }
 
-  // Sandbag blocks, baked into one mesh (D-044).
+  // Sandbag walls on the ground they stand on (trench floors are sunk), two courses high, baked into one mesh (D-044).
   if (map.obstacles.length > 0) {
     const blocks = new THREE.Group();
     const sandbag = lambert(palette.sandbag);
+    const top = lambert(palette.sandbagShadow);
     for (const o of map.obstacles) {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1, o.h), sandbag);
-      box.position.set(o.x, 0.5, -o.y);
-      blocks.add(box);
+      const ground = terrain.heightAt(o.x, o.y);
+      const low = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.5, o.h), sandbag);
+      low.position.set(o.x, ground + 0.25, -o.y);
+      const high = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.3, o.w - 0.15), 0.45, Math.max(0.3, o.h - 0.15)), top);
+      high.position.set(o.x, ground + 0.72, -o.y);
+      blocks.add(low, high);
     }
     bake(blocks, [blocks]);
     blocks.traverse((m) => (m.castShadow = m.receiveShadow = true));
     group.add(blocks);
   }
-  return { group, terrain };
+  // Medkit crates (GDD §4), shown while ready.
+  const medkits = map.medkits.map((m) => {
+    const kit = createMedkit();
+    kit.position.set(m.x, terrain.heightAt(m.x, m.y), -m.y);
+    group.add(kit);
+    return kit;
+  });
+  return { group, terrain, medkits };
 }

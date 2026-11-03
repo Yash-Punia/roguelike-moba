@@ -10,6 +10,8 @@ export interface TraitContext {
   healths: Store<Health>;
   transforms: Store<Transform>;
   teams: Store<Team>;
+  /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
+  seen(e: number, team: Team): boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ export interface TraitContext {
  * - Beta's Light Feet: `outOfCombatSeconds` after she last dealt or took damage (the
  *   `lastCombatTick` stamp), + move speed until the next hit.
  * - Gamma's Charge: + move speed while the stick points within `angle` of the nearest living
- *   enemy champion within `radius` (visibility joins with fog of war).
+ *   enemy champion it can see within `radius` (not hidden in a Trench).
  */
 export function traitSystem(ctx: TraitContext, tick: number) {
   const { champions, motions, stats, healths } = ctx;
@@ -52,7 +54,7 @@ export function traitSystem(ctx: TraitContext, tick: number) {
   }
 }
 
-/** Is `e` steering within `angle` of the nearest living enemy champion within `radius`? */
+/** Is `e` steering within `angle` of the nearest living, seen enemy champion within `radius`? */
 function chargingAt(ctx: TraitContext, e: number, m: Motion, radius: number, angle: number): boolean {
   if (m.intentX === 0 && m.intentY === 0) return false;
   const { champions, healths, transforms, teams } = ctx;
@@ -62,7 +64,7 @@ function chargingAt(ctx: TraitContext, e: number, m: Motion, radius: number, ang
   let bestDist = radius;
   for (let k = 0; k < champions.ids.length; k++) {
     const o = champions.ids[k]!;
-    if (teams.get(o) === team || healths.get(o)!.hp <= 0) continue;
+    if (teams.get(o) === team || healths.get(o)!.hp <= 0 || !ctx.seen(o, team!)) continue;
     const ot = transforms.get(o)!;
     const d = len(ot.x - t.x, ot.y - t.y);
     if (d <= bestDist) {

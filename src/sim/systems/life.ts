@@ -98,3 +98,28 @@ export function padHealSystem(ctx: LifeContext, map: Config['map'], pad: Config[
     h.hp = Math.min(h.maxHp, h.hp + (h.maxHp * pad.healPctPerSecond) / TICK_HZ);
   }
 }
+
+/**
+ * Trench medkits (GDD §4): a ready crate goes to the first living champion (ascending id)
+ * below max HP within `pickupRadius`, healing `healPct` of max HP; it is back `respawnSeconds`
+ * later. `readyAt[i]` is the tick crate i is ready from (0 at the start).
+ */
+export function medkitSystem(ctx: LifeContext, map: Config['map'], cfg: Config['combat']['medkit'], readyAt: number[], tick: number) {
+  const { champions, transforms, healths } = ctx;
+  for (let k = 0; k < map.medkits.length; k++) {
+    if ((readyAt[k] ?? 0) > tick) continue;
+    const at = map.medkits[k]!;
+    for (let i = 0; i < champions.ids.length; i++) {
+      const e = champions.ids[i]!;
+      const h = healths.get(e);
+      if (!h || h.hp <= 0 || h.hp >= h.maxHp) continue;
+      const t = transforms.get(e)!;
+      if (len(t.x - at.x, t.y - at.y) > cfg.pickupRadius) continue;
+      const amount = Math.min(h.maxHp - h.hp, h.maxHp * cfg.healPct);
+      h.hp += amount;
+      readyAt[k] = tick + cfg.respawnSeconds;
+      ctx.events.push({ type: 'medkitTaken', id: e, medkit: k, amount });
+      break;
+    }
+  }
+}
