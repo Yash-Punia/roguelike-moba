@@ -32,6 +32,12 @@ export class ProjectilePool {
   splash = new Float64Array(0);
   structureMult = new Float64Array(0);
   life = new Int32Array(0);
+  /** Powers (D-060): enemies it may still pass through, bounces left with their reach and damage share, and the unit it last hit (never hit twice in a row). */
+  pierce = new Int32Array(0);
+  bounces = new Int32Array(0);
+  bounceRadius = new Float64Array(0);
+  bouncePct = new Float64Array(0);
+  lastHit = new Int32Array(0);
   private free: number[] = [];
   private nextId = 1;
 
@@ -59,6 +65,11 @@ export class ProjectilePool {
     this.splash[i] = splash;
     this.structureMult[i] = structureMult;
     this.life[i] = life;
+    this.pierce[i] = 0;
+    this.bounces[i] = 0;
+    this.bounceRadius[i] = 0;
+    this.bouncePct[i] = 0;
+    this.lastHit[i] = 0;
     this.live++;
     return i;
   }
@@ -94,6 +105,11 @@ export class ProjectilePool {
     this.splash = copy(this.splash, (n) => new Float64Array(n));
     this.structureMult = copy(this.structureMult, (n) => new Float64Array(n));
     this.life = copy(this.life, (n) => new Int32Array(n));
+    this.pierce = copy(this.pierce, (n) => new Int32Array(n));
+    this.bounces = copy(this.bounces, (n) => new Int32Array(n));
+    this.bounceRadius = copy(this.bounceRadius, (n) => new Float64Array(n));
+    this.bouncePct = copy(this.bouncePct, (n) => new Float64Array(n));
+    this.lastHit = copy(this.lastHit, (n) => new Int32Array(n));
     // Push new slots highest first so the lowest index is handed out first.
     for (let i = size - 1; i >= old; i--) this.free.push(i);
     this.capacity = size;

@@ -4,8 +4,10 @@ import type { SimEvent } from '../events';
 import { GROUND } from '../grid';
 import type { HitQueue } from '../hits';
 import { asin, atan2, cos, len, sin, turnTowards, wrapAngle } from '../math';
+import type { PowerMods } from '../powers';
 import type { ProjectilePool } from '../projectiles';
 import type { Rng } from '../rng';
+import type { ZonePool } from '../zones';
 import type { Collider, Health, Motion, Targeting, Team, Transform, Weapon } from '../sim';
 import type { SpatialIndex } from '../spatial';
 import { Stat, stat, type Stats } from '../stats';
@@ -37,6 +39,10 @@ export interface WeaponsContext {
   rangeOf(e: Entity): number;
   /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
   clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
+  /** A champion's folded powers (D-060); undefined for minions and structures. */
+  modsOf(e: Entity): PowerMods | undefined;
+  /** Burning ground (Napalm Tank). */
+  zones: ZonePool;
 }
 
 /**
@@ -49,6 +55,9 @@ export interface WeaponsContext {
  * Each shot rolls `critChance` on the seeded `crit` stream (only when the chance is above 0);
  * a crit carries `critMultiplier` into the damage pipeline. A cone weapon (Gamma) aims the
  * same way but fires no projectile: each flame hits every enemy in its sector at once.
+ * Powers (D-060): extra projectiles fan out `shotSpread` apart round the aim; every
+ * `critEvery`th trigger pull is a crit; bullets carry pierce and ricochet counters; a cone
+ * leaves burning ground every `groundEvery` while it flames.
  */
 export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, cfg: Config['combat']['weapons'], critMultiplier: number, tick: number) {
   const { transforms, motions, healths, weapons, targetings, stats } = ctx;
@@ -64,6 +73,8 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
 
     const st = stats.get(e);
     if (w.cooldown > 0) w.cooldown -= st ? stat(st, Stat.FireRate) : 1;
+    if (w.groundWait > 0) w.groundWait--;
+    const mods = ctx.modsOf(e);
     if (ctx.holdFire(e)) {
       w.burstLeft = 0;
       continue;
@@ -95,15 +106,25 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
 
     if (tg.holdTicks > 0 || w.cooldown > 0 || Math.abs(wrapAngle(desired - w.aim)) > cfg.fireCone) continue;
 
-    const critMult = critRoll(w, ctx, critMultiplier);
+    w.shotCount++;
+    const critMult = mods && mods.critEvery > 0 && w.shotCount % mods.critEvery === 0 ? critMultiplier : critRoll(w, ctx, critMultiplier);
     w.lastShotTick = tick;
     if (w.kind === 'cone') {
       flame(e, w, t, ctx, critMult);
+      if (mods && mods.groundDps > 0 && w.groundWait <= 0) {
+        // Burning ground at the middle of the cone (Napalm Tank).
+        const at = ctx.rangeOf(e) * 0.5;
+        const period = 15;
+        ctx.zones.spawn(e, ctx.teams.get(e)!, t.x + cos(w.aim) * at, t.y + sin(w.aim) * at, mods.groundRadius, mods.groundTicks, period, (mods.groundDps * period) / TICK_HZ, 1);
+        w.groundWait = mods.groundEvery;
+      }
       w.cooldown += w.interval;
       continue;
     }
     const boost = ctx.shotMultiplier(e, target);
-    fire(e, w, t, ctx, cfg, target, desired, w.damage * boost, critMult, boost);
+    // Extra projectiles (Double Tap) fan out round the aim; a burst weapon gets them in its burst instead.
+    const extra = mods && w.burstCount <= 1 ? mods.shots : 0;
+    for (let j = 0; j <= extra; j++) fire(e, w, t, ctx, cfg, target, desired + (j - extra / 2) * (mods?.shotSpread ?? 0), w.damage * boost, critMult, boost);
     w.cooldown += w.interval;
     // A burst weapon (Beta's SMG) queues the rest along its aim, `burstGapSeconds` apart (TDD §6.3).
     w.burstLeft = w.burstCount - 1;
@@ -153,7 +174,7 @@ function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult
     // Within the half-angle, widened by the angle the collider covers at its distance.
     if (d > r && Math.abs(wrapAngle(atan2(ot.y - t.y, ot.x - t.x) - w.aim)) > half + asin(r / d)) continue;
     if (!ctx.clear(t.x, t.y, ot.x, ot.y, GROUND)) continue;
-    ctx.hits.push(e, o, w.damage, critMult);
+    ctx.hits.push(e, o, w.damage, critMult, 1, false, true);
   }
   ctx.events.push({ type: 'shot', id: e, target: 0 });
 }
@@ -168,7 +189,14 @@ function fire(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Conf
   const dy = sin(dir);
   const muzzle = ctx.colliders.get(e)?.radius ?? 0;
   const life = Math.ceil((ctx.rangeOf(e) + cfg.bulletOvershoot) / perTick);
-  ctx.pool.spawn(e, ctx.teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, critMult, life, boost, w.splashRadius, 1 + w.vsStructuresPct);
+  const i = ctx.pool.spawn(e, ctx.teams.get(e)!, target, cfg.bulletAim === 'homing', t.x + dx * muzzle, t.y + dy * muzzle, dx * perTick, dy * perTick, damage, critMult, life, boost, w.splashRadius, 1 + w.vsStructuresPct);
+  const mods = ctx.modsOf(e);
+  if (mods) {
+    ctx.pool.pierce[i] = mods.pierce;
+    ctx.pool.bounces[i] = mods.ricochetCount;
+    ctx.pool.bounceRadius[i] = mods.ricochetRadius;
+    ctx.pool.bouncePct[i] = mods.ricochetPct;
+  }
   ctx.events.push({ type: 'shot', id: e, target });
 }
 

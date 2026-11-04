@@ -1,9 +1,10 @@
-import type { Config, PowerDef, StatName } from '../../data/schema';
+import type { Config, PowerDef } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { Rng } from '../rng';
 import { Kind, type Champion, type Health } from '../sim';
-import { addPct, Stat, type Stats } from '../stats';
+import { foldMods, STAT } from '../powers';
+import { addPct, type Stats } from '../stats';
 
 type Powers = Config['powers'];
 
@@ -24,35 +25,44 @@ export interface DraftContext {
   onStatsChanged(e: Entity): void;
 }
 
-const STAT: Record<StatName, Stat> = {
-  damage: Stat.Damage,
-  fireRate: Stat.FireRate,
-  maxHp: Stat.MaxHp,
-  moveSpeed: Stat.MoveSpeed,
-  range: Stat.Range,
-  damageTaken: Stat.DamageTaken,
-  ultCharge: Stat.UltCharge,
-  damageVsChampions: Stat.DamageVsChampions,
-  damageVsStructures: Stat.DamageVsStructures,
-};
-
 const powerById = (p: Powers, id: string) => p.powers.find((x) => x.id === id);
 
-/** Powers this champion may be offered (basic draft: Commons only, D-041), under their stack caps. */
+/** Powers this champion may be offered: the shared pool and its own signatures, under their stack caps. */
 function eligible(p: Powers, c: Champion): PowerDef[] {
-  return p.powers.filter(
-    (x) => x.rarity === 'common' && (x.pool === 'all' || x.pool === c.championId) && (c.powers[x.id] ?? 0) < p.draft.stackCaps[x.rarity],
-  );
+  return p.powers.filter((x) => (x.pool === 'all' || x.pool === c.championId) && (c.powers[x.id] ?? 0) < p.draft.stackCaps[x.rarity]);
 }
 
-/** Draws an offer of distinct cards from the seeded `draft` stream; empty if nothing is eligible. */
+const TIERS = ['epic', 'rare', 'common'] as const;
+
+/**
+ * Draws an offer of distinct cards from the seeded `draft` stream (GDD §8 rule 4, pulled
+ * forward, D-060): each card rolls its rarity on `rarityOdds`, then a power of it; with none of
+ * that rarity left it falls back a tier (Epic → Rare → Common → any). Empty if nothing is eligible.
+ */
 export function makeOffer(p: Powers, c: Champion, rng: Rng): string[] {
   const pool = eligible(p, c);
   const cards: string[] = [];
+  const odds = p.draft.rarityOdds;
   while (cards.length < p.draft.cards && pool.length > 0) {
-    const i = Math.floor(rng() * pool.length);
-    cards.push(pool[i]!.id);
-    pool.splice(i, 1);
+    const roll = rng() * (odds.common + odds.rare + odds.epic);
+    let tier = roll < odds.epic ? 0 : roll < odds.epic + odds.rare ? 1 : 2;
+    let pick = -1;
+    for (; tier < TIERS.length && pick < 0; tier++) {
+      let n = 0;
+      for (const x of pool) if (x.rarity === TIERS[tier]) n++;
+      if (n === 0) continue;
+      let k = Math.floor(rng() * n);
+      for (let i = 0; i < pool.length; i++) {
+        if (pool[i]!.rarity !== TIERS[tier]) continue;
+        if (k-- === 0) {
+          pick = i;
+          break;
+        }
+      }
+    }
+    if (pick < 0) pick = Math.floor(rng() * pool.length);
+    cards.push(pool[pick]!.id);
+    pool.splice(pick, 1);
   }
   return cards;
 }
@@ -77,21 +87,19 @@ export function recommended(p: Powers, c: Champion, cards: readonly string[]): n
   return best;
 }
 
-/** Applies one stack of a power: its `stat` effects add their pct (D-033 delta model). */
+/**
+ * Applies one stack of a power: its `stat` effects add their pct (D-033 delta model), and the
+ * champion's folded mods are rebuilt (D-060), then its stats and weapon re-derived.
+ */
 export function applyPower(ctx: DraftContext, p: Powers, e: Entity, id: string, auto: boolean) {
   const c = ctx.champions.get(e)!;
   const def = powerById(p, id);
   if (!def) return;
   c.powers[id] = (c.powers[id] ?? 0) + 1;
   const st = ctx.stats.get(e);
-  let changed = false;
-  for (const fx of def.effects) {
-    if (fx.type === 'stat' && st) {
-      addPct(st, STAT[fx.stat], fx.pct);
-      changed = true;
-    }
-  }
-  if (changed) ctx.onStatsChanged(e);
+  for (const fx of def.effects) if (fx.type === 'stat' && st) addPct(st, STAT[fx.stat], fx.pct);
+  foldMods(c.mods, p, c.powers);
+  ctx.onStatsChanged(e);
   ctx.events.push({ type: 'powerPicked', id: e, power: id, auto });
 }
 
@@ -109,8 +117,8 @@ function resolveFront(ctx: DraftContext, p: Powers, e: Entity, slot: number, aut
  * The draft (GDD §8, TDD §6.10), in the rewards stage after XP:
  * 1. The live (front) offer resolves on a `draftPick` from its champion, or after
  *    `autoPickSeconds` with the recommended card; the next queued offer then starts its timer.
- * 2. Every level-up this tick (to a level below the max) adds an offer of distinct Commons
- *    under their stack caps. With `maxQueued` already waiting, the oldest is auto-picked first.
+ * 2. Every level-up this tick (to a level below the max) adds an offer of distinct powers
+ *    under their stack caps, by rarity odds. With `maxQueued` already waiting, the oldest is auto-picked first.
  * Play never pauses: none of this blocks anything else.
  */
 export function draftSystem(ctx: DraftContext, p: Powers, events: readonly SimEvent[]) {

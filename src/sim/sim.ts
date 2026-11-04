@@ -16,9 +16,11 @@ import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { traitSystem, type TraitContext } from './systems/traits';
 import { deathSystem, medkitSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
+import { emptyMods, foldMods, type PowerMods } from './powers';
+import { statusSystem, type StatusContext } from './systems/status';
 import { createVision, SEEN_BY_ALL, visibilitySystem, visibleTo, type Vision, type VisibilityContext } from './systems/visibility';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
-import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
+import { applyPower, draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
   callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnFromCaves, spawnWave, waveDue, waveLength, type MinionContext,
 } from './systems/minions';
@@ -27,7 +29,7 @@ import {
   backdoorSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, updateHqGate, warmupShot,
   type StructureContext,
 } from './systems/structures';
-import { heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
+import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 
 export type PlayerId = number;
@@ -136,6 +138,26 @@ export interface Champion {
   spawnAt: { x: number; y: number } | undefined;
   /** Tick it last cast its Ultimate (reveals it in a Trench); −1 before the first. */
   lastCastTick: number;
+  /** Owned powers folded into what the systems read (D-060). */
+  mods: PowerMods;
+  /** Second Wind is ready again from this tick. */
+  lowHpReadyAt: number;
+  /** The conditional stat pct it has applied right now (Dug In), removed as a delta. */
+  dugInApplied: number;
+}
+/** Timed effects on a champion or minion (TDD §5 statuses, D-060): a burn, a damage-taken mark, a timed shield and a stat buff. */
+export interface Status {
+  burnDps: number;
+  burnTicks: number;
+  burnSource: Entity;
+  markPct: number;
+  markTicks: number;
+  /** What is left of a timed shield grant; removed from the unit's shield when it runs out. */
+  shieldLeft: number;
+  shieldTicks: number;
+  buffStat: Stat;
+  buffPct: number;
+  buffTicks: number;
 }
 /** Trench concealment (TDD §5, §6.9): champions and minions. */
 export interface Concealment {
@@ -170,6 +192,9 @@ export interface Weapon extends WeaponConfig {
   burstTarget: Entity;
   /** Tick of the last shot or flame (render shows Gamma's flames from it); −1 before the first. */
   lastShotTick: number;
+  /** Shots fired (Dead Eye's every Nth shot), and ticks until a cone may leave burning ground again (Napalm Tank). */
+  shotCount: number;
+  groundWait: number;
 }
 /** Auto-target state (TDD §6.2), filled by the targeting system. 0 = none. */
 export interface Targeting {
@@ -268,6 +293,8 @@ export interface EntitySnapshot {
   /** Heat Wave ticks left (0 = none), and whether its weapon fired within its interval (Gamma's flames). */
   aura: number;
   firing: boolean;
+  /** Heat Wave's radius (Inferno Shell widens it); 0 for other Ultimates. */
+  auraRadius: number;
   /** Teams that can see it, one bit per `Team` (Trench concealment); every bit for structures. */
   visibleMask: number;
 }
@@ -366,6 +393,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const stats = world.store<Stats>();
   const laneAgents = world.store<LaneAgent>();
   const concealments = world.store<Concealment>();
+  const statuses = world.store<Status>();
   const seen = (e: Entity, team: Team) => visibleTo(concealments, e, team);
   /** Line of sight (D-018): nothing with `mask`'s flags between a and b. */
   const clear = (ax: number, ay: number, bx: number, by: number, mask: number) => rayBlocked(grid, ax, ay, bx, by, mask) < 0;
@@ -412,7 +440,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     st.base[Stat.FireRate] = 1;
     st.base[Stat.MaxHp] = def.maxHp * (1 + def.growth.hpPct * up);
     st.base[Stat.MoveSpeed] = def.moveSpeed;
-    st.base[Stat.Range] = def.weapon.range;
+    const mods = champions.get(e)?.mods;
+    // Weapon powers (D-060): a cone weapon converts extra projectiles into a wider, longer cone (GDD §8 rule 8).
+    st.base[Stat.Range] = def.weapon.range + (mods && def.weapon.kind === 'cone' ? mods.coneRange : 0);
     st.base[Stat.DamageTaken] = 1;
     st.base[Stat.UltCharge] = 1;
     st.base[Stat.DamageVsChampions] = 1;
@@ -429,11 +459,19 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       setMaxHp(h, maxHp);
     }
     const w = weapons.get(e);
-    if (w) Object.assign(w, def.weapon);
+    if (w) {
+      Object.assign(w, def.weapon);
+      if (mods) {
+        if (w.kind === 'cone') w.coneAngle += mods.coneAngle;
+        else if (w.burstCount > 1) w.burstCount += mods.shots; // a burst weapon's extra projectiles join the burst
+        w.burstCount += mods.burst;
+      }
+    }
   }
 
+  const newStatus = (): Status => ({ burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffStat: Stat.MoveSpeed, buffPct: 0, buffTicks: 0 });
   const newHealth = (maxHp: number): Health => ({ hp: maxHp, maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
+  const newWeapon = (def: WeaponConfig, aim: number): Weapon => ({ ...def, cooldown: 0, aim, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
   const noTarget = (): Targeting => ({ targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
 
   players.forEach((p, player) => {
@@ -451,8 +489,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
+    statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
     models.add(e, def.id);
     playerEntity[player] = e;
@@ -478,6 +517,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   spatial.rebuild(healths.ids, transforms);
 
   const pool = new ProjectilePool();
+  const lobs = new LobPool();
+  const zones = new ZonePool();
   const hits = new HitQueue();
   const weaponsContext: WeaponsContext = {
     transforms, motions, colliders, teams, healths, weapons, targetings, stats, pool, hits, spatial, events, crit: rng.crit, spread: rng.spread,
@@ -489,17 +530,17 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     secondaryOf: (e) => structures.get(e)?.secondaryId ?? 0,
     rangeOf: (e) => targetingContext.rangeOf(e),
     clear,
+    modsOf: (e) => champions.get(e)?.mods,
+    zones,
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits, grid: () => grid };
 
-  const lobs = new LobPool();
-  const zones = new ZonePool();
   const traitContext: TraitContext = { champions, motions, stats, healths, transforms, teams, seen };
   const ultimateContext: UltimateContext = {
     champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events, seen, clear,
   };
   const minionContext: MinionContext = {
-    world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events, concealments, seen, clear,
+    world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events, concealments, statuses, seen, clear,
     lanes: () => lanes,
     grid: () => grid,
     laneBroken: (team, laneId) => {
@@ -526,11 +567,15 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, dealtMult: (s) => heatWaveMult(ultimateContext, s), structureResist: (t) => {
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, markOf: (t) => {
+    const s = statuses.get(t);
+    return s && s.markTicks > 0 ? s.markPct : 0;
+  }, dealtMult: (s) => heatWaveMult(ultimateContext, s), structureResist: (t) => {
     const a = laneAgents.get(t);
     return a ? config.units[a.unit].structureResistPct : 0;
   } };
   const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, seen, clear, defs: () => config.structures };
+  const statusContext: StatusContext = { champions, statuses, healths, stats, motions, transforms, teams, structures, hits, events, grid: () => grid };
   const visibilityContext: VisibilityContext = {
     concealments, transforms, teams, healths, weapons, champions, kinds, grid: () => grid, vision: createVision(config.map, config.combat.fog.cellSize),
   };
@@ -629,6 +674,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       medkitSystem(lifeContext, config.map, config.combat.medkit, medkitReadyAt, tick);
       structureDeathSystem(structureContext);
+      statusSystem(statusContext, events, tick);
       // Win and lose (GDD §2): the first HQ to fall this tick ends the match.
       for (let i = progressionFrom; i < events.length && match.phase === 'live'; i++) {
         const ev = events[i]!;
@@ -657,7 +703,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -703,6 +749,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.channelAngle = c?.channelAngle ?? 0;
         s.slowed = (m?.slowTicks ?? 0) > 0;
         s.aura = c?.auraTicks ?? 0;
+        s.auraRadius = c && ult?.id === 'heatWave' ? auraRadius(c, ult.radius) : 0;
         const w = weapons.get(e);
         s.firing = !!w && w.lastShotTick >= 0 && tick - w.lastShotTick <= w.interval;
         s.visibleMask = concealments.get(e)?.visible ?? SEEN_BY_ALL;
@@ -772,6 +819,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const def = next.champions.find((c) => c.id === champions.data[i]!.championId);
         if (!def) continue;
         champions.data[i]!.def = def;
+        foldMods(champions.data[i]!.mods, next.powers, champions.data[i]!.powers);
         applyChampion(e, def);
       }
       for (let i = 0; i < structures.ids.length; i++) {
@@ -880,6 +928,13 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const h = healths.get(e);
         if (h) h.lethalSaves = 1;
       },
+      /** One stack of a power, as if drafted, within its stack cap (debug panel). */
+      grantPower(e: Entity, id: string) {
+        const c = champions.get(e);
+        const def = config.powers.powers.find((x) => x.id === id);
+        if (!c || !def || (c.powers[id] ?? 0) >= config.powers.draft.stackCaps[def.rarity]) return;
+        applyPower(draftContext, config.powers, e, id, false);
+      },
       /** Chance (0–1) that each shot is a critical hit. */
       setCritChance(e: Entity, chance: number) {
         const w = weapons.get(e);
@@ -888,7 +943,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments, statuses },
 
     /** Built lane polylines (read-only). */
     get lanes() {

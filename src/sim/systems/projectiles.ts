@@ -26,7 +26,10 @@ const nearby: Entity[] = [];
  * queued for the damage stage. A rocket also hits every other enemy in its splash that the burst
  * has a clear line to. A sandbag or raised ground (GDD §4, D-018) stops any bullet before a unit
  * behind it; a rocket bursts there.
- * Bullets that fly their full distance expire.
+ * Bullets that fly their full distance expire. Powers (D-060): a bullet with pierce left flies
+ * on through the unit it hits (never hitting it twice in a row); one with bounces left, when it
+ * stops in a unit, sends a homing bullet for its share of the damage to the nearest other enemy
+ * within reach that it has a clear shot at. Every hit here is a weapon hit.
  */
 export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['weapons']) {
   const { pool, transforms, colliders, teams, healths, spatial, hits } = ctx;
@@ -62,7 +65,7 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
     let hitAt = Infinity;
     for (let k = 0; k < nearby.length; k++) {
       const c = nearby[k]!;
-      if (homing ? c !== target : teams.get(c) === team) continue;
+      if (c === pool.lastHit[i] || (homing ? c !== target : teams.get(c) === team)) continue;
       const h = healths.get(c);
       if (!h || h.hp <= 0) continue;
       const ct = transforms.get(c)!;
@@ -80,7 +83,15 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
     if (hitAt <= 1) {
       const owner = pool.owner[i]!;
       const sm = pool.structureMult[i]!;
-      if (hit !== 0) hits.push(owner, hit, pool.damage[i]!, pool.critMult[i]!, sm);
+      if (hit !== 0) hits.push(owner, hit, pool.damage[i]!, pool.critMult[i]!, sm, false, true);
+      if (hit !== 0 && pool.pierce[i]! > 0) {
+        pool.pierce[i]!--; // Piercing Rounds: on through it
+        pool.lastHit[i] = hit;
+        pool.x[i] = bx;
+        pool.y[i] = by;
+        if (--pool.life[i]! <= 0) pool.release(i);
+        continue;
+      }
       // A rocket bursts where it hits: every other living enemy within the splash takes the same hit (ascending id, from the spatial query).
       const splash = pool.splash[i]!;
       if (splash > 0) {
@@ -96,9 +107,10 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
           const dx = ct.x - ix;
           const dy = ct.y - iy;
           if (Math.sqrt(dx * dx + dy * dy) - (colliders.get(c)?.radius ?? 0) > splash || rayBlocked(grid, ix, iy, ct.x, ct.y, SHOT) >= 0) continue; // blast cover
-          hits.push(owner, c, pool.damage[i]!, pool.critMult[i]!, sm);
+          hits.push(owner, c, pool.damage[i]!, pool.critMult[i]!, sm, false, true);
         }
       }
+      if (hit !== 0 && pool.bounces[i]! > 0) ricochet(ctx, i, hit, maxRadius, grid);
       pool.release(i);
       continue;
     }
@@ -106,6 +118,40 @@ export function projectileSystem(ctx: ProjectileContext, cfg: Config['combat']['
     pool.y[i] = by;
     if (--pool.life[i]! <= 0) pool.release(i);
   }
+}
+
+/** Ricochet: a homing bullet from the unit just hit to the nearest other living enemy within reach, with one bounce fewer. */
+function ricochet(ctx: ProjectileContext, i: number, hit: Entity, maxRadius: number, grid: ObstacleGrid) {
+  const { pool, transforms, teams, healths, colliders, spatial } = ctx;
+  const from = transforms.get(hit)!;
+  const reach = pool.bounceRadius[i]!;
+  const team = pool.team[i]!;
+  spatial.query(from.x, from.y, reach + maxRadius, nearby);
+  let next: Entity = 0;
+  let best = Infinity;
+  for (let k = 0; k < nearby.length; k++) {
+    const c = nearby[k]!;
+    if (c === hit || teams.get(c) === team) continue;
+    const h = healths.get(c);
+    if (!h || h.hp <= 0) continue;
+    const ct = transforms.get(c)!;
+    const d = Math.sqrt((ct.x - from.x) ** 2 + (ct.y - from.y) ** 2) - (colliders.get(c)?.radius ?? 0);
+    if (d <= reach && d < best && rayBlocked(grid, from.x, from.y, ct.x, ct.y, SHOT) < 0) {
+      next = c;
+      best = d;
+    }
+  }
+  if (next === 0) return;
+  const to = transforms.get(next)!;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const d = Math.sqrt(dx * dx + dy * dy) || 1;
+  const speed = pool.speed[i]!;
+  const j = pool.spawn(pool.owner[i]!, team, next, true, from.x, from.y, (dx / d) * speed, (dy / d) * speed, pool.damage[i]! * pool.bouncePct[i]!, 1, Math.ceil((reach * 2) / speed) + 2, 1, 0, pool.structureMult[i]!);
+  pool.bounces[j] = pool.bounces[i]! - 1;
+  pool.bounceRadius[j] = reach;
+  pool.bouncePct[j] = pool.bouncePct[i]!;
+  pool.lastHit[j] = hit;
 }
 
 /** First 0..1 position along segment ab inside the circle (c, r); 0 if a starts inside; −1 if it misses. */

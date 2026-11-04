@@ -47,7 +47,7 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   match.add(loop, 'paused');
   match.add(loop, 'timeScale', 0.25, 4, 0.25);
 
-  if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity);
+  if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity, raw.powers.powers.map((p) => p.id));
   if (seed !== undefined) match.add({ seed }, 'seed').name('seed (?seed=N)').disable();
   // Team size and champion are fixed once a match starts (D-048, D-049): picking one reloads.
   const url = new URL(location.href);
@@ -122,7 +122,7 @@ function addFields(folder: GUI, obj: Record<string, unknown>, onChange: () => vo
  * Damage-pipeline modifiers on the local champion (D-031), standing in for powers until the
  * draft exists. Percentages as in the GDD (20 = +20%); they write through `sim.debug`.
  */
-function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
+function addChampionCheats(gui: GUI, sim: Sim, e: Entity, ids: string[]) {
   const folder = gui.addFolder('Local champion').close();
   const mods = { damagePct: 0, damageTakenPct: 0, vsChampionsPct: 0, vsStructuresPct: 0, critChancePct: 0, shield: 300 };
   const pctStat = (key: keyof typeof mods, which: Stat, name: string) =>
@@ -140,6 +140,10 @@ function addChampionCheats(gui: GUI, sim: Sim, e: Entity) {
   folder.add({ give: () => sim.debug.addShield(e, mods.shield) }, 'give').name('Give shield');
   folder.add({ arm: () => sim.debug.armLethalSave(e) }, 'arm').name('Arm lethal save');
   folder.add({ fill: () => sim.debug.fillUltimate(e) }, 'fill').name('Fill Ultimate');
+  // Any power from the catalogue, one stack per press, within its stack cap (D-060).
+  const grant = { power: ids[0] ?? '' };
+  folder.add(grant, 'power', ids).name('power');
+  folder.add({ give: () => sim.debug.grantPower(e, grant.power) }, 'give').name('Grant power');
   folder.add({ xp: () => sim.debug.giveXp(e, 100) }, 'xp').name('+100 XP');
   folder.add({ up: () => sim.debug.levelUp(e) }, 'up').name('Level up');
   folder.add({ kill: () => sim.debug.kill(e) }, 'kill').name('Kill me');

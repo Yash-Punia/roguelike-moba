@@ -10,7 +10,7 @@ import { isBlocked, SHOT } from '../grid';
 import { len } from '../math';
 import {
   Kind, TargetClass, Team,
-  type Collider, type Concealment, type Health, type LaneAgent, type Motion, type Targeting, type Transform, type Weapon,
+  type Collider, type Concealment, type Health, type LaneAgent, type Status, type Motion, type Targeting, type Transform, type Weapon,
 } from '../sim';
 import type { SpatialIndex } from '../spatial';
 
@@ -30,6 +30,7 @@ export interface MinionContext {
   spatial: SpatialIndex;
   events: SimEvent[];
   concealments: Store<Concealment>;
+  statuses: Store<Status>;
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
   /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
@@ -55,6 +56,7 @@ export interface MinionBundle {
   targeting: Targeting;
   agent: LaneAgent;
   concealment: Concealment;
+  status: Status;
 }
 type UnitId = keyof Config['units'];
 const nearby: Entity[] = [];
@@ -170,16 +172,17 @@ function spawnMinion(ctx: MinionContext, cfg: Config, unit: UnitId, team: Team, 
     motion: { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 },
     collider: { radius: 0 },
     health: { hp: 0, maxHp: 0, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 },
-    weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 },
+    weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 },
     targeting: { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 },
     agent: { unit: 'mgSoldier', lane: 0, branch: 0, waypoint: 0, offset: 0, helpTarget: 0, helpTicks: 0 },
     concealment: { zone: 0, visible: 0 },
+    status: { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffStat: 0, buffPct: 0, buffTicks: 0 },
   };
   Object.assign(b.transform, { x, y, facing });
   Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
   b.collider.radius = def.radius;
   Object.assign(b.health, { hp: def.maxHp * scale, maxHp: def.maxHp * scale, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-  Object.assign(b.weapon, def.weapon, { damage: def.weapon.damage * scale, cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1 });
+  Object.assign(b.weapon, def.weapon, { damage: def.weapon.damage * scale, cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
   Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
   Object.assign(b.agent, { unit, lane, branch, waypoint: 1, offset, helpTarget: 0, helpTicks: 0 });
   ctx.transforms.add(e, b.transform);
@@ -195,6 +198,8 @@ function spawnMinion(ctx: MinionContext, cfg: Config, unit: UnitId, team: Team, 
   ctx.laneAgents.add(e, b.agent);
   Object.assign(b.concealment, { zone: 0, visible: 0xff });
   ctx.concealments.add(e, b.concealment);
+  Object.assign(b.status, { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffPct: 0, buffTicks: 0 });
+  ctx.statuses.add(e, b.status);
 }
 
 function edgeDist(ctx: MinionContext, t: Transform, o: Entity): number {
@@ -472,6 +477,7 @@ export function minionDeathSystem(ctx: MinionContext) {
       targeting: ctx.targetings.get(e)!,
       agent: ctx.laneAgents.get(e)!,
       concealment: ctx.concealments.get(e)!,
+      status: ctx.statuses.get(e)!,
     });
     ctx.world.destroy(e);
   }

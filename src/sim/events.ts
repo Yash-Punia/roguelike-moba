@@ -14,6 +14,8 @@ export interface DamageEvent {
   critical: boolean;
   lethal: boolean;
   saved: boolean;
+  /** A weapon hit (bullet, rocket, flame), not an effect: on-hit powers react to these. */
+  weapon: boolean;
 }
 
 export type SimEvent =

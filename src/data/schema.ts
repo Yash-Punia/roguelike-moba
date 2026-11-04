@@ -9,6 +9,7 @@ export const deg = () => z.number().transform((d) => (d * Math.PI) / 180);
 
 const vec = z.object({ x: z.number(), y: z.number() });
 const positive = () => z.number().positive();
+const nonneg = () => z.number().nonnegative();
 
 const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
@@ -260,12 +261,55 @@ const Progression = z.object({
 /** Stats a power's `stat` effect can raise (TDD §5 stat formula); names map to `Stat` in the sim. */
 const StatName = z.enum(['damage', 'fireRate', 'maxHp', 'moveSpeed', 'range', 'damageTaken', 'ultCharge', 'damageVsChampions', 'damageVsStructures']);
 
-/** Effect records (TDD §5): powers are data that a few generic systems understand. */
+/**
+ * Effect records (TDD §5): powers are data that a few generic systems understand. Amounts add
+ * up per stack; durations, radii and thresholds take the largest owned (D-060).
+ */
 const Effect = z.discriminatedUnion('type', [
   /** + pct to a stat, per stack. */
   z.object({ type: z.literal('stat'), stat: StatName, pct: pct() }),
   /** Heal pctPerSecond of max HP while out of combat for outOfCombatSeconds (Field Medic). */
   z.object({ type: z.literal('regen'), pctPerSecond: pct(), outOfCombatSeconds: secs() }),
+  /**
+   * Weapon changes. `shots`: more projectiles per trigger pull, `shotSpread` apart (a burst
+   * weapon gets them as more bullets per burst; a cone weapon converts them, GDD §8 rule 8, to
+   * `cone.angle` wider and `cone.range` longer). `burst`: more bullets per burst. `pierce`:
+   * enemies a bullet passes through. `ricochet`: on its last hit a bullet bounces to the nearest
+   * other enemy within `radius` for `damagePct`. `critEvery`: every Nth shot is a critical hit.
+   */
+  z.object({
+    type: z.literal('weaponMod'),
+    shots: z.number().int().min(0).default(0),
+    shotSpread: deg().default(4),
+    cone: z.object({ angle: deg(), range: nonneg() }).optional(),
+    burst: z.number().int().min(0).default(0),
+    pierce: z.number().int().min(0).default(0),
+    ricochet: z.object({ count: z.number().int().min(1), radius: positive(), damagePct: pct() }).optional(),
+    critEvery: z.number().int().min(0).default(0),
+  }),
+  /** On each weapon hit on an enemy unit: a burn (dps for seconds) and/or a mark (+pct damage taken from every source). */
+  z.object({
+    type: z.literal('onHit'),
+    burn: z.object({ dps: positive(), seconds: secs() }).optional(),
+    mark: z.object({ pct: pct(), seconds: secs() }).optional(),
+  }),
+  /** Heal healPct of max HP when an enemy minion dies within radius (Scavenger). */
+  z.object({ type: z.literal('onNearbyMinionDeath'), radius: positive(), healPct: pct() }),
+  /** Dropping below belowPct HP grants a shield of shieldPct max HP for seconds, then waits cooldownSeconds (Second Wind). */
+  z.object({ type: z.literal('onLowHp'), belowPct: pct(), shieldPct: pct(), seconds: secs(), cooldownSeconds: secs() }),
+  /** + pct to a stat while within radius of a standing allied structure or on a trench floor (Dug In). */
+  z.object({ type: z.literal('conditionalStat'), stat: StatName, pct: pct(), when: z.literal('nearStructureOrTrench'), radius: positive() }),
+  /** + pct to a stat for seconds after taking down an enemy champion (Adrenaline). */
+  z.object({ type: z.literal('onKill'), stat: StatName, pct: pct(), seconds: secs() }),
+  /** A cone weapon leaves burning ground (radius) every everySeconds while firing, dps for seconds (Napalm Tank). */
+  z.object({ type: z.literal('flameGround'), dps: positive(), seconds: secs(), radius: positive(), everySeconds: secs().refine((t) => t >= 1, 'at least one tick') }),
+  /** Ultimate changes: grenade bomblets round the impact; aura radius and duration. */
+  z.object({
+    type: z.literal('ultMod'),
+    bomblets: z.object({ count: z.number().int().min(1), damage: positive(), radius: positive(), spread: nonneg() }).optional(),
+    radiusPct: pct().default(0),
+    extraSeconds: secs().default(0),
+  }),
 ]);
 
 const Rarity = z.enum(['common', 'rare', 'epic']);
@@ -294,6 +338,8 @@ const Powers = z.object({
     /** An offer every this many levels gained (2 = levels 3, 5, 7 …) (D-051). */
     levelsPerOffer: z.number().int().min(1).default(1),
     stackCaps: z.object({ common: z.number().int().min(1), rare: z.number().int().min(1), epic: z.number().int().min(1) }),
+    /** Each card's rarity roll (GDD §8 rule 4); with none of a rarity left, the card falls back a tier. */
+    rarityOdds: z.object({ common: pct(), rare: pct(), epic: pct() }),
   }),
   powers: z.array(Power).min(1),
 });
@@ -383,7 +429,6 @@ const Waves = z.object({
   lanes: z.array(z.string()),
 });
 
-const nonneg = () => z.number().nonnegative();
 
 /** Auto-targeting tuning (GDD §6, TDD §6.2). Distances in metres, measured to collider edges. */
 const Combat = z.object({
@@ -491,4 +536,5 @@ export type Vec2 = z.output<typeof vec>;
 export type WeaponConfig = z.output<typeof Weapon>;
 export type UltTargetClass = z.output<typeof UltTargetClass>;
 export type PowerDef = z.output<typeof Power>;
+export type EffectDef = z.output<typeof Effect>;
 export type StatName = z.output<typeof StatName>;

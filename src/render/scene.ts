@@ -201,7 +201,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         const ult = def?.ultimate;
         if (ult?.id === 'leadStorm' && e.channel !== 0) ultFx.storm(e.id, e.channel, ult.length, ult.width);
         else ultFx.storm(e.id, 0, 0, 0);
-        if (ult?.id === 'heatWave') ultFx.heatWave(e.id, e.aura > 0 && e.hp > 0 && !hidden, ult.radius);
+        if (ult?.id === 'heatWave') ultFx.heatWave(e.id, e.aura > 0 && e.hp > 0 && !hidden, e.auraRadius || ult.radius);
         if (def?.weapon.kind === 'cone') ultFx.flame(e.id, e.firing && e.hp > 0 && !hidden, def.weapon.range, def.weapon.coneAngle);
       }
       const parts = partsOf(meshes.get(e.id)!);

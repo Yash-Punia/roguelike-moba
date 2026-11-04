@@ -4,7 +4,8 @@
     "autoPickSeconds": 10,
     "maxQueued": 2,
     "levelsPerOffer": 2,
-    "stackCaps": { "common": 3, "rare": 2, "epic": 1 }
+    "stackCaps": { "common": 3, "rare": 2, "epic": 1 },
+    "rarityOdds": { "common": 65, "rare": 30, "epic": 5 }
   },
   "powers": [
     { "id": "rapidFire", "name": "Rapid Fire", "rarity": "common", "pool": "all", "tags": ["damage", "fireRate"], "text": "+12% fire rate",
@@ -22,6 +23,40 @@
     { "id": "fieldMedic", "name": "Field Medic", "rarity": "common", "pool": "all", "tags": ["hp", "sustain"], "text": "Heal 2% max HP/s after 3 s out of combat",
       "effects": [{ "type": "regen", "pctPerSecond": 2, "outOfCombatSeconds": 3 }] },
     { "id": "quickCharge", "name": "Quick Charge", "rarity": "common", "pool": "all", "tags": ["ultimate"], "text": "+15% Ultimate charge",
-      "effects": [{ "type": "stat", "stat": "ultCharge", "pct": 15 }] }
+      "effects": [{ "type": "stat", "stat": "ultCharge", "pct": 15 }] },
+
+    { "id": "doubleTap", "name": "Double Tap", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "+1 projectile per shot or burst (flamethrower: +10° cone, +0.5 m range)",
+      "effects": [{ "type": "weaponMod", "shots": 1, "shotSpread": 4, "cone": { "angle": 10, "range": 0.5 } }] },
+    { "id": "ricochet", "name": "Ricochet", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets bounce to 1 more enemy within 4 m for 50% damage",
+      "effects": [{ "type": "weaponMod", "ricochet": { "count": 1, "radius": 4, "damagePct": 50 } }] },
+    { "id": "piercingRounds", "name": "Piercing Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets pass through the first enemy hit",
+      "effects": [{ "type": "weaponMod", "pierce": 1 }] },
+    { "id": "incendiaryRounds", "name": "Incendiary Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "burn"], "text": "Hits burn for 20 damage per second for 2 s",
+      "effects": [{ "type": "onHit", "burn": { "dps": 20, "seconds": 2 } }] },
+    { "id": "tracerRounds", "name": "Tracer Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "team"], "text": "Enemies you hit take +10% damage from all sources for 2 s",
+      "effects": [{ "type": "onHit", "mark": { "pct": 10, "seconds": 2 } }] },
+    { "id": "demolitionExpert", "name": "Demolition Expert", "rarity": "rare", "pool": "all", "tags": ["structures", "push"], "text": "+35% damage to structures",
+      "effects": [{ "type": "stat", "stat": "damageVsStructures", "pct": 35 }] },
+    { "id": "bountyHunter", "name": "Bounty Hunter", "rarity": "rare", "pool": "all", "tags": ["damage", "champions"], "text": "+20% damage to enemy champions",
+      "effects": [{ "type": "stat", "stat": "damageVsChampions", "pct": 20 }] },
+    { "id": "scavenger", "name": "Scavenger", "rarity": "rare", "pool": "all", "tags": ["sustain", "push"], "text": "Heal 3% max HP whenever a nearby enemy minion dies",
+      "effects": [{ "type": "onNearbyMinionDeath", "radius": 10, "healPct": 3 }] },
+    { "id": "secondWind", "name": "Second Wind", "rarity": "rare", "pool": "all", "tags": ["defence", "sustain"], "text": "Below 30% HP, gain a 20% max HP shield for 3 s (30 s cooldown)",
+      "effects": [{ "type": "onLowHp", "belowPct": 30, "shieldPct": 20, "seconds": 3, "cooldownSeconds": 30 }] },
+    { "id": "dugIn", "name": "Dug In", "rarity": "rare", "pool": "all", "tags": ["defence", "structures"], "text": "−25% damage taken near an allied structure or inside a Trench",
+      "effects": [{ "type": "conditionalStat", "stat": "damageTaken", "pct": -25, "when": "nearStructureOrTrench", "radius": 8 }] },
+
+    { "id": "deadEye", "name": "Dead Eye", "rarity": "rare", "pool": "alpha", "tags": ["damage", "crit"], "text": "Every 6th revolver shot is a critical hit for double damage",
+      "effects": [{ "type": "weaponMod", "critEvery": 6 }] },
+    { "id": "clusterGrenade", "name": "Cluster Grenade", "rarity": "epic", "pool": "alpha", "tags": ["ultimate", "damage"], "text": "Frag Grenade splits into 3 bomblets for 100 damage each around the impact",
+      "effects": [{ "type": "ultMod", "bomblets": { "count": 3, "damage": 100, "radius": 1.5, "spread": 2 } }] },
+    { "id": "extendedMag", "name": "Extended Mag", "rarity": "rare", "pool": "beta", "tags": ["damage", "projectile"], "text": "+2 bullets per burst",
+      "effects": [{ "type": "weaponMod", "burst": 2 }] },
+    { "id": "adrenaline", "name": "Adrenaline", "rarity": "rare", "pool": "beta", "tags": ["speed", "champions"], "text": "+30% move speed for 2 s after any takedown",
+      "effects": [{ "type": "onKill", "stat": "moveSpeed", "pct": 30, "seconds": 2 }] },
+    { "id": "napalmTank", "name": "Napalm Tank", "rarity": "rare", "pool": "gamma", "tags": ["damage", "burn"], "text": "Flames leave burning ground for 2 s (30 damage per second)",
+      "effects": [{ "type": "flameGround", "dps": 30, "seconds": 2, "radius": 1.2, "everySeconds": 0.5 }] },
+    { "id": "infernoShell", "name": "Inferno Shell", "rarity": "epic", "pool": "gamma", "tags": ["ultimate", "team"], "text": "Heat Wave radius +30% and duration +2 s",
+      "effects": [{ "type": "ultMod", "radiusPct": 30, "extraSeconds": 2 }] }
   ]
 }

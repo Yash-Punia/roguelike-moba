@@ -125,7 +125,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
     if (ult.id === 'fragGrenade') {
       lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, ult.flightSeconds);
     } else if (ult.id === 'heatWave') {
-      c.auraTicks = ult.seconds;
+      c.auraTicks = ult.seconds + c.mods.auraExtraTicks; // Inferno Shell: longer
     } else {
       c.channelTicks = ult.windupSeconds + ult.seconds;
       c.channelAngle = atan2(tt.y - t.y, tt.x - t.x);
@@ -175,6 +175,17 @@ export function lobSystem(ctx: UltimateContext) {
     const hitList = enemiesIn(ctx, x, y, ult.radius, team, reach, SHOT);
     for (let k = 0; k < hitList.length; k++) hits.push(owner, hitList[k]!, damage);
     events.push({ type: 'explosion', owner, team, x, y, radius: ult.radius });
+    // Cluster Grenade: bomblets burst evenly round the impact, each its own blast with cover.
+    const m = c.mods;
+    for (let b = 0; b < m.bombletCount; b++) {
+      const a = (b / m.bombletCount) * 2 * Math.PI;
+      const bx = x + cos(a) * m.bombletSpread;
+      const by = y + sin(a) * m.bombletSpread;
+      if (!ctx.clear(x, y, bx, by, GROUND)) continue; // it can't roll into a bank
+      const list = enemiesIn(ctx, bx, by, m.bombletRadius, team, reach, SHOT);
+      for (let k = 0; k < list.length; k++) hits.push(owner, list[k]!, m.bombletDamage);
+      events.push({ type: 'explosion', owner, team, x: bx, y: by, radius: m.bombletRadius });
+    }
     const z = ult.zone;
     const perHit = (z.dps + z.dpsPerLevel * up) * (z.tickSeconds / TICK_HZ);
     zones.spawn(owner, team, x, y, z.radius, z.seconds, z.tickSeconds, perHit, z.structurePct);
@@ -263,12 +274,13 @@ export function heatWaveSystem(ctx: UltimateContext) {
       c.auraTicks = 0;
       continue;
     }
-    const elapsed = ult.seconds - c.auraTicks + 1;
+    const elapsed = ult.seconds + c.mods.auraExtraTicks - c.auraTicks + 1;
+    const radius = auraRadius(c, ult.radius);
     if (elapsed % ult.tickSeconds === 0) {
       const t = transforms.get(e)!;
       const team = teams.get(e);
       const per = ult.tickSeconds / TICK_HZ;
-      ctx.spatial.query(t.x, t.y, ult.radius + reach, nearby);
+      ctx.spatial.query(t.x, t.y, radius + reach, nearby);
       for (let k = 0; k < nearby.length; k++) {
         const o = nearby[k]!;
         const cls = targetClasses.get(o);
@@ -276,7 +288,7 @@ export function heatWaveSystem(ctx: UltimateContext) {
         const h = healths.get(o);
         if (!h || h.hp <= 0) continue;
         const ot = transforms.get(o)!;
-        if (len(ot.x - t.x, ot.y - t.y) > ult.radius + (ctx.colliders.get(o)?.radius ?? 0)) continue;
+        if (len(ot.x - t.x, ot.y - t.y) > radius + (ctx.colliders.get(o)?.radius ?? 0)) continue;
         if (teams.get(o) === team) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * ult.healPctPerSecond * per);
         else hits.push(e, o, h.maxHp * ult.burnPctPerSecond * per, 1, 1, true);
       }
@@ -301,11 +313,16 @@ export function heatWaveMult(ctx: UltimateContext, source: Entity): number {
     const ult = c.def.ultimate;
     if (c.auraTicks === 0 || ult.id !== 'heatWave') continue;
     const t = ctx.transforms.get(champions.ids[i]!)!;
-    if (len(st.x - t.x, st.y - t.y) > ult.radius) continue;
+    if (len(st.x - t.x, st.y - t.y) > auraRadius(c, ult.radius)) continue;
     if (ctx.teams.get(champions.ids[i]!) === team) up = Math.max(up, ult.damageDealtPct);
     else down = Math.max(down, ult.damageDealtPct);
   }
   return (1 + up) * (1 - down);
+}
+
+/** Heat Wave's radius with Inferno Shell's bonus. */
+export function auraRadius(c: Champion, base: number): number {
+  return base * (1 + c.mods.auraRadiusPct);
 }
 
 function endChannel(c: Champion, m: Motion, e: Entity, events: SimEvent[]) {

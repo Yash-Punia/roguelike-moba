@@ -6,6 +6,8 @@ import { palette } from './palette';
 const FLASH_MS = 280;
 const SMOKE_MS = 900;
 const FLAMES = 11;
+/** The pool size `FLAMES` is drawn for (the Frag Grenade's fire pool, m). */
+const POOL_RADIUS = 3;
 const POOL_FADE_TICKS = 15;
 
 type HeightAt = (x: number, y: number) => number;
@@ -367,10 +369,13 @@ export class UltFx {
     group.add(scorch);
     const flames: THREE.Mesh[] = [];
     const phase: number[] = [];
-    for (let i = 0; i < FLAMES; i++) {
+    // Flames scale with the pool's area, so small burning ground (Napalm Tank, D-060) stays cheap.
+    // ponytail: one draw call per flame; instance them with the M5 particle pool if pools pile up.
+    const count = Math.max(2, Math.min(FLAMES, Math.round(FLAMES * (z.radius / POOL_RADIUS) ** 2)));
+    for (let i = 0; i < count; i++) {
       // A golden-angle scatter: even cover, a different look for every pool.
       const a = i * 2.39996 + z.id;
-      const r = z.radius * 0.85 * Math.sqrt((i + 0.5) / FLAMES);
+      const r = z.radius * 0.85 * Math.sqrt((i + 0.5) / count);
       const inner = i % 3 === 0;
       const f = new THREE.Mesh(flameGeo, inner ? flameInnerMat : flameOuterMat);
       f.position.set(Math.cos(a) * r, 0.03, Math.sin(a) * r);

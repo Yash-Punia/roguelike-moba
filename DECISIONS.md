@@ -1033,3 +1033,61 @@ From TDD §13:
 - Decision: `combat.fog.enabled` defaults to `false`. `?fog` turns it on for a match, replacing `?nofog`; it can also be switched live in the debug panel (F1 → combat.json → fog → enabled). Everything else in D-058 is unchanged and stays covered by `tests/fog.test.ts`. With fog off, Trench concealment and line of sight still apply, and match pacing is the D-057 measurement (median about 5:09).
 - Why: the user wants to play without fog by default while keeping it available to test.
 - Alternatives: keep fog on and add `?nofog` (the D-058 default).
+
+## D-060 — Power catalogue, part 1: Rares and signatures
+- Date: 2026-11-04
+- Source: user choices (split the catalogue into two commits; pull rarity odds forward); plan approved by the user; the rest made during development
+- Decision:
+  - **Split:** the catalogue row becomes two.
+    - Part 1 (this): the 10 shared Rares and the 6 signature powers (Dead Eye, Cluster Grenade, Extended Mag, Adrenaline, Napalm Tank, Inferno Shell).
+    - Part 2: the 8 shared Epics.
+  - **Effect records** (`data/powers.json`), with the TDD §5 types:
+    - `stat`: Demolition Expert, Bounty Hunter.
+    - `weaponMod` with `shots`, `shotSpread`, `cone`, `burst`, `pierce`, `ricochet`, `critEvery`: Double Tap, Ricochet, Piercing Rounds, Dead Eye, Extended Mag.
+    - `onHit` (burn and mark): Incendiary Rounds, Tracer Rounds.
+    - `onNearbyMinionDeath`: Scavenger.
+    - `onLowHp`: Second Wind.
+    - `conditionalStat`: Dug In.
+    - `onKill`: Adrenaline.
+    - `flameGround`: Napalm Tank.
+    - `ultMod`: Cluster Grenade, Inferno Shell.
+  - **Folded mods:** when a champion takes a power, its owned stacks fold into one `PowerMods` record (`src/sim/powers.ts`), and stats and weapon are re-derived. Systems read numbers and never search the catalogue per tick. Amounts add up per stack; durations, radii and thresholds take the largest.
+  - **Weapons:**
+    - Double Tap fans one extra bullet per stack 4° apart.
+    - A burst weapon gets it as one more bullet per burst instead. A cone weapon gets +10° and +0.5 m range instead (GDD §8 rule 8; the offer-side part of the rule stays in the draft rules row).
+    - Dead Eye: every 6th trigger pull is a crit at `critMultiplier`.
+    - Pierce and ricochet are counters on the projectile:
+      - a piercing bullet flies on and never hits the same unit twice in a row;
+      - a bullet with bounces left, when it stops in a unit, sends a homing bullet for 50% to the nearest other enemy within 4 m that it has a clear shot at.
+  - **Statuses** (`Status` on champions and minions; `src/sim/systems/status.ts`, run after the death and reward stages):
+    - **Burn:** keeps the stronger dps, and a new hit restarts its 2 s. It hits on a fixed 0.5 s beat as an exact amount, so refreshing adds no hits.
+    - **Mark:** +10% damage taken from every source, applied in pipeline step 4.
+    - **Timed shield:** what's left of it is taken back when it ends.
+    - **Stat buff:** Adrenaline.
+    - A knock-out clears all of them.
+    - Only weapon hits (bullets, rockets, flames; a new flag on hits and damage events) apply burns and marks. Burns, pools and Ultimates don't.
+    - Structures carry no statuses, so burns and marks don't affect towers.
+  - **Triggers:**
+    - **Scavenger:** a dead enemy minion within 10 m heals 3% max HP.
+    - **Second Wind:** below 30%, a 20% max HP shield for 3 s, then a 30 s cooldown.
+    - **Dug In:** −25% damage taken within 8 m of a standing allied structure or on a trench floor, applied as a stat delta like traits. The GDD gives no radius; 8 m is a Sub-base's range.
+    - **Adrenaline:** fires on knocking out an enemy champion. Assists join when the respawn row adds takedown credit.
+  - **Napalm Tank:** every 0.5 s while flaming, a 1.2 m burning patch at half the cone's range: 30 dps for 2 s, period 0.5 s, through the fire-pool zone (`GROUND` cover).
+    - Fire-pool visuals now scale their flame count with area (minimum 2), so a patch is 3 meshes rather than 12, and a flaming Gamma adds about 12 draw calls instead of about 48.
+  - **Cluster Grenade:** 3 bomblets 2 m round the impact, each its own 1.5 m blast for 100 with cover, skipping any that would land past a bank. Each makes an `explosion` event.
+  - **Inferno Shell:** Heat Wave radius ×1.3 and +2 s, also in its damage aura and on screen (new snapshot field `auraRadius`).
+  - **Rarity odds pulled forward** (GDD §8 rule 4, `draft.rarityOdds` 65/30/5):
+    - Each card rolls its rarity on the seeded draft stream, then a power of it.
+    - With none of that rarity left it falls back a tier (Epic → Rare → Common → any). Until part 2, Beta has no Epic, so her Epic rolls land on Rares.
+    - Guaranteed Epics, the signature slot, the reroll and the offer-side Gamma rule stay in the draft rules row.
+  - **Debug:** a "Grant power" picker in the Local champion folder adds one stack as if drafted, within the stack cap.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off), with bots drafting by the recommendation:
+    - median about 5:24 (before: about 5:09), range 3:31–19:18.
+    - Two seeds now run long: seed 6 at 19:18 and seed 14 at 12:18. Before, the longest was 14:23.
+    - The seed 1 guard ends at 3:31.
+    - Most picked: Rapid Fire, Hollow Points, Field Medic, Long Barrel, Flak Vest, Ricochet.
+- Why: the power catalogue row of M3 (D-046). Drafts now offer the Rare tier and each champion's signature, so builds diverge much more.
+- Alternatives:
+  - One commit for the whole catalogue (declined by the user).
+  - Commons-only offers with a debug grant until the draft rules row (declined).
+  - Burns and marks on structures too (the GDD is silent; kept to units so towers stay predictable).

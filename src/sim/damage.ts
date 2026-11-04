@@ -23,6 +23,8 @@ export interface DamageContext {
   dealtMult(source: Entity): number;
   /** Share of structure fire a unit shrugs off (Bazooka Tank 0.5); 0 for most. */
   structureResist(target: Entity): number;
+  /** Extra damage taken from a mark on the target (Tracer Rounds +0.1); 0 when unmarked. */
+  markOf(target: Entity): number;
 }
 
 const eventPool: DamageEvent[] = [];
@@ -35,7 +37,7 @@ const eventPool: DamageEvent[] = [];
  * 2. attacker: damage stat, then the vs-champions or vs-structures stat by the target's kind,
  *    then Heat Wave (skipped for exact hits: a burn of the target's max HP);
  * 3. crit multiplier carried by the hit;
- * 4. target: damage-taken stat, then structure rules (the hit's structure share, backdoor protection);
+ * 4. target: damage-taken stat, a mark (Tracer Rounds), then structure rules (the hit's structure share, backdoor protection);
  * 5. shield absorbs first, then HP;
  * 6. a lethal hit on a unit with a lethal save leaves 1 HP and a short invulnerability;
  * 7. log the hit and emit a `damage` event.
@@ -71,6 +73,7 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // 4. The target's modifiers.
     const ts = stats.get(target);
     if (ts) amount *= stat(ts, Stat.DamageTaken);
+    amount *= 1 + ctx.markOf(target);
     // Structure rules: the hit's own structure share (fire pool 50%, Bazooka Tank rockets 200%),
     // then backdoor protection; the other way round, the Bazooka Tank's resistance to structure fire.
     if (kind === Kind.SubBase || kind === Kind.HQ) {
@@ -104,7 +107,7 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // 7. Log and announce.
     const dealt = absorbed + toHp;
     log.push(tick, source, target, dealt, absorbed, flags);
-    const ev = (eventPool[pooled++] ??= { type: 'damage', source: 0, target: 0, amount: 0, absorbed: 0, critical: false, lethal: false, saved: false });
+    const ev = (eventPool[pooled++] ??= { type: 'damage', source: 0, target: 0, amount: 0, absorbed: 0, critical: false, lethal: false, saved: false, weapon: false });
     ev.source = source;
     ev.target = target;
     ev.amount = dealt;
@@ -112,6 +115,7 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     ev.critical = (flags & HitFlag.Critical) !== 0;
     ev.lethal = (flags & HitFlag.Lethal) !== 0;
     ev.saved = (flags & HitFlag.Saved) !== 0;
+    ev.weapon = hits.weapon[k] === 1;
     events.push(ev);
   }
   hits.count = 0;
