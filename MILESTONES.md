@@ -86,7 +86,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Match config: team size 2v2–5v5 via `?size=` + debug panel, default 3v3 (`match.json`), your lane via `?lane=`; duplicate champions allowed (D-009, D-048) | 9cd0505 |
 | `[p]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms; hidden enemies fade out (D-056) | 6ed7a33 |
 | `[p]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018); blasts and splash get cover (D-057) | 7c0643c |
-| `[c]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010, D-058) | |
+| `[p]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010, D-058); off by default, `?fog` turns it on (D-059) | 13ce21f |
 | `[p]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow; model per the Beta sheet; `?champ=` and a debug picker; bots mix the roster, Beta prefers a side lane (D-049) | eccbf39 |
 | `[p]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet; Gamma bots prefer the centre and cast Heat Wave by the TDD §7 rule (D-050) | a4c14ef |
 | `[p]` | Pacing pass (user feedback: matches by about 5 minutes): level cap 25, HQ max HP −25% per lost Sub-base, waves +25%/min, minimal Shock Troops (×3), lighter structures, draft every 2nd level; waves leave a cave behind each HQ single file (D-051) | 4f3b5fc |

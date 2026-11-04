@@ -28,7 +28,7 @@
     "pickupRadius": 1.2
   },
   "fog": {
-    "enabled": true,
+    "enabled": false,
     "cellSize": 1,
     "updateSeconds": 0.1,
     "radius": {

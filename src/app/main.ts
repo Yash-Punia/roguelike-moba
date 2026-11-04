@@ -22,8 +22,8 @@ const raw = structuredClone(rawConfig);
 if (params.has('curved')) raw.map.splineSamples = 16;
 // `?nowaves`: no minion waves, for clean duels (also switchable live: F1 → waves.json → enabled).
 if (params.has('nowaves')) raw.waves.enabled = false;
-// `?nofog`: everyone sees everything (fog of war off; Trench concealment stays, D-058).
-if (params.has('nofog')) raw.combat.fog.enabled = false;
+// `?fog`: fog of war on (off by default, D-059; also live: F1 → combat.json → fog → enabled).
+if (params.has('fog')) raw.combat.fog.enabled = true;
 let config = parseConfig(raw);
 const enemy = localTeam === Team.Blue ? Team.Red : Team.Blue;
 // Every slot but yours is a lane bot (D-048): `?size=2..5` champions per team (default

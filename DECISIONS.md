@@ -1026,3 +1026,10 @@ From TDD §13:
   - Vision as a per-unit radius check with no grid (no fogged ground to draw, and no bank occlusion).
   - Shadowcasting per update (more code than the cache, which already brings the cost near zero).
   - Darkening props too (they share the baked material with units).
+
+## D-059 — Fog of war off by default
+- Date: 2026-11-04
+- Source: user instruction
+- Decision: `combat.fog.enabled` defaults to `false`. `?fog` turns it on for a match, replacing `?nofog`; it can also be switched live in the debug panel (F1 → combat.json → fog → enabled). Everything else in D-058 is unchanged and stays covered by `tests/fog.test.ts`. With fog off, Trench concealment and line of sight still apply, and match pacing is the D-057 measurement (median about 5:09).
+- Why: the user wants to play without fog by default while keeping it available to test.
+- Alternatives: keep fog on and add `?nofog` (the D-058 default).
