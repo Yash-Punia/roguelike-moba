@@ -101,9 +101,11 @@ export class UltFx {
 
   constructor(private readonly heightAt: HeightAt) {}
 
-  capture(lobs: readonly LobSnapshot[], zones: readonly ZoneSnapshot[]) {
+  /** `shown`: fog of war; a grenade shows only if its landing spot is seen, a fire pool if its centre is. */
+  capture(lobs: readonly LobSnapshot[], zones: readonly ZoneSnapshot[], shown?: (x: number, y: number) => boolean) {
     this.seen.clear();
     for (const l of lobs) {
+      if (shown && !shown(l.x1, l.y1)) continue;
       this.seen.add(l.id);
       let fx = this.lobs.get(l.id);
       if (!fx) {
@@ -128,6 +130,7 @@ export class UltFx {
 
     this.seen.clear();
     for (const z of zones) {
+      if (shown && !shown(z.x, z.y)) continue;
       this.seen.add(z.id);
       let pool = this.pools.get(z.id);
       if (!pool) pool = this.addPool(z);

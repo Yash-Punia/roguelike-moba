@@ -9,6 +9,7 @@ import openMap from './fixtures/map-open.json';
  * the real map does. The level table, draft spacing and structure stats stay pinned to the
  * values the tests were written against (D-051 retuned them for 5-minute matches): 12 levels
  * with an offer every level, a 6000 HP Sub-base firing 200, a 10 000 HP HQ firing 300 that regenerates.
+ * Fog of war is off (everyone sees everything, as before D-058); fog tests turn it on.
  */
 export function fixtureConfig(): Config {
   const c = parseConfig({ ...rawConfig, map: openMap as RawConfig['map'] });
@@ -18,6 +19,7 @@ export function fixtureConfig(): Config {
   Object.assign(c.structures.subBase.weapon, { damage: 200 });
   Object.assign(c.structures.hq, { maxHp: 10000, regen: true });
   Object.assign(c.structures.hq.weapon, { damage: 300 });
+  c.combat.fog.enabled = false;
   return c;
 }
 
@@ -132,4 +134,25 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
     return h.hp;
   };
   return { sim, config, shooter, step, move, hp, target, shots: () => shots };
+}
+
+/**
+ * A spot on the open test map away from its lane paths (which are walkable and would fill any
+ * raised ground there), for line of sight and fog tests; `at` is an offset from it.
+ */
+export const O = { x: 12, y: 30 };
+export const at = (dx: number, dy: number) => ({ x: O.x + dx, y: O.y + dy });
+
+/** Raised ground over x0..x1, y0..y1: the open map's floor rect is split round it. */
+export function raiseGround(c: Config, x0: number, x1: number, y0: number, y1: number) {
+  const rect = (id: string, ax: number, bx: number, ay: number, by: number) =>
+    ({ id, shape: 'rect' as const, surface: 'dirt' as const, height: 0, x: (ax + bx) / 2, y: (ay + by) / 2, w: bx - ax, h: by - ay });
+  const { minX, maxX, minY, maxY } = c.map.bounds;
+  c.map.walkable = [
+    rect('west', minX, x0, minY, maxY),
+    rect('east', x1, maxX, minY, maxY),
+    rect('south', x0, x1, minY, y0),
+    rect('north', x0, x1, y1, maxY),
+    ...c.map.walkable.filter((s) => s.id !== 'all'),
+  ];
 }

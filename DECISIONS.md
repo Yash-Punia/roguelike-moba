@@ -994,3 +994,35 @@ From TDD §13:
   - Raised ground blocking flames as well as sandbags (no: GDD §4 says flames pass over sandbags).
   - Rays to the collider edge instead of the centre (more rays for little gain at 0.5 m cells).
   - Line of sight only at target selection, with bullets passing through (no: a led shot would then fly through the bank).
+
+## D-058 — Fog of war
+- Date: 2026-11-04
+- Source: plan approved by the user (effects in fog hidden like LoL; only raised ground blocks vision); the rest made during development
+- Decision:
+  - **Vision grid:** each team has a 1 m grid over the map (`combat.fog.cellSize`; 68 × 164 on The Front), rebuilt every 0.1 s (`updateSeconds`, every 3 ticks).
+    - Living champions (10 m), minions (6 m), standing Sub-bases (10 m) and HQs (12 m) see round themselves (`fog.radius`, the D-010 starting values).
+    - Raised ground stops sight. A 1 m cell blocks it when at least half its 0.5 m grid cells are `GROUND`. Sandbags don't block sight.
+    - The first blocking cell a ray reaches counts as seen, so bank edges are lit. A unit's own cell never blocks its view, so a unit at a lane edge isn't blind.
+  - **How a view is found:** rays are cast round the circle from the centre of the source's 1 m cell, about two-thirds of a cell apart at the rim.
+    - The map is static, so each (cell, radius) view is cast once and cached for the match: about 2,200 views, 0.7 MB after a full 3v3 on The Front.
+    - Casting per cell per update cost about 1 ms; perimeter rays without the cache about 0.6–1 ms. With the cache an update costs about 0.1 ms.
+  - **Who sees whom:** an enemy unit is seen by a team only where that team's vision covers it.
+    - On a trench floor the Trench rules apply on top, inside vision only (same zone, within 3 m, fired or cast within 1 s). This closes the D-057 gap where the 3 m reveal worked through banks.
+    - Structures are always seen and targetable.
+    - Every existing reader (targeting, structures, minions, Ultimates, Charge, bots) already uses the same mask, so they all follow the fog.
+  - **Toggle:** `fog.enabled` (live in the debug panel; `?nofog` turns it off). Off, both grids are all seen. The test fixture pins fog off, so earlier tests keep their meaning; `tests/fog.test.ts` turns it on.
+  - **Render:**
+    - The viewer team's grid is a 68 × 164 R8 texture. The terrain shader darkens fogged ground by `darkPct` (55%), and each cell eases over 0.25 s.
+    - Only the ground darkens. Props share the baked material with units.
+    - Enemies fade out at the fog edge (the Trench fade); one knocked out in the fog stays unseen.
+    - Tracers, grenades (by landing spot), fire pools, explosions, death smoke, level-up and power text in the fog aren't drawn.
+    - An enemy structure in the fog keeps its last seen HP on its bar.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, HQ cut off):
+    - before (D-057): median about 5:09, range 3:32–14:23;
+    - after: median about 5:12, range 3:21–8:25. Seed 13 drops from 14:23 to 6:15, three seeds run past 8:00, and the seed 1 guard ends at 5:08.
+  - **Perf:** sim about 0.6 ms a tick with fog on or off over a full seed 11 3v3, about 0.1 ms more on update ticks. The fog is a texture, so draw calls don't change.
+- Why: the fog of war row of M3 (D-046, D-010). Lanes and trenches now hide what the team can't see, for players and bots alike.
+- Alternatives:
+  - Vision as a per-unit radius check with no grid (no fogged ground to draw, and no bank occlusion).
+  - Shadowcasting per update (more code than the cache, which already brings the cost near zero).
+  - Darkening props too (they share the baked material with units).

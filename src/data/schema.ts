@@ -425,6 +425,19 @@ const Combat = z.object({
   trench: z.object({ revealRadius: nonneg(), revealSeconds: secs() }),
   /** Medkit crates (GDD §4): a champion below max HP within `pickupRadius` takes one and heals `healPct` of max HP; it comes back after `respawnSeconds`. */
   medkit: z.object({ healPct: pct(), respawnSeconds: secs(), pickupRadius: positive() }),
+  /**
+   * Fog of war (D-010): each team sees the cells within its units' and standing structures'
+   * `radius` that raised ground doesn't hide, on a `cellSize` grid rebuilt every `updateSeconds`.
+   * Off: everyone sees everything (Trench concealment still applies). `darkPct`: how much
+   * darker fogged ground is drawn (render only).
+   */
+  fog: z.object({
+    enabled: z.boolean(),
+    cellSize: positive(),
+    updateSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+    radius: z.object({ champion: nonneg(), minion: nonneg(), subBase: nonneg(), hq: nonneg() }),
+    darkPct: pct(),
+  }),
 });
 
 // Camera runs in real time (render), so its seconds stay seconds.

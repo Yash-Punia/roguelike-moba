@@ -16,7 +16,7 @@ import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { traitSystem, type TraitContext } from './systems/traits';
 import { deathSystem, medkitSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
-import { SEEN_BY_ALL, visibilitySystem, visibleTo, type VisibilityContext } from './systems/visibility';
+import { createVision, SEEN_BY_ALL, visibilitySystem, visibleTo, type Vision, type VisibilityContext } from './systems/visibility';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
@@ -339,6 +339,8 @@ export interface Snapshot {
   lobs: LobSnapshot[];
   zones: ZoneSnapshot[];
   medkits: MedkitSnapshot[];
+  /** Each team's fog of war grid (D-010); reused between steps. */
+  vision: Vision;
 }
 
 export interface StepResult {
@@ -529,7 +531,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     return a ? config.units[a.unit].structureResistPct : 0;
   } };
   const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, seen, clear, defs: () => config.structures };
-  const visibilityContext: VisibilityContext = { concealments, transforms, teams, healths, weapons, champions, grid: () => grid };
+  const visibilityContext: VisibilityContext = {
+    concealments, transforms, teams, healths, weapons, champions, kinds, grid: () => grid, vision: createVision(config.map, config.combat.fog.cellSize),
+  };
   updateHqGate(structureContext);
 
   const targetingContext: TargetingContext = {
@@ -555,7 +559,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const noCards: readonly string[] = [];
   const noPowers: Readonly<Record<string, number>> = {};
   const match: MatchState = { phase: 'live', winner: undefined, endTick: 0 };
-  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [] };
+  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], vision: visibilityContext.vision };
 
   return {
     world,
@@ -600,7 +604,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       spatial.rebuild(healths.ids, transforms);
       separationSystem(minionContext);
       spatial.rebuild(healths.ids, transforms);
-      visibilitySystem(visibilityContext, config.combat.trench, tick);
+      visibilitySystem(visibilityContext, config.combat.trench, config.combat.fog, tick);
       // Structures (aggro rules) and minions get their own targeting with their features.
       traitSystem(traitContext, tick);
       targetingSystem(champions.ids, targetingContext, config.combat.targeting, tick);
@@ -645,6 +649,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Read-only view for render/UI/bots. Objects are reused between calls; copy what you keep. */
     snapshot(): Snapshot {
       snap.tick = tick;
+      snap.vision = visibilityContext.vision;
       const ids = transforms.ids;
       snap.entities.length = ids.length;
       for (let i = 0; i < ids.length; i++) {
@@ -793,6 +798,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       lanes = buildLanes(next.map);
       rebuildGrid();
+      const v = visibilityContext.vision;
+      if (v.cell !== next.combat.fog.cellSize || v.minX !== next.map.bounds.minX || v.minY !== next.map.bounds.minY) {
+        visibilityContext.vision = createVision(next.map, next.combat.fog.cellSize); // filled on the next vision update
+      }
     },
 
     /** Match state: live, or ended with a winner (read-only). */
@@ -884,6 +893,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Built lane polylines (read-only). */
     get lanes() {
       return lanes;
+    },
+
+    /** Each team's fog of war grid (read-only). */
+    get vision() {
+      return visibilityContext.vision;
     },
 
     /** Current obstacle grid (read-only; for tests and debug overlays). */

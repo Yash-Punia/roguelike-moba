@@ -51,12 +51,15 @@ export class Tracers {
     this.colours = { [Team.Blue]: bright(palette.blue), [Team.Red]: bright(palette.red), [Team.Neutral]: bright(palette.hazard) };
   }
 
-  /** Copies this tick's projectiles; `viewer`'s team draws Blue (D-039). */
-  capture(projectiles: readonly ProjectileSnapshot[], viewer: Team = Team.Blue) {
-    const n = Math.min(projectiles.length, this.mesh.instanceMatrix.count);
-    if (n > this.xs.length) this.grow(n);
-    for (let i = 0; i < n; i++) {
-      const p = projectiles[i]!;
+  /** Copies this tick's projectiles that `shown` passes (fog of war); `viewer`'s team draws Blue (D-039). */
+  capture(projectiles: readonly ProjectileSnapshot[], viewer: Team = Team.Blue, shown?: (x: number, y: number) => boolean) {
+    const max = Math.min(projectiles.length, this.mesh.instanceMatrix.count);
+    if (max > this.xs.length) this.grow(max);
+    let n = 0;
+    for (let k = 0; k < max; k++) {
+      const p = projectiles[k]!;
+      if (shown && !shown(p.x, p.y)) continue;
+      const i = n++;
       this.xs[i] = p.x;
       this.ys[i] = p.y;
       this.vxs[i] = p.vx / TICK_HZ;

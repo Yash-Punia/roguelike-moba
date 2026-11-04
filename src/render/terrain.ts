@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MapConfig, SurfaceKind } from '../data/schema';
+import { patchFog } from './fog';
 import { palette } from './palette';
 import { buildTerrainGeometry, EDGE_HEIGHT, TAG_SLOPE } from './terrain-mesh';
 
@@ -25,6 +26,7 @@ export interface Terrain {
 export const TERRAIN_TILE = 12;
 
 const terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+patchFog(terrainMaterial); // fogged ground is drawn darker (D-010)
 
 /**
  * Faceted terrain (D-018 heights are render-only; D-026 contour-cut edges), split into

@@ -4,6 +4,7 @@ import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
+import { Fog } from './fog';
 import { HpBars, type HpBar } from './hp-bars';
 import { createCave, createMedkit, createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
@@ -149,9 +150,13 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   /** Team of the followed champion: damage to it and its allies shows white, to enemies gold. */
   let localTeam: Team | undefined;
   const fades = new Map<number, Fade>();
+  // Fog of war (D-010): darker ground, and effects in the fog aren't drawn.
+  const fog = new Fog(viewer);
+  const sees = (x: number, y: number) => fog.sees(x, y);
 
   /** Call after every sim tick: shifts current → previous. */
   function capture(snap: Snapshot) {
+    fog.capture(snap.vision, config.combat.fog.darkPct);
     seen.clear();
     for (const e of snap.entities) {
       seen.add(e.id);
@@ -169,10 +174,13 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         bar = barLayer.create(e.kind, side(e.team));
         bars.set(e.id, bar);
       }
-      bar?.set(e.hp, e.maxHp);
+      // An enemy structure in the fog keeps its last known HP (D-010).
+      const lastKnown = (e.kind === Kind.SubBase || e.kind === Kind.HQ) && e.team !== viewer && !sees(e.x, e.y);
+      if (!lastKnown) bar?.set(e.hp, e.maxHp);
       if (bar && e.kind === Kind.Champion) bar.setLevel(e.level);
-      // Trench concealment (TDD §6.9): an enemy the viewer's team can't see fades out (a knock-out ends it, in addEvents).
-      const hidden = e.hp > 0 && (e.visibleMask & (1 << viewer)) === 0;
+      // Fog and Trench concealment (D-010, TDD §6.9): an enemy the viewer's team can't see fades out (a knock-out in sight ends it, in addEvents).
+      // A unit knocked out in the fog stays unseen (no fall to watch) until it is back in sight.
+      const hidden = (e.hp > 0 || fades.has(e.id)) && (e.visibleMask & (1 << viewer)) === 0;
       let fade = fades.get(e.id);
       if (hidden && !fade) fades.set(e.id, (fade = { k: 1, hidden, originals: undefined, mats: [] }));
       if (fade) fade.hidden = hidden;
@@ -217,8 +225,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       const kit = arena.medkits[i];
       if (kit) kit.visible = snap.medkits[i]!.ready;
     }
-    tracers.capture(snap.projectiles, viewer);
-    ultFx.capture(snap.lobs, snap.zones);
+    tracers.capture(snap.projectiles, viewer, sees);
+    ultFx.capture(snap.lobs, snap.zones, sees);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
       // A minion removed on its knock-out tick: the knock-out keeps the model until it fades.
@@ -237,9 +245,9 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   function addEvents(events: readonly SimEvent[]) {
     const now = clock;
     for (const ev of events) {
-      if (ev.type === 'explosion') ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'explosion' && sees(ev.x, ev.y)) ultFx.explode(ev.x, ev.y, ev.radius, now);
       if (ev.type === 'powerPicked') {
-        const s = interp.get(ev.id);
+        const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         const name = config.powers.powers.find((p) => p.id === ev.power)?.name ?? ev.power;
         if (s) {
           const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
@@ -247,7 +255,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         }
       }
       if (ev.type === 'levelUp') {
-        const s = interp.get(ev.id);
+        const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         if (s) {
           ultFx.levelUp(s.x, s.y, now);
           const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
@@ -269,10 +277,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       if (ev.type === 'death') {
         const mesh = meshes.get(ev.id);
         const fade = fades.get(ev.id);
-        if (mesh && fade) unfade(mesh, fade); // the knock-out fades its own copies of the real materials
-        fades.delete(ev.id);
-        if (mesh) knockouts.start(ev.id, mesh, now);
-        ultFx.smoke(ev.x, ev.y, 1.4, palette.mud, 4, now);
+        if (!fade?.hidden) {
+          if (mesh && fade) unfade(mesh, fade); // the knock-out fades its own copies of the real materials
+          fades.delete(ev.id);
+          if (mesh) knockouts.start(ev.id, mesh, now);
+        }
+        if (sees(ev.x, ev.y)) ultFx.smoke(ev.x, ev.y, 1.4, palette.mud, 4, now);
       }
       if (ev.type === 'respawn') {
         knockouts.restore(ev.id);
@@ -374,6 +384,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       root.visible = f.k > 0;
     }
     knockouts.update(now, dt);
+    fog.update(dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
     const me = localId === undefined ? undefined : interp.get(localId);

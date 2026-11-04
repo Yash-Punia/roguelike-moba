@@ -1,28 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Config, FragGrenadeConfig } from '../src/data/schema';
 import { Team, type Command } from '../src/sim/sim';
-import { arena } from './helpers';
-
-// Away from the open map's lane paths (which are walkable and would fill the hole below).
-// Positions are offsets from O; the shooter (player 0) is moved to O.
-const O = { x: 12, y: 30 };
-const at = (dx: number, dy: number) => ({ x: O.x + dx, y: O.y + dy });
+import { arena, at, O, raiseGround } from './helpers';
 
 /** A sandbag wall across x −2..2, y 2–3 from O. */
 const sandbag = (c: Config) => c.map.obstacles.push({ kind: 'sandbag', ...at(0, 2.5), w: 4, h: 0.5 });
-/** Raised ground over the same 4 × 1 m: the floor rect is split round a hole there. */
-const ground = (c: Config) => {
-  const rect = (id: string, x0: number, x1: number, y0: number, y1: number) =>
-    ({ id, shape: 'rect' as const, surface: 'dirt' as const, height: 0, x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 });
-  const { minX, maxX, minY, maxY } = c.map.bounds;
-  c.map.walkable = [
-    rect('west', minX, O.x - 2, minY, maxY),
-    rect('east', O.x + 2, maxX, minY, maxY),
-    rect('south', O.x - 2, O.x + 2, minY, O.y + 2),
-    rect('north', O.x - 2, O.x + 2, O.y + 3, maxY),
-    ...c.map.walkable.filter((s) => s.id !== 'all'),
-  ];
-};
+/** Raised ground over the same 4 × 1 m. */
+const ground = (c: Config) => raiseGround(c, O.x - 2, O.x + 2, O.y + 2, O.y + 3);
 /** The arena spawns 'alpha' everywhere: give it Gamma's kit. */
 const gamma = (c: Config) => {
   c.champions[0] = { ...c.champions.find((ch) => ch.id === 'gamma')!, id: 'alpha' };

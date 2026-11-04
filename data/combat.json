@@ -26,5 +26,17 @@
     "healPct": 25,
     "respawnSeconds": 45,
     "pickupRadius": 1.2
+  },
+  "fog": {
+    "enabled": true,
+    "cellSize": 1,
+    "updateSeconds": 0.1,
+    "radius": {
+      "champion": 10,
+      "minion": 6,
+      "subBase": 10,
+      "hq": 12
+    },
+    "darkPct": 55
   }
 }
