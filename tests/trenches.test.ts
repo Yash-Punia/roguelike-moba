@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig, rawConfig } from '../src/data/load';
 import type { Config } from '../src/data/schema';
-import { buildGrid, rayBlocked, zoneAt, type ObstacleGrid } from '../src/sim/grid';
+import { buildGrid, rayBlocked, SHOT, zoneAt, type ObstacleGrid } from '../src/sim/grid';
 import { Team } from '../src/sim/sim';
 import { arena, reachable } from './helpers';
 
@@ -94,16 +94,18 @@ describe('concealment (GDD §4, TDD §6.9)', () => {
 describe('sandbags (blocksShots)', () => {
   it('the ray march stops at a shot-blocking cell', () => {
     const { sim } = arena([], (c) => c.map.obstacles.push({ kind: 'sandbag', x: 0, y: 2.5, w: 4, h: 0.5 }));
-    const at = rayBlocked(sim.grid, 0, 0, 0, 5);
+    const at = rayBlocked(sim.grid, 0, 0, 0, 5, SHOT);
     expect(at).toBeCloseTo(0.4); // the wall's cells span y 2–3
-    expect(rayBlocked(sim.grid, 3, 0, 3, 5)).toBe(-1);
+    expect(rayBlocked(sim.grid, 3, 0, 3, 5, SHOT)).toBe(-1);
   });
 
   it('bullets stop at a sandbag wall: the unit behind it takes no damage', () => {
-    const { step, hp, shots } = arena([{ team: Team.Red, x: 0, y: 5 }], (c) => c.map.obstacles.push({ kind: 'sandbag', x: 0, y: 2.5, w: 4, h: 0.5 }));
-    step(90);
-    expect(shots()).toBeGreaterThan(0);
+    const { sim, step, hp, shooter } = arena([{ team: Team.Red, x: 0, y: 5 }], (c) => c.map.obstacles.push({ kind: 'sandbag', x: 0, y: 2.5, w: 4, h: 0.5 }));
+    // Targeting won't shoot into cover (line of sight), so fire one by hand, straight at it.
+    sim.projectiles.spawn(shooter, Team.Blue, 2, false, 0, 0.6, 0, 25 / 30, 95, 1, 30);
+    step(20);
     expect(hp(2)).toBe(1000);
+    expect(sim.projectiles.active.every((v) => v === 0)).toBe(true);
   });
 });
 

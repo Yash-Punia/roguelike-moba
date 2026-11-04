@@ -1,7 +1,7 @@
 import { TICK_HZ, type ChampionConfig, type Config, type StructureKind, type WeaponConfig } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
-import { buildGrid, stampFootprint } from './grid';
+import { buildGrid, GROUND, rayBlocked, SHOT, stampFootprint } from './grid';
 import { createStreams, type Streams } from './rng';
 import { SpatialIndex } from './spatial';
 import { addPct, createStats, Stat, stat, type Stats } from './stats';
@@ -365,6 +365,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const laneAgents = world.store<LaneAgent>();
   const concealments = world.store<Concealment>();
   const seen = (e: Entity, team: Team) => visibleTo(concealments, e, team);
+  /** Line of sight (D-018): nothing with `mask`'s flags between a and b. */
+  const clear = (ax: number, ay: number, bx: number, by: number, mask: number) => rayBlocked(grid, ax, ay, bx, by, mask) < 0;
   /** Tick each medkit is ready from. */
   const medkitReadyAt: number[] = [];
   let lanes: LanePath[] = buildLanes(config.map);
@@ -484,6 +486,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
     secondaryOf: (e) => structures.get(e)?.secondaryId ?? 0,
     rangeOf: (e) => targetingContext.rangeOf(e),
+    clear,
   };
   const projectileContext = { pool, transforms, colliders, teams, healths, spatial, hits, grid: () => grid };
 
@@ -491,10 +494,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const zones = new ZonePool();
   const traitContext: TraitContext = { champions, motions, stats, healths, transforms, teams, seen };
   const ultimateContext: UltimateContext = {
-    champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events, seen,
+    champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events, seen, clear,
   };
   const minionContext: MinionContext = {
-    world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events, concealments, seen,
+    world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events, concealments, seen, clear,
     lanes: () => lanes,
     grid: () => grid,
     laneBroken: (team, laneId) => {
@@ -525,12 +528,18 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     const a = laneAgents.get(t);
     return a ? config.units[a.unit].structureResistPct : 0;
   } };
-  const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, seen, defs: () => config.structures };
+  const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, seen, clear, defs: () => config.structures };
   const visibilityContext: VisibilityContext = { concealments, transforms, teams, healths, weapons, champions, grid: () => grid };
   updateHqGate(structureContext);
 
   const targetingContext: TargetingContext = {
     transforms, colliders, teams, healths, targetClasses, targetings, spatial, seen,
+    // Flames pass over sandbags; everything else needs a clear shot.
+    lineClear: (a, b) => {
+      const ta = transforms.get(a)!;
+      const tb = transforms.get(b)!;
+      return clear(ta.x, ta.y, tb.x, tb.y, weapons.get(a)?.kind === 'cone' ? GROUND : SHOT);
+    },
     rangeOf: (e) => {
       const st = stats.get(e);
       return st ? stat(st, Stat.Range) : (weapons.get(e)?.range ?? 0);

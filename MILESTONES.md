@@ -84,8 +84,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | b317a2d |
 | `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048) | |
 | `[p]` | Match config: team size 2v2–5v5 via `?size=` + debug panel, default 3v3 (`match.json`), your lane via `?lane=`; duplicate champions allowed (D-009, D-048) | 9cd0505 |
-| `[c]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms; hidden enemies fade out (D-056) | |
-| `[ ]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018) | |
+| `[p]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms; hidden enemies fade out (D-056) | 6ed7a33 |
+| `[c]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018); blasts and splash get cover (D-057) | |
 | `[ ]` | Fog of war: per-team vision grid from unit and structure vision radii, Trench brush rules on top, targeting uses team vision, fogged ground darkened, hidden enemies fade out (D-010) | |
 | `[p]` | Beta: Burst SMG, Light Feet, Lead Storm channel + slow; model per the Beta sheet; `?champ=` and a debug picker; bots mix the roster, Beta prefers a side lane (D-049) | eccbf39 |
 | `[p]` | Gamma: Flamethrower cone, Charge, Heat Wave aura; model per the Gamma sheet; Gamma bots prefer the centre and cast Heat Wave by the TDD §7 rule (D-050) | a4c14ef |

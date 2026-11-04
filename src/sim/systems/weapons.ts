@@ -1,6 +1,7 @@
 import { TICK_HZ, type Config } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
+import { GROUND } from '../grid';
 import type { HitQueue } from '../hits';
 import { asin, atan2, cos, len, sin, turnTowards, wrapAngle } from '../math';
 import type { ProjectilePool } from '../projectiles';
@@ -34,6 +35,8 @@ export interface WeaponsContext {
   /** A second target for weapons that hit two (HQ flak), or 0. */
   secondaryOf(e: Entity): Entity;
   rangeOf(e: Entity): number;
+  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
 }
 
 /**
@@ -131,7 +134,7 @@ const CONE_REACH = 4;
 /**
  * One flame (TDD §6.3 `cone`): every living enemy whose collider overlaps the sector `range`
  * long and `coneAngle` wide along the aim takes the weapon's damage, in ascending ids. Flames
- * pass over sandbag walls, so nothing blocks them.
+ * pass over sandbag walls but not raised ground.
  */
 function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult: number) {
   const range = ctx.rangeOf(e);
@@ -149,6 +152,7 @@ function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult
     if (d - r > range) continue;
     // Within the half-angle, widened by the angle the collider covers at its distance.
     if (d > r && Math.abs(wrapAngle(atan2(ot.y - t.y, ot.x - t.x) - w.aim)) > half + asin(r / d)) continue;
+    if (!ctx.clear(t.x, t.y, ot.x, ot.y, GROUND)) continue;
     ctx.hits.push(e, o, w.damage, critMult);
   }
   ctx.events.push({ type: 'shot', id: e, target: 0 });

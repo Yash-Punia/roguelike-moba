@@ -958,3 +958,39 @@ From TDD §13:
   - The TDD rule (3 m or fired only, no same-zone sight). Declined: the GDD says enemies outside the trench.
   - Zones as flood-filled connected trench pieces. Quadrants match the GDD's "4 Trench zones" and need no fill.
   - Rotated sandbag shapes. Axis-aligned rects reuse the existing obstacle stamp.
+
+## D-057 — Line of sight
+- Date: 2026-11-04
+- Source: plan approved by the user; the rest made during development
+- Decision:
+  - **Two flags per cell** in the grid's `shotBlocked` layer:
+    - `COVER`: sandbags.
+    - `GROUND`: raised jungle, meaning any cell no walkable shape covers.
+    - Structure footprints carry neither, so towers stay shootable.
+  - `rayBlocked` takes a mask of the flags to test. Mask `SHOT` = both.
+  - **The rule:** a weapon targets and hits only what nothing in its path stops. Rays run centre to centre.
+    - Flames (cone weapons) use `GROUND`, so they pass over sandbags (GDD §4) but not an earth bank.
+    - Bullets, rockets and flak use `SHOT`.
+  - **Targeting:** champion, Sub-base and HQ, and minion targeting all check the line, current targets and call-for-help included. A target that steps behind cover is dropped at once.
+    - In champion targeting the ray runs last, only for a candidate that could become the best, so each shooter casts only a few rays a tick.
+  - **Ultimates:**
+    - Frag Grenade targets need `GROUND` sight: it is lobbed over sandbags.
+    - Lead Storm targets need a clear shot.
+  - **Area damage:**
+    - Grenade blasts, rocket splash and the Lead Storm strip hit only units with a clear `SHOT` line from the blast point (or from Beta).
+    - Fire pools use `GROUND`.
+    - A rocket that hits a wall bursts 1% of a tick's travel short of it, so units in front of the wall still take the splash. This replaces the D-056 interim, where the splash reached through sandbags.
+    - Heat Wave is an aura, not a shot, so it ignores walls.
+  - **Bullets** stop at raised ground as well as sandbags. A shot led around a bend can hit the bank.
+  - **Not here:** bot vision and the 3 m Trench reveal ignore walls. Both come with fog of war.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, HQ cut off):
+    - before: median about 5:18, range 3:33–9:18, four seeds past 8:00;
+    - after: median about 5:09, range 3:32–14:23, one seed past 8:00 (seed 13, up from 8:49).
+    - Inside the 4:30–5:30 target. The seed 1 guard still ends inside 6 minutes.
+  - **Perf:** 109 draw calls and 0.9 ms sim at 0:42 of a seed 11 3v3, with a wave and a tank in view.
+  - **The Bridgehead** (later): its river is unwalkable, so this rule would make it block sight. That map will need river cells that block movement but not shots.
+- Why: the line-of-sight row of M3 (D-046). Lane bends and trench banks now break sightlines, as the map spec intends, and sandbags work as cover for grenades and rockets too (GDD §4).
+- Alternatives:
+  - Raised ground blocking flames as well as sandbags (no: GDD §4 says flames pass over sandbags).
+  - Rays to the collider edge instead of the centre (more rays for little gain at 0.5 m cells).
+  - Line of sight only at target selection, with bullets passing through (no: a led shot would then fly through the bank).

@@ -15,6 +15,8 @@ export interface TargetingContext {
   spatial: SpatialIndex;
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
+  /** Nothing between shooter and target stops its weapon (line of sight, GDD §6, D-018)? */
+  lineClear(shooter: Entity, target: Entity): boolean;
   /** Current weapon range of a shooter (stat-modified for champions). */
   rangeOf(e: Entity): number;
 }
@@ -24,7 +26,8 @@ const candidates: Entity[] = [];
 /**
  * Champion auto-targeting, GDD §6 / TDD §6.2:
  * 1. Candidates are living, targetable enemies seen by the shooter's team (not hidden in a
- *    Trench) whose collider edge is within weapon range. (Line of sight and fog join in M3.)
+ *    Trench) whose collider edge is within weapon range, with nothing in the way that stops
+ *    its weapon (line of sight). (Fog joins in M3.)
  * 2. The highest class with a candidate wins; within it the nearest unit, and units within
  *    `tieBand` of the nearest go to the lowest HP%.
  * 3. Keep the current target while it stays valid within range + `stickyRange`.
@@ -44,9 +47,10 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
     const o = transforms.get(e)!;
     return len(o.x - t.x, o.y - t.y) - (colliders.get(e)?.radius ?? 0);
   };
-  const targetable = (e: Entity, team: Team) => {
+  /** Call after the range check: the line of sight ray is the expensive part. */
+  const targetable = (shooter: Entity, e: Entity, team: Team) => {
     const h = healths.get(e);
-    return h !== undefined && h.hp > 0 && !isInvulnerable(h, tick) && teams.get(e) !== team && ctx.seen(e, team);
+    return h !== undefined && h.hp > 0 && !isInvulnerable(h, tick) && teams.get(e) !== team && ctx.seen(e, team) && ctx.lineClear(shooter, e);
   };
 
   for (let i = 0; i < shooters.length; i++) {
@@ -72,7 +76,7 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
       if (!h || h.hp <= 0) {
         tg.holdTicks = cfg.retargetPauseSeconds; // it died: re-select now, fire after the pause
         cur = 0;
-      } else if (!targetable(cur, team) || (curDist = edgeDistance(t, cur)) > range + cfg.stickyRange) {
+      } else if ((curDist = edgeDistance(t, cur)) > range + cfg.stickyRange || !targetable(e, cur, team)) {
         cur = 0;
       } else {
         curClass = targetClasses.get(cur) ?? 0;
@@ -85,10 +89,11 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
     let nearest = Infinity;
     for (let k = 0; k < candidates.length; k++) {
       const c = candidates[k]!;
-      if (c === e || !targetable(c, team)) continue;
+      if (c === e) continue;
       const d = edgeDistance(t, c);
       if (d > range) continue;
       const cls = targetClasses.get(c) ?? 0;
+      if (cls < topClass || (cls === topClass && d >= nearest) || !targetable(e, c, team)) continue; // can't improve: skip the ray
       if (cls > topClass) {
         topClass = cls;
         nearest = d;
@@ -102,9 +107,9 @@ export function targetingSystem(shooters: readonly Entity[], ctx: TargetingConte
     if (topClass > 0) {
       for (let k = 0; k < candidates.length; k++) {
         const c = candidates[k]!;
-        if (c === e || (targetClasses.get(c) ?? 0) !== topClass || !targetable(c, team)) continue;
+        if (c === e || (targetClasses.get(c) ?? 0) !== topClass) continue;
         const d = edgeDistance(t, c);
-        if (d > range || d > nearest + cfg.tieBand) continue;
+        if (d > range || d > nearest + cfg.tieBand || !targetable(e, c, team)) continue;
         const h = healths.get(c)!;
         const hp = h.hp / h.maxHp;
         if (hp < bestHp || (hp === bestHp && d < bestDist)) {

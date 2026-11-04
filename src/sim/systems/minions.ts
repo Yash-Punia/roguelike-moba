@@ -6,7 +6,7 @@ import type { DamageLog } from '../damage-log';
 import type { Entity, Store, World } from '../ecs';
 import type { SimEvent } from '../events';
 import type { ObstacleGrid } from '../grid';
-import { isBlocked } from '../grid';
+import { isBlocked, SHOT } from '../grid';
 import { len } from '../math';
 import {
   Kind, TargetClass, Team,
@@ -32,6 +32,8 @@ export interface MinionContext {
   concealments: Store<Concealment>;
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
+  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
   lanes: () => readonly LanePath[];
   grid: () => ObstacleGrid;
   /** Component objects of removed minions, reused by the next spawns (per sim). */
@@ -200,13 +202,13 @@ function edgeDist(ctx: MinionContext, t: Transform, o: Entity): number {
   return len(ot.x - t.x, ot.y - t.y) - (ctx.colliders.get(o)?.radius ?? 0);
 }
 
-/** A living, targetable enemy it can see (not hidden in a Trench) that the minion could shoot without straying more than `reach` (leash + range) from its lane. */
-function isValid(ctx: MinionContext, o: Entity, team: Team, pts: Float64Array, reach: number, tick: number): boolean {
+/** A living, targetable enemy it can see (not hidden in a Trench, in line of sight from `t`) that the minion could shoot without straying more than `reach` (leash + range) from its lane. */
+function isValid(ctx: MinionContext, o: Entity, team: Team, t: Transform, pts: Float64Array, reach: number, tick: number): boolean {
   if (o === 0 || ctx.teams.get(o) === team || !ctx.seen(o, team)) return false;
   const h = ctx.healths.get(o);
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
   const ot = ctx.transforms.get(o)!;
-  return distToLane(pts, ot.x, ot.y) <= reach + (ctx.colliders.get(o)?.radius ?? 0);
+  return distToLane(pts, ot.x, ot.y) <= reach + (ctx.colliders.get(o)?.radius ?? 0) && ctx.clear(t.x, t.y, ot.x, ot.y, SHOT);
 }
 
 /** Minion target rank (GDD §5 "Minion targeting"): minions first, then structures, then champions; −1 = never. */
@@ -251,7 +253,7 @@ export function minionSystem(ctx: MinionContext, units: Config['units'], tick: n
 
     // Target.
     if (a.helpTicks > 0) a.helpTicks--;
-    if (a.helpTicks === 0 || !isValid(ctx, a.helpTarget, team, pts, reach, tick)) a.helpTarget = 0;
+    if (a.helpTicks === 0 || !isValid(ctx, a.helpTarget, team, t, pts, reach, tick)) a.helpTarget = 0;
     let target: Entity = a.helpTarget;
     if (target === 0) {
       spatial.query(t.x, t.y, def.acquireRange + 3, nearby);
@@ -260,7 +262,7 @@ export function minionSystem(ctx: MinionContext, units: Config['units'], tick: n
       for (let k = 0; k < nearby.length; k++) {
         const o = nearby[k]!;
         const r = rank(targetClasses.get(o));
-        if (r < 0 || r > bestRank || !isValid(ctx, o, team, pts, reach, tick)) continue;
+        if (r < 0 || r > bestRank || !isValid(ctx, o, team, t, pts, reach, tick)) continue;
         const d = edgeDist(ctx, t, o);
         if (d > def.acquireRange) continue;
         if (r < bestRank || d < bestDist) {
@@ -270,7 +272,7 @@ export function minionSystem(ctx: MinionContext, units: Config['units'], tick: n
         }
       }
       const cur = tg.targetId;
-      if (cur !== 0 && cur !== target && isValid(ctx, cur, team, pts, reach, tick) && rank(targetClasses.get(cur)) === bestRank && edgeDist(ctx, t, cur) <= def.acquireRange + 0.5) target = cur;
+      if (cur !== 0 && cur !== target && isValid(ctx, cur, team, t, pts, reach, tick) && rank(targetClasses.get(cur)) === bestRank && edgeDist(ctx, t, cur) <= def.acquireRange + 0.5) target = cur;
     }
     tg.targetId = target;
 

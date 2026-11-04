@@ -3,6 +3,7 @@ import { isInvulnerable } from '../damage';
 import type { DamageLog } from '../damage-log';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
+import { SHOT } from '../grid';
 import { len } from '../math';
 import { Kind, Team, type Collider, type Health, type Structure, type Targeting, type Transform, type Weapon } from '../sim';
 import type { SpatialIndex } from '../spatial';
@@ -20,6 +21,8 @@ export interface StructureContext {
   events: SimEvent[];
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
+  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
   /** Current structure config (live edits included). */
   defs(): Config['structures'];
 }
@@ -34,14 +37,16 @@ function edge(ctx: StructureContext, t: Transform, o: Entity): number {
   return len(ot.x - t.x, ot.y - t.y) - (ctx.colliders.get(o)?.radius ?? 0);
 }
 
-/** A unit this structure may shoot: a living, targetable enemy minion or champion within range, not hidden in a Trench. */
+/** A unit this structure may shoot: a living, targetable enemy minion or champion within range, not hidden in a Trench, in line of sight. */
 function shootable(ctx: StructureContext, o: Entity, team: Team, t: Transform, range: number, tick: number): boolean {
   if (o === 0 || ctx.teams.get(o) === team || !ctx.seen(o, team)) return false;
   const kind = ctx.kinds.get(o);
   if (kind !== Kind.Minion && kind !== Kind.Champion) return false;
   const h = ctx.healths.get(o);
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
-  return edge(ctx, t, o) <= range;
+  if (edge(ctx, t, o) > range) return false;
+  const ot = ctx.transforms.get(o)!;
+  return ctx.clear(t.x, t.y, ot.x, ot.y, SHOT);
 }
 
 /** Nearest shootable unit of `kind` in range, skipping `except`; 0 if none. */

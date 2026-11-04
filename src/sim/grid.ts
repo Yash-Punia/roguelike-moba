@@ -9,20 +9,29 @@ export interface ObstacleGrid {
   cols: number;
   rows: number;
   blocked: Uint8Array;
-  /** Cells that stop bullets (`blocksShots`: sandbags, GDD §4). */
+  /** What stops shots in each cell, as `COVER` | `GROUND` flags (GDD §4, D-018). */
   shotBlocked: Uint8Array;
   /** Trench zone of each cell (GDD §4): 0 = none, 1–4 = the quadrant of a trench or room floor. */
   zone: Uint8Array;
 }
+
+/** Sandbags (`blocksShots`): stop bullets, rockets and blasts; flames pass over them (GDD §4). */
+export const COVER = 1;
+/** Raised jungle ground: stops every shot and blocks sight, flames included (D-018). */
+export const GROUND = 2;
+/** What a bullet, rocket, flak shell or blast can't pass. */
+export const SHOT = COVER | GROUND;
 
 /** Walkable shapes carved out of solid jungle, then the map's obstacle rects stamped on top. */
 export function buildGrid(map: MapConfig): ObstacleGrid {
   const { minX, minY, cell, cols, rows, owner } = rasterise(map);
   const blocked = new Uint8Array(cols * rows);
   const zone = new Uint8Array(cols * rows);
+  const shotBlocked = new Uint8Array(cols * rows);
   for (let i = 0; i < blocked.length; i++) {
     const o = owner[i]!;
     blocked[i] = o < 0 ? 1 : 0;
+    shotBlocked[i] = o < 0 ? GROUND : 0;
     // Trench and room floors conceal; arenas, the Crater and lanes painted over trench mouths don't.
     if (o >= 0 && map.walkable[o]!.surface === 'trench') {
       const x = minX + ((i % cols) + 0.5) * cell;
@@ -30,17 +39,17 @@ export function buildGrid(map: MapConfig): ObstacleGrid {
       zone[i] = 1 + (x > 0 ? 1 : 0) + (y > 0 ? 2 : 0);
     }
   }
-  const g = { minX, minY, cell, cols, rows, blocked, shotBlocked: new Uint8Array(cols * rows), zone };
+  const g = { minX, minY, cell, cols, rows, blocked, shotBlocked, zone };
   for (const o of map.obstacles) {
     const f: Footprint = { shape: 'rect', w: o.w, h: o.h };
     stampFootprint(g, o.x, o.y, f);
-    stampFootprint(g, o.x, o.y, f, g.shotBlocked);
+    stampFootprint(g, o.x, o.y, f, g.shotBlocked, COVER);
   }
   return g;
 }
 
-/** Marks every cell of `layer` (default: movement) whose centre lies inside the footprint centred at (x, y). */
-export function stampFootprint(g: ObstacleGrid, x: number, y: number, f: Footprint, layer = g.blocked): void {
+/** Sets `value` on every cell of `layer` (default: movement) whose centre lies inside the footprint centred at (x, y). */
+export function stampFootprint(g: ObstacleGrid, x: number, y: number, f: Footprint, layer = g.blocked, value = 1): void {
   const hw = f.shape === 'circle' ? f.r : f.w / 2;
   const hh = f.shape === 'circle' ? f.r : f.h / 2;
   const c0 = Math.max(0, Math.ceil((x - hw - g.minX) / g.cell - 0.5));
@@ -52,7 +61,7 @@ export function stampFootprint(g: ObstacleGrid, x: number, y: number, f: Footpri
     const dy = g.minY + (r + 0.5) * g.cell - y;
     for (let c = c0; c <= c1; c++) {
       const dx = g.minX + (c + 0.5) * g.cell - x;
-      if (f.shape === 'rect' || dx * dx + dy * dy <= rSq) layer[r * g.cols + c] = 1;
+      if (f.shape === 'rect' || dx * dx + dy * dy <= rSq) layer[r * g.cols + c]! |= value;
     }
   }
 }
@@ -71,10 +80,10 @@ export function zoneAt(g: ObstacleGrid, x: number, y: number): number {
 }
 
 /**
- * Grid ray march (DDA) from a to b against `shotBlocked` cells: the 0..1 position along ab where
- * it first enters one (0 if a is inside one), or −1 if the way is clear.
+ * Grid ray march (DDA) from a to b against cells with any of `mask`'s flags (`COVER`, `GROUND`):
+ * the 0..1 position along ab where it first enters one (0 if a is inside one), or −1 if clear.
  */
-export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, by: number): number {
+export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, by: number, mask: number): number {
   const fx = (ax - g.minX) / g.cell;
   const fy = (ay - g.minY) / g.cell;
   const dx = (bx - ax) / g.cell;
@@ -89,7 +98,7 @@ export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, 
   let ty = dy !== 0 ? (dy > 0 ? row + 1 - fy : fy - row) * tdy : Infinity;
   let t = 0;
   while (t <= 1) {
-    if (col >= 0 && row >= 0 && col < g.cols && row < g.rows && g.shotBlocked[row * g.cols + col] === 1) return t;
+    if (col >= 0 && row >= 0 && col < g.cols && row < g.rows && (g.shotBlocked[row * g.cols + col]! & mask) !== 0) return t;
     if (tx < ty) {
       t = tx;
       tx += tdx;

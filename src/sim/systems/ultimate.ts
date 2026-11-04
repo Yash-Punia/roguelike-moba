@@ -2,6 +2,7 @@ import { TICK_HZ, type UltTargetClass } from '../../data/schema';
 import { isInvulnerable } from '../damage';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
+import { GROUND, SHOT } from '../grid';
 import type { HitQueue } from '../hits';
 import type { LobPool } from '../lobs';
 import { atan2, cos, len, sin, turnTowards } from '../math';
@@ -27,6 +28,8 @@ export interface UltimateContext {
   events: SimEvent[];
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
+  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
 }
 
 // A function, not a table: sim.ts imports this module, so its enums aren't ready at load time.
@@ -66,6 +69,8 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
   const ult = c.def.ultimate;
   if (ult.id === 'heatWave') return e; // needs no target: usable whenever charged (GDD §7)
   const team = ctx.teams.get(e);
+  // A lobbed grenade clears sandbags but needs sight past raised ground; Lead Storm's bullets need a clear shot.
+  const mask = ult.id === 'fragGrenade' ? GROUND : SHOT;
   ctx.spatial.query(t.x, t.y, ult.castRange + reach, nearby);
   for (let n = 0; n < ult.targetOrder.length; n++) {
     const cls = classOf(ult.targetOrder[n]!);
@@ -78,7 +83,7 @@ export function ultTarget(e: Entity, ctx: UltimateContext, tick: number, reach =
       if (!h || h.hp <= 0 || isInvulnerable(h, tick)) continue;
       const ot = ctx.transforms.get(o)!;
       const d = len(ot.x - t.x, ot.y - t.y) - (ctx.colliders.get(o)?.radius ?? 0);
-      if (d <= ult.castRange && d < bestDist) {
+      if (d <= ult.castRange && d < bestDist && ctx.clear(t.x, t.y, ot.x, ot.y, mask)) {
         best = o;
         bestDist = d;
       }
@@ -131,8 +136,8 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
   }
 }
 
-/** Fills `inside` with living enemies (not on `team`) whose collider overlaps the circle (x, y, r), ascending ids. */
-function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: number, reach: number): Entity[] {
+/** Fills `inside` with living enemies (not on `team`) whose collider overlaps the circle (x, y, r) and that nothing in `mask` shields from its centre, ascending ids. */
+function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: number, reach: number, mask: number): Entity[] {
   inside.length = 0;
   ctx.spatial.query(x, y, r + reach, nearby);
   for (let k = 0; k < nearby.length; k++) {
@@ -141,14 +146,14 @@ function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: 
     const h = ctx.healths.get(o);
     if (!h || h.hp <= 0) continue;
     const ot = ctx.transforms.get(o)!;
-    if (len(ot.x - x, ot.y - y) <= r + (ctx.colliders.get(o)?.radius ?? 0)) inside.push(o);
+    if (len(ot.x - x, ot.y - y) <= r + (ctx.colliders.get(o)?.radius ?? 0) && ctx.clear(x, y, ot.x, ot.y, mask)) inside.push(o);
   }
   return inside;
 }
 
 /**
  * Grenades in flight land after their flight time: the blast hits every enemy it overlaps
- * through the damage pipeline, then leaves a fire pool. Level scaling uses the owner's
+ * that no sandbag or raised ground shields, through the damage pipeline, then leaves a fire pool. Level scaling uses the owner's
  * level (1 until XP arrives in M2 feature 11).
  */
 export function lobSystem(ctx: UltimateContext) {
@@ -167,7 +172,7 @@ export function lobSystem(ctx: UltimateContext) {
     if (!c || ult?.id !== 'fragGrenade') continue;
     const up = c.level - 1;
     const damage = ult.damage + ult.damagePerLevel * up;
-    const hitList = enemiesIn(ctx, x, y, ult.radius, team, reach);
+    const hitList = enemiesIn(ctx, x, y, ult.radius, team, reach, SHOT);
     for (let k = 0; k < hitList.length; k++) hits.push(owner, hitList[k]!, damage);
     events.push({ type: 'explosion', owner, team, x, y, radius: ult.radius });
     const z = ult.zone;
@@ -178,7 +183,7 @@ export function lobSystem(ctx: UltimateContext) {
 
 /**
  * Fills `inside` with living enemies whose collider overlaps the strip starting at (x, y) and
- * running `length` along `angle`, `width` wide; ascending ids.
+ * running `length` along `angle`, `width` wide, with a clear shot from (x, y); ascending ids.
  */
 function enemiesInStrip(ctx: UltimateContext, x: number, y: number, angle: number, length: number, width: number, team: number, reach: number): Entity[] {
   inside.length = 0;
@@ -194,7 +199,7 @@ function enemiesInStrip(ctx: UltimateContext, x: number, y: number, angle: numbe
     const r = ctx.colliders.get(o)?.radius ?? 0;
     const along = (ot.x - x) * dx + (ot.y - y) * dy;
     const across = (ot.y - y) * dx - (ot.x - x) * dy;
-    if (along >= -r && along <= length + r && Math.abs(across) <= width / 2 + r) inside.push(o);
+    if (along >= -r && along <= length + r && Math.abs(across) <= width / 2 + r && ctx.clear(x, y, ot.x, ot.y, SHOT)) inside.push(o);
   }
   return inside;
 }
@@ -309,7 +314,7 @@ function endChannel(c: Champion, m: Motion, e: Entity, events: SimEvent[]) {
   events.push({ type: 'channelEnd', id: e });
 }
 
-/** Zones hit every enemy inside once per period, the last time on their final tick, then vanish. */
+/** Zones hit every enemy inside once per period (fire passes over sandbags, not raised ground), the last time on their final tick, then vanish. */
 export function zoneSystem(ctx: UltimateContext) {
   const { zones, hits } = ctx;
   const reach = maxRadius(ctx.colliders);
@@ -320,7 +325,7 @@ export function zoneSystem(ctx: UltimateContext) {
       const owner = zones.owner[i]!;
       const damage = zones.damage[i]!;
       const share = zones.structureMult[i]!;
-      const hitList = enemiesIn(ctx, zones.x[i]!, zones.y[i]!, zones.radius[i]!, zones.team[i]!, reach);
+      const hitList = enemiesIn(ctx, zones.x[i]!, zones.y[i]!, zones.radius[i]!, zones.team[i]!, reach, GROUND);
       for (let k = 0; k < hitList.length; k++) hits.push(owner, hitList[k]!, damage, 1, share);
     }
     if (elapsed >= zones.total[i]!) zones.release(i);
