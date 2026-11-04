@@ -3,7 +3,6 @@ import { isInvulnerable } from '../damage';
 import type { DamageLog } from '../damage-log';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
-import { SHOT } from '../grid';
 import { len } from '../math';
 import { Kind, Team, type Collider, type Health, type Structure, type Targeting, type Transform, type Weapon } from '../sim';
 import type { SpatialIndex } from '../spatial';
@@ -21,8 +20,8 @@ export interface StructureContext {
   events: SimEvent[];
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
-  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
-  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
+  /** Is the line from a to b clear of raised ground (line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number): boolean;
   /** Current structure config (live edits included). */
   defs(): Config['structures'];
 }
@@ -46,7 +45,7 @@ function shootable(ctx: StructureContext, o: Entity, team: Team, t: Transform, r
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
   if (edge(ctx, t, o) > range) return false;
   const ot = ctx.transforms.get(o)!;
-  return ctx.clear(t.x, t.y, ot.x, ot.y, SHOT);
+  return ctx.clear(t.x, t.y, ot.x, ot.y);
 }
 
 /** Nearest shootable unit of `kind` in range, skipping `except`; 0 if none. */

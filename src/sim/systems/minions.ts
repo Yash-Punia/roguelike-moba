@@ -6,7 +6,7 @@ import type { DamageLog } from '../damage-log';
 import type { Entity, Store, World } from '../ecs';
 import type { SimEvent } from '../events';
 import type { ObstacleGrid } from '../grid';
-import { isBlocked, SHOT } from '../grid';
+import { isBlocked } from '../grid';
 import { len } from '../math';
 import {
   Kind, TargetClass, Team,
@@ -33,8 +33,8 @@ export interface MinionContext {
   statuses: Store<Status>;
   /** Can `team` see `e` (Trench concealment, TDD §6.9)? */
   seen(e: Entity, team: Team): boolean;
-  /** Is the line from a to b free of cells with any of `mask`'s flags (`COVER`, `GROUND`; line of sight, D-018)? */
-  clear(ax: number, ay: number, bx: number, by: number, mask: number): boolean;
+  /** Is the line from a to b clear of raised ground (line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number): boolean;
   lanes: () => readonly LanePath[];
   grid: () => ObstacleGrid;
   /** Component objects of removed minions, reused by the next spawns (per sim). */
@@ -213,7 +213,7 @@ function isValid(ctx: MinionContext, o: Entity, team: Team, t: Transform, pts: F
   const h = ctx.healths.get(o);
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
   const ot = ctx.transforms.get(o)!;
-  return distToLane(pts, ot.x, ot.y) <= reach + (ctx.colliders.get(o)?.radius ?? 0) && ctx.clear(t.x, t.y, ot.x, ot.y, SHOT);
+  return distToLane(pts, ot.x, ot.y) <= reach + (ctx.colliders.get(o)?.radius ?? 0) && ctx.clear(t.x, t.y, ot.x, ot.y);
 }
 
 /** Minion target rank (GDD §5 "Minion targeting"): minions first, then structures, then champions; −1 = never. */

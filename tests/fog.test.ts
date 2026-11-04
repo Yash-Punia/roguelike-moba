@@ -21,7 +21,7 @@ describe('fog of war (D-010)', () => {
     expect(seenByBlue(m)).toBe(true);
   });
 
-  it('raised ground blocks vision; sandbags do not', () => {
+  it('raised ground blocks vision', () => {
     const blocked = arena([{ team: Team.Red, ...at(0, 5) }], (c) => {
       fogOn(c);
       raiseGround(c, O.x - 2, O.x + 2, O.y + 2, O.y + 3);
@@ -29,13 +29,6 @@ describe('fog of war (D-010)', () => {
     blocked.move(1, O.x, O.y);
     blocked.step(3);
     expect(seenByBlue(blocked)).toBe(false);
-    const open = arena([{ team: Team.Red, ...at(0, 5) }], (c) => {
-      fogOn(c);
-      c.map.obstacles.push({ kind: 'sandbag', ...at(0, 2.5), w: 4, h: 0.5 });
-    });
-    open.move(1, O.x, O.y);
-    open.step(3);
-    expect(seenByBlue(open)).toBe(true);
   });
 
   it('the Trench 3 m reveal does not work through a bank', () => {

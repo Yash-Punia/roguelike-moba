@@ -177,10 +177,6 @@ const MapConfig = z.object({
   caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
-  /** Blocking rectangles stamped on top of the walkable shapes (centre x, y; full w, h). Sandbags also stop bullets (`blocksShots`, GDD §4). */
-  obstacles: z.array(
-    z.object({ kind: z.enum(['sandbag']), x: z.number(), y: z.number(), w: positive(), h: positive() }),
-  ),
 });
 
 // Footprint is stamped into the obstacle grid (units walk round it); `radius` is the

@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { Config } from '../src/data/schema';
 import { createSim, Team, type Command } from '../src/sim/sim';
-import { fixtureConfig } from './helpers';
+import { fixtureConfig, raiseGround } from './helpers';
 
 const base = fixtureConfig();
 /** Alpha's tuned move speed (data/champions.json), so tuning never breaks these tests. */
 const speed = base.champions[0]!.moveSpeed;
 
-function withObstacles(obstacles: Config['map']['obstacles']): Config {
+/** The open map, optionally with a block of raised ground over x0..x1, y0..y1 (lane paths dropped so they don't fill it). */
+function withWall(wall?: [number, number, number, number]): Config {
   const c = structuredClone(base);
-  c.map.obstacles = obstacles;
+  if (!wall) return c;
+  raiseGround(c, ...wall);
+  c.map.walkable = c.map.walkable.filter((s) => s.shape !== 'path');
+  c.map.lanes = [];
+  c.waves.enabled = false;
   return c;
 }
 
@@ -24,7 +29,7 @@ function run(config: Config, cmd: Command, ticks: number, team: Team.Blue | Team
 }
 
 describe('movement', () => {
-  const open = withObstacles([]);
+  const open = withWall();
   const spawn = base.map.spawn.blue;
 
   it('moves at move speed (speed m in 1 s)', () => {
@@ -41,13 +46,13 @@ describe('movement', () => {
 
   it('stops at a wall face', () => {
     // Wall spans y -40.5..-39.5 straight ahead of the (0, -42) spawn.
-    const e = run(withObstacles([{ kind: 'sandbag', x: 0, y: -40, w: 4, h: 1 }]), move(0, 127), 60);
+    const e = run(withWall([-2, 2, -40.5, -39.5]), move(0, 127), 60);
     expect(e.y).toBeLessThanOrEqual(-41 + 1e-6);
     expect(e.y).toBeGreaterThan(-41.01);
   });
 
   it('slides along a wall when pushing diagonally into it', () => {
-    const e = run(withObstacles([{ kind: 'sandbag', x: 0, y: -40, w: 20, h: 1 }]), move(90, 90), 60);
+    const e = run(withWall([-10, 10, -40.5, -39.5]), move(90, 90), 60);
     expect(e.y).toBeLessThanOrEqual(-41 + 1e-6);
     expect(e.x - spawn.x).toBeGreaterThan(3);
   });

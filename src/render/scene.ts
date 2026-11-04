@@ -8,7 +8,6 @@ import { Fog } from './fog';
 import { HpBars, type HpBar } from './hp-bars';
 import { createCave, createMedkit, createModel, createSpawnPad, partsOf } from './models';
 import { UltFx } from './ult-fx';
-import { bake } from './bake';
 import { Knockouts } from './knockout';
 import { TargetLine } from './target-line';
 import { Tracers } from './tracers';
@@ -77,7 +76,6 @@ interface Interp {
   fellAt: number;
 }
 
-const lambert = (color: number) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 
 /** Three.js world. Only reads snapshots; never writes sim state. Sim (x, y) → three (x, height, −y). */
 /**
@@ -421,7 +419,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   });
   ro.observe(container);
 
-  /** Rebuilds the static map (terrain, pads, obstacles) after a live map edit. */
+  /** Rebuilds the static map (terrain, pads, caves, medkits) after a live map edit. */
   function setMap(map: MapConfig) {
     scene.remove(arena.group);
     arena.group.traverse((o) => {
@@ -444,7 +442,7 @@ function lerpAngle(a: number, b: number, t: number) {
   return a + d * t;
 }
 
-/** Static map: terrain, the area outside the bounds, spawn pads and obstacle blocks. */
+/** Static map: terrain, the area outside the bounds, spawn pads, caves and medkit crates. */
 function buildArena(map: MapConfig, side: (t: Team) => Team) {
   const group = new THREE.Group();
   const terrain = buildTerrain(map);
@@ -465,23 +463,6 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     group.add(cave);
   }
 
-  // Sandbag walls on the ground they stand on (trench floors are sunk), two courses high, baked into one mesh (D-044).
-  if (map.obstacles.length > 0) {
-    const blocks = new THREE.Group();
-    const sandbag = lambert(palette.sandbag);
-    const top = lambert(palette.sandbagShadow);
-    for (const o of map.obstacles) {
-      const ground = terrain.heightAt(o.x, o.y);
-      const low = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.5, o.h), sandbag);
-      low.position.set(o.x, ground + 0.25, -o.y);
-      const high = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.3, o.w - 0.15), 0.45, Math.max(0.3, o.h - 0.15)), top);
-      high.position.set(o.x, ground + 0.72, -o.y);
-      blocks.add(low, high);
-    }
-    bake(blocks, [blocks]);
-    blocks.traverse((m) => (m.castShadow = m.receiveShadow = true));
-    group.add(blocks);
-  }
   // Medkit crates (GDD §4), shown while ready.
   const medkits = map.medkits.map((m) => {
     const kit = createMedkit();

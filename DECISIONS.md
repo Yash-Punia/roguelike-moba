@@ -1091,3 +1091,23 @@ From TDD §13:
   - One commit for the whole catalogue (declined by the user).
   - Commons-only offers with a debug grant until the draft rules row (declined).
   - Burns and marks on structures too (the GDD is silent; kept to units so towers stay predictable).
+
+## D-061 — No cover: sandbags removed
+- Date: 2026-11-04
+- Source: user instruction ("remove the sandbags entirely… I won't be needing any covers in this game")
+- Decision:
+  - **Gone from play:**
+    - the 16 sandbag walls in the trench rooms (D-056);
+    - the map's `obstacles` list and its schema (sandbags were its only kind);
+    - the `COVER` shot flag and the `SHOT`/`GROUND` masks (D-057).
+  - **What stops shots and sight now:** raised jungle ground only. The grid's `shotBlocked` flags become a single `ground` layer, and `rayBlocked` takes no mask.
+  - **One rule for every weapon and blast:** with nothing low to fire over, the D-057 distinctions fall away (flames over sandbags, lobbed grenades over cover, fire pools past sandbags). Bullets, rockets, flak, flames, grenade blasts, Cluster Grenade bomblets, fire pools, napalm and Lead Storm all stop at raised ground.
+  - **Render:** the arena's sandbag blocks are gone.
+  - **Kept:** the sandbag rings and stacks modelled on the Sub-base and cave sheets. They are decoration from the concept art and never blocked anything.
+  - **Tests:**
+    - movement wall tests now use raised ground (the `raiseGround` helper);
+    - the sight tests keep their raised-ground cases;
+    - the sandbag-only tests are removed.
+  - The GDD's sandbag cover rules (§4 Cover, §6 candidates, Gamma's "flames pass over sandbag walls") no longer apply. The GDD itself is left as written.
+- Why: the user doesn't want cover in the game.
+- Alternatives: keep the sandbags but stop them blocking shots (decorative walls). Not chosen: the user asked for them gone entirely.

@@ -1,7 +1,7 @@
 import { TICK_HZ, type ChampionConfig, type Config, type StructureKind, type WeaponConfig } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
-import { buildGrid, GROUND, rayBlocked, SHOT, stampFootprint } from './grid';
+import { buildGrid, rayBlocked, stampFootprint } from './grid';
 import { createStreams, type Streams } from './rng';
 import { SpatialIndex } from './spatial';
 import { addPct, createStats, Stat, stat, type Stats } from './stats';
@@ -395,8 +395,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const concealments = world.store<Concealment>();
   const statuses = world.store<Status>();
   const seen = (e: Entity, team: Team) => visibleTo(concealments, e, team);
-  /** Line of sight (D-018): nothing with `mask`'s flags between a and b. */
-  const clear = (ax: number, ay: number, bx: number, by: number, mask: number) => rayBlocked(grid, ax, ay, bx, by, mask) < 0;
+  /** Line of sight (D-018): no raised ground between a and b. */
+  const clear = (ax: number, ay: number, bx: number, by: number) => rayBlocked(grid, ax, ay, bx, by) < 0;
   /** Tick each medkit is ready from. */
   const medkitReadyAt: number[] = [];
   let lanes: LanePath[] = buildLanes(config.map);
@@ -583,11 +583,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
   const targetingContext: TargetingContext = {
     transforms, colliders, teams, healths, targetClasses, targetings, spatial, seen,
-    // Flames pass over sandbags; everything else needs a clear shot.
     lineClear: (a, b) => {
       const ta = transforms.get(a)!;
       const tb = transforms.get(b)!;
-      return clear(ta.x, ta.y, tb.x, tb.y, weapons.get(a)?.kind === 'cone' ? GROUND : SHOT);
+      return clear(ta.x, ta.y, tb.x, tb.y);
     },
     rangeOf: (e) => {
       const st = stats.get(e);

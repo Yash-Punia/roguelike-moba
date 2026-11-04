@@ -1,6 +1,6 @@
 import type { Config, MapConfig } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
-import { GROUND, zoneAt, type ObstacleGrid } from '../grid';
+import { zoneAt, type ObstacleGrid } from '../grid';
 import { cos, sin } from '../math';
 import { Kind, type Champion, type Concealment, type Health, type Team, type Transform, type Weapon } from '../sim';
 
@@ -49,7 +49,7 @@ export function inVision(v: Vision, team: Team, x: number, y: number): boolean {
   return v.teams[team]![row * v.cols + col] === 1;
 }
 
-/** A vision cell blocks sight when at least half the obstacle-grid cells centred in it are raised ground (sandbags don't count). */
+/** A vision cell blocks sight when at least half the obstacle-grid cells centred in it are raised ground. */
 function sightBlock(v: Vision, g: ObstacleGrid): Uint8Array {
   const block = new Uint8Array(v.cols * v.rows);
   const ground = new Uint16Array(v.cols * v.rows);
@@ -62,7 +62,7 @@ function sightBlock(v: Vision, g: ObstacleGrid): Uint8Array {
       if (col < 0 || col >= v.cols) continue;
       const k = row * v.cols + col;
       total[k]!++;
-      if ((g.shotBlocked[r * g.cols + c]! & GROUND) !== 0) ground[k]!++;
+      if (g.ground[r * g.cols + c] === 1) ground[k]!++;
     }
   }
   for (let k = 0; k < block.length; k++) block[k] = total[k]! > 0 && ground[k]! * 2 >= total[k]! ? 1 : 0;
@@ -119,7 +119,7 @@ let scratch = new Uint8Array(0);
 
 /**
  * The cells a source of radius `r` sees from the centre of vision cell `at`: rays round the
- * circle, about two-thirds of a cell apart at the rim, stopped by raised ground (sandbags don't).
+ * circle, about two-thirds of a cell apart at the rim, stopped by raised ground.
  * ponytail: views are cached per (cell, radius) for the whole match, a few MB at most on The Front; a smaller cache or shadowcasting if memory ever matters.
  */
 function viewFrom(v: Vision, at: number, r: number): Uint16Array {

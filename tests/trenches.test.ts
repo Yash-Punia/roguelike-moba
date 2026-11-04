@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig, rawConfig } from '../src/data/load';
 import type { Config } from '../src/data/schema';
-import { buildGrid, rayBlocked, SHOT, zoneAt, type ObstacleGrid } from '../src/sim/grid';
+import { buildGrid, zoneAt } from '../src/sim/grid';
 import { Team } from '../src/sim/sim';
-import { arena, reachable } from './helpers';
+import { arena } from './helpers';
 
 /** A trench floor x 3..13, y 1..7 on the open test map (zone 4: x > 0, y > 0). */
 const withTrench = (c: Config) => {
@@ -91,24 +91,6 @@ describe('concealment (GDD §4, TDD §6.9)', () => {
   });
 });
 
-describe('sandbags (blocksShots)', () => {
-  it('the ray march stops at a shot-blocking cell', () => {
-    const { sim } = arena([], (c) => c.map.obstacles.push({ kind: 'sandbag', x: 0, y: 2.5, w: 4, h: 0.5 }));
-    const at = rayBlocked(sim.grid, 0, 0, 0, 5, SHOT);
-    expect(at).toBeCloseTo(0.4); // the wall's cells span y 2–3
-    expect(rayBlocked(sim.grid, 3, 0, 3, 5, SHOT)).toBe(-1);
-  });
-
-  it('bullets stop at a sandbag wall: the unit behind it takes no damage', () => {
-    const { sim, step, hp, shooter } = arena([{ team: Team.Red, x: 0, y: 5 }], (c) => c.map.obstacles.push({ kind: 'sandbag', x: 0, y: 2.5, w: 4, h: 0.5 }));
-    // Targeting won't shoot into cover (line of sight), so fire one by hand, straight at it.
-    sim.projectiles.spawn(shooter, Team.Blue, 2, false, 0, 0.6, 0, 25 / 30, 95, 1, 30);
-    step(20);
-    expect(hp(2)).toBe(1000);
-    expect(sim.projectiles.active.every((v) => v === 0)).toBe(true);
-  });
-});
-
 describe('medkits', () => {
   it('heals 25% of max HP, is gone for 45 s, and is left alone at full HP', () => {
     const { sim, step, move, hp } = arena([], (c) => {
@@ -131,44 +113,5 @@ describe('medkits', () => {
     expect(hp(1)).toBe(500);
     step(2);
     expect(hp(1)).toBe(750);
-  });
-});
-
-describe('The Front sandbags', () => {
-  /** Blocked grown by one cell, so a 0.5–0.6 m champion fits through what stays open. */
-  const dilated = (g: ObstacleGrid): ObstacleGrid => {
-    const blocked = new Uint8Array(g.blocked.length);
-    for (let r = 0; r < g.rows; r++) {
-      for (let c = 0; c < g.cols; c++) {
-        for (let dr = -1; dr <= 1 && !blocked[r * g.cols + c]; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            const rr = r + dr;
-            const cc = c + dc;
-            if (rr >= 0 && cc >= 0 && rr < g.rows && cc < g.cols && g.blocked[rr * g.cols + cc]) blocked[r * g.cols + c] = 1;
-          }
-        }
-      }
-    }
-    return { ...g, blocked };
-  };
-
-  it('stop shots and leave every trench passable for a champion', () => {
-    const map = parseConfig(rawConfig).map;
-    const g = buildGrid(map);
-    expect(g.shotBlocked.some((v) => v === 1)).toBe(true);
-    const d = dilated(g);
-    const rooms = map.walkable.filter((s) => s.id.startsWith('room-'));
-    for (const s of map.walkable) {
-      if (s.shape !== 'path' || s.surface !== 'trench') continue;
-      for (const p of s.points) {
-        if (rooms.some((r) => r.shape === 'circle' && r.x === p.x && r.y === p.y)) continue; // room centres: below
-        expect(reachable(d, map.spawn.blue, p), `${s.id} (${p.x}, ${p.y})`).toBe(true);
-      }
-    }
-    for (const r of rooms) {
-      if (r.shape !== 'circle') continue;
-      const near = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: r.x + dx! * (r.r - 1), y: r.y + dy! * (r.r - 1) }));
-      expect(near.some((p) => reachable(d, map.spawn.blue, p)), r.id).toBe(true);
-    }
   });
 });
