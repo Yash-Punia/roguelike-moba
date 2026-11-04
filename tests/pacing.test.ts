@@ -46,6 +46,11 @@ describe('HQ max HP per lost Sub-base (D-051, D-052)', () => {
   });
 });
 
+/** The first wave 5 s in, so a Sub-base killed on tick 0 has fallen before any wave leaves (data may start waves at 0:00, D-062). */
+const lateFirstWave = (c: ReturnType<typeof parseConfig>) => {
+  c.waves.firstSeconds = 5 * 30;
+};
+
 describe('waves from the caves (D-051)', () => {
   it('start every lane route at the cave mouth behind each HQ', () => {
     const f = front();
@@ -59,7 +64,7 @@ describe('waves from the caves (D-051)', () => {
   });
 
   it('make a lane Shock Troops once its enemy Sub-base falls: ×3 HP and damage', () => {
-    const f = front();
+    const f = front(lateFirstWave);
     f.sim.debug.kill(f.structure(Red, 'subBase', 'left'));
     let guard = 0;
     while (!f.sim.snapshot().entities.some((e) => e.kind === Kind.Minion) && guard++ < 400) f.sim.step([]);
@@ -72,7 +77,7 @@ describe('waves from the caves (D-051)', () => {
   });
 
   it('send a Shock Troops lane one more soldier, all Shock Troopers, and a tank every wave (D-054)', () => {
-    const f = front();
+    const f = front(lateFirstWave);
     f.sim.debug.kill(f.structure(Red, 'subBase', 'left'));
     f.sim.step([]);
     // The opening wave (no tank elsewhere): every slot out of the cave.

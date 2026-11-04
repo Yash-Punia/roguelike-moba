@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "firstSeconds": 5,
+  "firstSeconds": 0,
   "intervalSeconds": 15,
   "soldiers": 5,
   "spacing": 1.5,

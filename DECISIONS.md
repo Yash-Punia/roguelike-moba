@@ -1111,3 +1111,11 @@ From TDD §13:
   - The GDD's sandbag cover rules (§4 Cover, §6 candidates, Gamma's "flames pass over sandbag walls") no longer apply. The GDD itself is left as written.
 - Why: the user doesn't want cover in the game.
 - Alternatives: keep the sandbags but stop them blocking shots (decorative walls). Not chosen: the user asked for them gone entirely.
+
+## D-062 — First wave leaves the caves at 0:00
+- Date: 2026-11-04
+- Source: user change to `data/waves.json` (`firstSeconds` 5 → 0), committed on request
+- Decision: the first wave leaves the caves on the first tick, then every 15 s as before (D-051).
+  - The two Shock Troops tests in `tests/pacing.test.ts` kill a Sub-base on tick 0 and expect the next wave to be Shock Troops. With waves at 0:00, that wave leaves before the kill lands.
+  - Those tests now pin their own 5 s first wave, so they test the Shock Troops rule and not the wave timing.
+- Why: the user wants waves on the lanes from the start.
