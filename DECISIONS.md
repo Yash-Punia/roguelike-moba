@@ -1176,5 +1176,5 @@ From TDD §13:
   - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off):
     - with offers every level, seed 1 ran 6:57 and broke the 6-minute guard (median 5:09, range 3:11–8:10);
     - candidates tried: waves +35%/min (seed 1 4:43, median 5:12, range 3:16–8:21); HQ 5,000 HP (no change); Sub-base 3,000 HP;
-    - **shipped: Sub-base `maxHp` 3,500 → 3,000.** Seed 1 4:23–5:12, median about 5:24, range 3:12–9:10. The slowest seed grew from 8:10 to 9:10 (the user's choice over the wave lever).
+    - **shipped: Sub-base `maxHp` 3,500 → 3,000.** Seed 1 5:12, median about 5:24, range 3:12–9:10. The slowest seed grew from 8:10 to 9:10 (the user's choice over the wave lever).
 - Why: the full draft rules row of M3 (D-046). Every match now has Field Promotions, a choice that fits the champion, a free reroll, and offers that never pitch a bullet power to a flamethrower.

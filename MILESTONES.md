@@ -95,7 +95,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Shock Troops lane upgrade when a Sub-base falls: Shock Troopers, +1 per wave and a tank every wave, all ×3 (D-051); model per the minions sheet (D-054) | 476323b |
 | `[p]` | Power catalogue, part 1: the 10 shared Rares and the 6 signature powers as effect records + generic effect systems (weapon mods, statuses, triggers, Ultimate mods); rarity odds pulled forward; debug grant (D-060) | 8e24484 |
 | `[p]` | Power catalogue, part 2: the 8 shared Epics (Mortar Support, Attack Drone, War Dog, Tesla Rounds, Minefield, Last Stand, Overcharge, Airstrike Beacon) (D-063) | 3c91a3a |
-| `[c]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation; offers every level again; Sub-base 3,000 HP (D-064) | |
+| `[p]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation; offers every level again; Sub-base 3,000 HP (D-064) | 5fd4f4a |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
 | `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
