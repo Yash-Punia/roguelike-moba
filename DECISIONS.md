@@ -1149,4 +1149,11 @@ From TDD §13:
     - Its fall emits `summonDown`, not `death`, so no XP, kill or Adrenaline.
     - Towers shoot it.
 - Why: the second half of the catalogue row (D-060, D-046).
-- Not yet measured: the pacing run and the in-browser check of the new visuals (dog, drone, mines, chain arcs, shells).
+- **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off; bots draft by the recommendation):
+  - median about 4:45, range 3:18–7:44 (part 1: about 5:24, 3:31–19:18);
+  - all 8 Epics were drafted;
+  - sim about 0.25 ms a tick on average.
+- **Browser** (`?dummy=armed`, Epics granted from the debug picker):
+  - the drone's 40% hits, the dog's 30 bites and armed mine markers all show;
+  - 83–100 draw calls, 160 fps, no console errors;
+  - not watched on screen: chain arcs, and the shell landing discs.

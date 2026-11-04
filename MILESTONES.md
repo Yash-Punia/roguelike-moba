@@ -94,7 +94,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Bazooka Tank (rocket splash, structure bonuses), a tank at the back of every second wave; model per the minions sheet (per-minute scaling already in, D-051); GDD 1,100 HP (D-053, D-055) | 550b92a |
 | `[p]` | Shock Troops lane upgrade when a Sub-base falls: Shock Troopers, +1 per wave and a tank every wave, all ×3 (D-051); model per the minions sheet (D-054) | 476323b |
 | `[p]` | Power catalogue, part 1: the 10 shared Rares and the 6 signature powers as effect records + generic effect systems (weapon mods, statuses, triggers, Ultimate mods); rarity odds pulled forward; debug grant (D-060) | 8e24484 |
-| `[c]` | Power catalogue, part 2: the 8 shared Epics (Mortar Support, Attack Drone, War Dog, Tesla Rounds, Minefield, Last Stand, Overcharge, Airstrike Beacon) (D-063) | |
+| `[p]` | Power catalogue, part 2: the 8 shared Epics (Mortar Support, Attack Drone, War Dog, Tesla Rounds, Minefield, Last Stand, Overcharge, Airstrike Beacon) (D-063) | 3c91a3a |
 | `[ ]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation | |
 | `[ ]` | All Ultimate charge sources (damage dealt/taken, takedowns, camps) | |
 | `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
