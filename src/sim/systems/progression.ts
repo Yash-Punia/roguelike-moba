@@ -92,10 +92,10 @@ function takedownCredit(ctx: ProgressionContext, victim: Entity, killer: Entity,
  * XP from this tick's deaths (GDD §8, TDD §6.10), after the death systems:
  * - a minion's XP is split evenly between the living enemy champions within `shareRadius` of
  *   where it fell, whoever landed the last hit;
- * - a champion kill pays the killing champion its XP (assist XP comes with the respawn row);
+ * - a champion takedown pays the killer and every assist (damage on the victim within
+ *   `assistSeconds`) the full takedown XP, plus the killer's bonus to the killer (D-067);
  * Ultimate charge follows the same deaths: each living enemy champion near a dying minion, and
- * every enemy champion in on a takedown (the killer and anyone who damaged the victim within
- * `assistSeconds`, D-040, D-065).
+ * every enemy champion in on a takedown (D-040, D-065).
  * - a destroyed Sub-base pays every champion of the other team, alive or not.
  * Events are read in the order they happened, so grants are deterministic.
  */
@@ -107,14 +107,17 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
     if (ev.type === 'death') {
       const victim = champions.get(ev.id);
       if (victim) {
-        // Champion takedown: the XP to the killer if a champion landed it; the charge to everyone in on it.
-        const killer = champions.get(ev.killer);
-        if (killer && teams.get(ev.killer) !== teams.get(ev.id)) {
-          const k = p.championKill;
-          grantXp(ctx, p, ev.killer, k.base + k.perVictimLevel * victim.level + k.killerBonus);
+        // Champion takedown: everyone in on it (the killer and its assists) gets the full XP and the
+        // charge; the killer also gets its bonus, the others an assist (D-067).
+        const k = p.championKill;
+        const credit = takedownCredit(ctx, ev.id, ev.killer, tick - p.assistSeconds);
+        for (let n = 0; n < credit.length; n++) {
+          const e = credit[n]!;
+          const c = champions.get(e)!;
+          grantXp(ctx, p, e, k.base + k.perVictimLevel * victim.level + (e === ev.killer ? k.killerBonus : 0));
+          addUltCharge(c, ctx.stats.get(e), p.ultCharge.championTakedown);
+          if (e !== ev.killer) c.assists++;
         }
-        const credit = takedownCredit(ctx, ev.id, ev.killer, tick - p.ultCharge.assistSeconds);
-        for (let n = 0; n < credit.length; n++) addUltCharge(champions.get(credit[n]!)!, ctx.stats.get(credit[n]!), p.ultCharge.championTakedown);
         continue;
       }
       // A minion: shared by presence, worth what its unit is worth.

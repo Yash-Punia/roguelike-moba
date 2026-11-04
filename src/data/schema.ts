@@ -16,7 +16,8 @@ const Match = z.object({
   /** Champions per team (D-009); `?size=` overrides it. Every slot but yours is a bot. */
   teamSize: z.number().int().min(2).max(5),
   /** Respawn timer (GDD §9): base + perLevel × level, capped. Stays in seconds: level is runtime. */
-  respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive() }),
+  /** Redeploy sprint (GDD §9): `sprintPct` more move speed after respawning, until combat or crossing y = 0 towards the enemy. */
+  respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive(), sprintPct: pct().default(0) }),
   /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9). */
   spawnPad: z.object({ radius: positive(), healPctPerSecond: pct() }),
 });
@@ -247,13 +248,14 @@ const Progression = z.object({
   /** Whole-team XP for destroying a structure. */
   structureXp: z.object({ subBase: z.number().nonnegative() }),
   /** Ultimate charge from kills, in points of the 0–100 meter (GDD §8). */
+  /** An assist on a takedown: an enemy champion that damaged the victim within this long (GDD §8; D-065, D-067). */
+  assistSeconds: secs(),
   ultCharge: z.object({
     /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
     minion: perUnit(),
     minionRadius: positive(),
-    /** Every enemy champion in on a takedown: the killer and each one that damaged the victim within `assistSeconds` (D-065). */
+    /** Every enemy champion in on a takedown (the killer and its assists) gains this (D-065). */
     championTakedown: z.number().nonnegative(),
-    assistSeconds: secs(),
     /** +1 point per this much damage a champion deals to, or takes from, enemy champions (GDD §8). */
     perDamageDealt: positive(),
     perDamageTaken: positive(),

@@ -1,5 +1,6 @@
 import { TICK_HZ, type Config } from '../../data/schema';
 import type { Store } from '../ecs';
+import { addPct, stat, Stat, type Stats } from '../stats';
 import type { SimEvent } from '../events';
 import { len } from '../math';
 import { Team, type Champion, type Health, type Motion, type Targeting, type Transform, type Weapon } from '../sim';
@@ -13,6 +14,7 @@ export interface LifeContext {
   targetings: Store<Targeting>;
   teams: Store<Team>;
   events: SimEvent[];
+  stats: Store<Stats>;
 }
 
 /** Ticks a champion of this level stays down (GDD §9): base + perLevel × level, capped. At least one tick. */
@@ -51,9 +53,10 @@ export function deathSystem(ctx: LifeContext, cfg: Config['match']['respawn']) {
 /**
  * Respawn timers, first in the tick ("spawners and timers", TDD §4). When one runs out the
  * champion redeploys at home facing the enemy, with full HP and a fresh weapon and target;
- * its Ultimate charge is kept.
+ * its Ultimate charge is kept. It starts the Redeploy sprint (GDD §9): `sprintPct` more move
+ * speed, applied as a stat delta.
  */
-export function respawnSystem(ctx: LifeContext, map: Config['map']) {
+export function respawnSystem(ctx: LifeContext, map: Config['map'], cfg: Config['match']['respawn'], tick: number) {
   const { champions, transforms, motions, healths, weapons, targetings, teams, events } = ctx;
   for (let i = 0; i < champions.ids.length; i++) {
     const e = champions.ids[i]!;
@@ -82,7 +85,36 @@ export function respawnSystem(ctx: LifeContext, map: Config['map']) {
     if (tg) tg.targetId = tg.pendingSwitchId = tg.pendingTicks = tg.holdTicks = 0;
     c.stillTicks = 0;
     c.castQueued = false;
+    setSprint(ctx, e, c, cfg.sprintPct);
+    c.respawnTick = tick;
     events.push({ type: 'respawn', id: e, x: t.x, y: t.y });
+  }
+}
+
+function setSprint(ctx: LifeContext, e: number, c: Champion, pct: number) {
+  if (pct === c.sprintPct) return;
+  const st = ctx.stats.get(e);
+  if (!st) return;
+  addPct(st, Stat.MoveSpeed, pct - c.sprintPct);
+  c.sprintPct = pct;
+  const m = ctx.motions.get(e);
+  if (m) m.speed = stat(st, Stat.MoveSpeed);
+}
+
+/**
+ * The Redeploy sprint ends (GDD §9, D-067), at the end of the tick: once the champion dealt or
+ * took damage since it respawned (the `lastCombatTick` stamp, so the tick after the hit), crossed
+ * y = 0 towards the enemy (no-man's land), or was knocked out.
+ */
+export function sprintSystem(ctx: LifeContext) {
+  const { champions, transforms, healths, teams } = ctx;
+  for (let i = 0; i < champions.ids.length; i++) {
+    const c = champions.data[i]!;
+    if (c.sprintPct === 0) continue;
+    const e = champions.ids[i]!;
+    const y = transforms.get(e)!.y;
+    const crossed = teams.get(e) === Team.Blue ? y > 0 : y < 0;
+    if (healths.get(e)!.hp <= 0 || crossed || c.lastCombatTick > c.respawnTick) setSprint(ctx, e, c, 0);
   }
 }
 

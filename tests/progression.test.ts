@@ -263,3 +263,25 @@ describe('Ultimate charge from fighting (GDD §8, D-065)', () => {
     }
   });
 });
+
+describe('takedown credit (GDD §8, D-067)', () => {
+  it('the killer and every assist within 8 s get the full takedown XP; the killer +30 more', () => {
+    for (const [wait, assisted] of [[200, true], [280, false]] as const) {
+      const a = field([{ team: Red, x: 0, y: 5 }, { team: Blue, x: 3, y: 5 }]);
+      a.hp(2, 1e6);
+      a.sim.projectiles.spawn(3, Blue, 2, true, 3, 5, -25 / 30, 0, 50, 1, 30); // the ally's hit
+      a.run(wait);
+      const killerXp = a.xp(a.shooter);
+      const allyXp = a.xp(3);
+      a.hp(2, 1);
+      for (let i = 0; i < 40 && a.champ(2).respawnTicks === 0; i++) a.run();
+      const k = a.config.progression.championKill;
+      const full = k.base + k.perVictimLevel * 1;
+      expect(a.xp(a.shooter) - killerXp).toBe(full + k.killerBonus);
+      expect(a.xp(3) - allyXp).toBe(assisted ? full : 0);
+      expect(a.champ(a.shooter).kills).toBe(1);
+      expect(a.champ(a.shooter).assists).toBe(0);
+      expect(a.champ(3).assists).toBe(assisted ? 1 : 0);
+    }
+  });
+});

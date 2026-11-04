@@ -1209,3 +1209,27 @@ From TDD §13:
   - **Guard:** the seed 1 match-length test now allows 7 minutes.
   - **Open:** long and never-ending matches, to be investigated later (user).
 - Why: the user prefers fewer, chunkier draft moments for now.
+
+## D-067 — Redeploy sprint and takedown credit
+- Date: 2026-11-05
+- Source: user choices (each participant gets the full takedown XP; ship and loosen the pacing guard to 12 minutes); plan approved by the user; the rest made during development
+- Decision:
+  - **Takedown credit:**
+    - the killer and every enemy champion that damaged the victim within `progression.assistSeconds` (8 s, moved up from `ultCharge` since XP and charge now share it) each get the full 120 + 25 × victim level XP and the +25 charge;
+    - the killer also gets +30;
+    - `assists` counts takedowns joined without the last hit; `kills` stays the killer's;
+    - the end banner shows K/D/A.
+  - **Redeploy sprint** (GDD §9, TDD §6.11):
+    - on respawn, `match.respawn.sprintPct` (+50%) move speed, applied as a stat delta like traits, so it stacks with Light Feet, Adrenaline and Light Boots;
+    - it ends once the champion has dealt or taken damage since respawning (`lastCombatTick`, so from the tick after the hit), crosses y = 0 towards the enemy, or is knocked out;
+    - moving away from the enemy keeps it;
+    - test fixtures pin it to 0, so older movement tests are unchanged.
+  - **Render:** a sprinting champion kicks up a small dust puff every 0.25 s with the existing smoke effect. No new meshes.
+  - **Sudden Death ×1.5 respawn** moves to the match phases row, where Sudden Death will exist.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off):
+    - shipped: seed 1 10:16, median about 6:09, range 3:14–15:41;
+    - sprint off: seed 1 6:41, median about 6:18;
+    - assists off: seed 1 8:58, median about 5:44;
+    - single seeds swing a lot, so the seed 1 test is now a smoke test that matches still end within 12 minutes;
+    - long matches, and the median above the 4:30–5:30 target, stay open for the user to look at.
+- Why: the respawn row of M3 (D-046). Players get back to the fight faster, and ganks pay everyone involved.

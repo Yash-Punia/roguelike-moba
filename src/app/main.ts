@@ -83,7 +83,7 @@ function endMatch(winner: Team) {
   setTimeout(() => {
     view.setTimeScale(1);
     const me = sim.snapshot().entities.find((e) => e.id === localEntity);
-    showEndBanner(container, winner === localTeam, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0);
+    showEndBanner(container, winner === localTeam, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0, me?.assists ?? 0);
   }, SLOW_MOTION_MS);
 }
 

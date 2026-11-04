@@ -39,6 +39,7 @@
   "structureXp": {
     "subBase": 150
   },
+  "assistSeconds": 8,
   "ultCharge": {
     "minion": {
       "mgSoldier": 3,
@@ -47,7 +48,6 @@
     },
     "minionRadius": 10,
     "championTakedown": 25,
-    "assistSeconds": 8,
     "perDamageDealt": 100,
     "perDamageTaken": 150
   }

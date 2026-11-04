@@ -5,7 +5,7 @@ import { respawnTicks } from '../src/sim/systems/life';
 import { arena, type Unit } from './helpers';
 
 const { Blue, Red } = Team;
-const RESPAWN = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18 };
+const RESPAWN = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18, sprintPct: 0 };
 
 const move = (player: number, moveX: number, moveY = 0): Command => ({ tick: 0, player, moveX, moveY, ult: false, draftPick: -1, reroll: false });
 
@@ -131,5 +131,50 @@ describe('spawn-pad heal', () => {
     a.hp(3, 500);
     a.run(30);
     expect([a.hp(2), a.hp(3)]).toEqual([500, 500]);
+  });
+});
+
+describe('Redeploy sprint (GDD §9, D-067)', () => {
+  /** A Blue champion (the shooter) knocked out and redeployed at its (0, 0) spot with the sprint on. */
+  function redeployed(units: Unit[] = []) {
+    const a = field(units);
+    a.config.match.respawn.sprintPct = 0.5;
+    a.run();
+    a.sim.debug.kill(a.shooter);
+    for (let i = 0; i < 400 && a.of('respawn').length === 0; i++) a.run();
+    return a;
+  }
+  const speed = (a: ReturnType<typeof field>, id: number) => a.sim.stores.motions.get(id)!.speed;
+
+  it('+50% move speed after respawning; kept while moving away from the enemy', () => {
+    const a = redeployed();
+    expect(speed(a, a.shooter)).toBeCloseTo(7.5);
+    a.run(30, [move(0, 0, -127)]);
+    expect(speed(a, a.shooter)).toBeCloseTo(7.5);
+  });
+
+  it('ends on crossing y = 0 towards the enemy', () => {
+    const a = redeployed();
+    a.run(10, [move(0, 0, 127)]);
+    expect(speed(a, a.shooter)).toBeCloseTo(5);
+  });
+
+  it('ends once it takes damage', () => {
+    const a = redeployed([{ team: Red, x: 0, y: -8 }]);
+    a.sim.projectiles.spawn(2, Red, a.shooter, true, 0, -6, 0, 25 / 30, 10, 1, 30);
+    a.run(10);
+    expect(speed(a, a.shooter)).toBeCloseTo(5);
+  });
+
+  it('a Red champion sprints until it crosses y = 0 the other way', () => {
+    const a = field([{ team: Red, x: 0, y: 10 }]);
+    a.config.match.respawn.sprintPct = 0.5;
+    a.run();
+    a.sim.debug.kill(2);
+    for (let i = 0; i < 400 && a.of('respawn').length === 0; i++) a.run();
+    expect(speed(a, 2)).toBeCloseTo(7.5);
+    a.move(2, 0, -0.5);
+    a.run(2);
+    expect(speed(a, 2)).toBeCloseTo(5);
   });
 });

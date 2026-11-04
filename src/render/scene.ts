@@ -24,6 +24,8 @@ const BLOB_RADIUS = 0.42;
 const RUBBLE_HEIGHT = 0.35;
 const COLLAPSE_MS = 600;
 const rubbleTint = new THREE.Color(palette.scorched);
+/** A sprinting champion kicks up a dust puff this often (ms). */
+const SPRINT_PUFF_MS = 250;
 /** Enemies hidden in a Trench fade out, and back in when revealed, over this long (TDD §10). */
 const CONCEAL_MS = 200;
 
@@ -151,6 +153,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   /** Team of the followed champion: damage to it and its allies shows white, to enemies gold. */
   let localTeam: Team | undefined;
   const fades = new Map<number, Fade>();
+  /** Redeploy sprint: when each champion last kicked up dust (render clock, ms). */
+  const sprintPuffAt = new Map<number, number>();
   // Fog of war (D-010): darker ground, and effects in the fog aren't drawn.
   const fog = new Fog(viewer);
   const sees = (x: number, y: number) => fog.sees(x, y);
@@ -197,6 +201,10 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       s.px = s.x; s.py = s.y; s.pf = s.f; s.pl = s.l;
       s.x = e.x; s.y = e.y; s.f = aim; s.l = e.facing;
+      if (e.kind === Kind.Champion && e.sprinting && !hidden && (e.vx !== 0 || e.vy !== 0) && clock - (sprintPuffAt.get(e.id) ?? 0) >= SPRINT_PUFF_MS) {
+        sprintPuffAt.set(e.id, clock); // the Redeploy sprint kicks up dust (D-067)
+        ultFx.smoke(e.x, e.y, 0.5, palette.laneDirt, 2, clock);
+      }
       if (e.kind === Kind.Champion) {
         const def = config.champions.find((c) => c.id === e.modelId);
         const ult = def?.ultimate;

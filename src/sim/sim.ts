@@ -15,7 +15,7 @@ import { DamageLog } from './damage-log';
 import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { traitSystem, type TraitContext } from './systems/traits';
-import { deathSystem, medkitSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
+import { deathSystem, medkitSystem, padHealSystem, respawnSystem, sprintSystem, type LifeContext } from './systems/life';
 import { emptyMods, foldMods, type PowerMods } from './powers';
 import { MinePool } from './mines';
 import { epicSystem, type EpicContext } from './systems/epics';
@@ -142,6 +142,11 @@ export interface Champion {
   /** Champion takedowns landed and times knocked out this match. */
   kills: number;
   deaths: number;
+  /** Takedowns it assisted (damage on the victim within `assistSeconds`, not the last hit). */
+  assists: number;
+  /** Redeploy sprint: the move speed pct it has applied right now (0 = none), and the tick it last respawned. */
+  sprintPct: number;
+  respawnTick: number;
   /** Debug/test spawn point to respawn at instead of the team's HQ pad. */
   spawnAt: { x: number; y: number } | undefined;
   /** Tick it last cast its Ultimate (reveals it in a Trench); −1 before the first. */
@@ -301,6 +306,9 @@ export interface EntitySnapshot {
   /** Champions: takedowns landed and times knocked out. */
   kills: number;
   deaths: number;
+  /** Champions: takedowns assisted, and whether the Redeploy sprint is on. */
+  assists: number;
+  sprinting: boolean;
   /** Champions: Ultimate charge 0–100, whether it has a target now, and its trait active (Steady Hand, Light Feet). */
   ultCharge: number;
   ultTargetable: boolean;
@@ -523,7 +531,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, sprintPct: 0, respawnTick: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -600,7 +608,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     champions, healths, stats, kinds, events, rng: rng.draft,
     onStatsChanged: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
-  const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
+  const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events, stats };
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, markOf: (t) => {
     const s = statuses.get(t);
     return s && s.markTicks > 0 ? s.markPct : 0;
@@ -654,7 +662,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     step(commands: readonly Command[]): StepResult {
       if (tick > 0) events.length = 0;
       if (match.phase === 'ended') return { tick, events }; // frozen once an HQ has fallen
-      respawnSystem(lifeContext, config.map);
+      respawnSystem(lifeContext, config.map, config.match.respawn, tick);
       for (let i = 0; i < pendingXp.length; i += 2) {
         const e = pendingXp[i]!;
         const c = champions.get(e);
@@ -728,6 +736,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       progressionSystem(progressionContext, config.progression, events, progressionFrom, tick);
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
+      sprintSystem(lifeContext);
       structureRegenSystem(structureContext, config.structures);
       if (match.phase === 'ended') events.push({ type: 'matchOver', winner: match.winner!, tick });
       tick++;
@@ -745,7 +754,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, assists: 0, sprinting: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -782,6 +791,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.powers = c ? c.powers : noPowers;
         s.kills = c?.kills ?? 0;
         s.deaths = c?.deaths ?? 0;
+        s.assists = c?.assists ?? 0;
+        s.sprinting = (c?.sprintPct ?? 0) > 0;
         s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
