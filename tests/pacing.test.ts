@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig, rawConfig } from '../src/data/load';
 import { createBot } from '../src/sim/bots/bot';
-import type { SimEvent } from '../src/sim/events';
 import { matchSlots } from '../src/sim/match-setup';
 import { createSim, Kind, Team, type Command } from '../src/sim/sim';
 import { arena, withPowers } from './helpers';
@@ -93,29 +92,30 @@ describe('waves from the caves (D-051)', () => {
 });
 
 describe('draft spacing (D-051)', () => {
-  it('offers a card every second level', () => {
+  it('offers a card every second level, on even levels (D-066)', () => {
     const a = arena([], (c) => {
       withPowers(c);
       c.powers.draft.levelsPerOffer = 2;
     });
-    const offers: SimEvent[] = [];
+    const offers: number[] = [];
     for (let level = 2; level <= 5; level++) {
       a.sim.debug.levelUp(a.shooter);
-      for (const ev of a.sim.step([]).events) if (ev.type === 'draftOffered') offers.push({ ...ev });
+      for (const ev of a.sim.step([]).events) if (ev.type === 'draftOffered') offers.push(level);
     }
-    expect(offers).toHaveLength(2); // levels 3 and 5
+    expect(offers).toEqual([2, 4]);
   });
 });
 
 describe('match length (D-051)', () => {
-  it('an all-bot 3v3 on The Front ends with an HQ down inside 6 minutes', () => {
+  // 7 minutes since offers every 2nd level (D-066); long matches are a known open issue.
+  it('an all-bot 3v3 on The Front ends with an HQ down inside 7 minutes', () => {
     const config = parseConfig(rawConfig);
     const slots = matchSlots(config, { teamSize: 3, localTeam: Blue });
     const sim = createSim(config, 1, slots);
     const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), e: sim.entityOf(pl)! }));
     let snap = sim.snapshot();
     let over = false;
-    while (!over && sim.tick < 6 * 60 * 30) {
+    while (!over && sim.tick < 7 * 60 * 30) {
       const commands: Command[] = bots.map((b) => ({ ...b.bot.command(snap, sim.tick, b.e) }));
       for (const ev of sim.step(commands).events) if (ev.type === 'matchOver') over = true;
       snap = sim.snapshot();

@@ -1197,3 +1197,15 @@ From TDD §13:
     - Alpha's gauge filled at about 4.1% a second while trading with an armed dummy, against 2.0% idle;
     - all-bot 3v3 on The Front, seeds 1–20: seed 1 ends at 4:11, median about 5:15, range 3:24–10:01 (D-064: median about 5:24, 3:12–9:10); about one Ultimate per champion per minute.
 - Why: the Ultimate charge row of M3 (D-046). Fighting fills the gauge faster, and taking hits charges it too, a light comeback tool (GDD §8).
+
+## D-066 — Offers every second level, on even levels; pacing guard 7 minutes
+- Date: 2026-11-05
+- Source: user change to `data/powers.json` (`levelsPerOffer` 1 → 2, exported from the debug panel and committed with abfbd4a by mistake), then user choices: keep every second level, offers on even levels, look at long matches later, relax the guard to 7 minutes
+- Decision:
+  - **Spacing:** `draft.levelsPerOffer` is 2 (supersedes D-064's every level). Offers come on levels that are multiples of `levelsPerOffer`: 2, 4 … 24, still 12 offers. The guaranteed Epic levels 4, 8 and 12 (D-064) get offers. With `levelsPerOffer` 1 nothing changes.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off): seed 1 ends at 6:41, median about 5:40.
+    - One seed didn't end within the 20-minute cap; others ran 15:13, 13:36 and 11:17.
+    - Tried without effect on the tail: waves +35%/min (median about 7:10, two seeds uncapped) and Sub-base 2,700 HP (median about 5:21, one seed uncapped).
+  - **Guard:** the seed 1 match-length test now allows 7 minutes.
+  - **Open:** long and never-ending matches, to be investigated later (user).
+- Why: the user prefers fewer, chunkier draft moments for now.

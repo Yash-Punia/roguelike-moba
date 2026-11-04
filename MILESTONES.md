@@ -96,7 +96,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Power catalogue, part 1: the 10 shared Rares and the 6 signature powers as effect records + generic effect systems (weapon mods, statuses, triggers, Ultimate mods); rarity odds pulled forward; debug grant (D-060) | 8e24484 |
 | `[p]` | Power catalogue, part 2: the 8 shared Epics (Mortar Support, Attack Drone, War Dog, Tesla Rounds, Minefield, Last Stand, Overcharge, Airstrike Beacon) (D-063) | 3c91a3a |
 | `[p]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation; offers every level again; Sub-base 3,000 HP (D-064) | 5fd4f4a |
-| `[c]` | All Ultimate charge sources: damage dealt/taken vs enemy champions, takedowns with 8 s assists; camp, mini-boss and Behemoth charge come with them in M4 (D-065) | |
+| `[p]` | All Ultimate charge sources: damage dealt/taken vs enemy champions, takedowns with 8 s assists; camp, mini-boss and Behemoth charge come with them in M4 (D-065) | abfbd4a |
 | `[ ]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists) (formula and pad heal already in, D-034; Sudden Death ×1.5, sprint and assists remain) | |
 | `[ ]` | Match phases: Deploy, Live, Sudden Death (10:00), time-out rules (13:00), Surrender from 5:00 | |
 | `[p]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count; bots read the nearest enemy champion (D-048) | 9cd0505 |
