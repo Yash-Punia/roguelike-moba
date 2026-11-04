@@ -1178,3 +1178,22 @@ From TDD §13:
     - candidates tried: waves +35%/min (seed 1 4:43, median 5:12, range 3:16–8:21); HQ 5,000 HP (no change); Sub-base 3,000 HP;
     - **shipped: Sub-base `maxHp` 3,500 → 3,000.** Seed 1 5:12, median about 5:24, range 3:12–9:10. The slowest seed grew from 8:10 to 9:10 (the user's choice over the wave lever).
 - Why: the full draft rules row of M3 (D-046). Every match now has Field Promotions, a choice that fits the champion, a free reroll, and offers that never pitch a bullet power to a flamethrower.
+
+## D-065 — Ultimate charge from fighting, and takedown assists
+- Date: 2026-11-05
+- Source: user choice (bring takedown assists forward for charge); plan approved by the user; the rest made during development
+- Decision:
+  - **Damage charge** (GDD §8), right after the damage stage (`damageChargeSystem` in `src/sim/systems/progression.ts`):
+    - for every hit between champions of different teams, the attacker gains 1 point per `perDamageDealt` (100) and the victim 1 per `perDamageTaken` (150), through `addUltCharge` (Quick Charge scales it; the cap holds at 100, or 200 with Overcharge);
+    - shield damage counts;
+    - hits credited to a champion count however they were dealt (weapon, Ultimate, burn, War Dog, mine);
+    - minions, towers and debug kills give none, either way.
+  - **Takedown assists, pulled forward from the respawn row:**
+    - every enemy champion that damaged the victim within `assistSeconds` (8 s), read from the damage log, gets the +25 takedown charge alongside the killer, once each;
+    - the kill XP stays with the killer. Assist XP and the takedown counter stay in the respawn row, which reuses `assistSeconds`.
+  - **Camps, mini-bosses and the Behemoth** (+5–8, +15, +25 in the GDD): they don't exist yet, so their charge moves to their M4 rows.
+  - **Tests:** two older tests that check exact takedown and knocked-out charge now switch damage charge off (`perDamage*` = Infinity), so they keep testing what they were written for. A knocked-out champion's bullets still in flight may land and charge it.
+  - **Measured:**
+    - Alpha's gauge filled at about 4.1% a second while trading with an armed dummy, against 2.0% idle;
+    - all-bot 3v3 on The Front, seeds 1–20: seed 1 ends at 4:11, median about 5:15, range 3:24–10:01 (D-064: median about 5:24, 3:12–9:10); about one Ultimate per champion per minute.
+- Why: the Ultimate charge row of M3 (D-046). Fighting fills the gauge faster, and taking hits charges it too, a light comeback tool (GDD §8).

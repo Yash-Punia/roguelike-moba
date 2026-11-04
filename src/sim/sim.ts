@@ -22,7 +22,7 @@ import { epicSystem, type EpicContext } from './systems/epics';
 import { summonDeathSystem, summonSystem, type SummonContext } from './systems/summons';
 import { statusSystem, type StatusContext } from './systems/status';
 import { createVision, SEEN_BY_ALL, visibilitySystem, visibleTo, type Vision, type VisibilityContext } from './systems/visibility';
-import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
+import { damageChargeSystem, grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
 import { applyPower, draftSystem, recommended, regenSystem, type DraftContext, type DraftOffer } from './systems/draft';
 import {
   callForHelpSystem, minionDeathSystem, minionSystem, separationSystem, spawnFromCaves, spawnWave, waveDue, waveLength, type MinionContext,
@@ -591,8 +591,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       return f.shape === 'circle' ? f.r : Math.max(f.w, f.h) / 2;
     },
   };
+  const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const progressionContext: ProgressionContext = {
-    champions, transforms, healths, teams, spatial, stats, events,
+    champions, transforms, healths, teams, spatial, stats, events, log: damageLog,
     onLevelUp: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
   const draftContext: DraftContext = {
@@ -600,7 +601,6 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     onStatsChanged: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events };
-  const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, markOf: (t) => {
     const s = statuses.get(t);
     return s && s.markTicks > 0 ? s.markPct : 0;
@@ -707,6 +707,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       heatWaveSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
+      damageChargeSystem(progressionContext, config.progression, events);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn);
       minionDeathSystem(minionContext);
@@ -724,7 +725,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         match.winner = ev.team === Team.Blue ? Team.Red : Team.Blue;
         match.endTick = tick;
       }
-      progressionSystem(progressionContext, config.progression, events, progressionFrom);
+      progressionSystem(progressionContext, config.progression, events, progressionFrom, tick);
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
       structureRegenSystem(structureContext, config.structures);

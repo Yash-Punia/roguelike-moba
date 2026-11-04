@@ -251,8 +251,12 @@ const Progression = z.object({
     /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
     minion: perUnit(),
     minionRadius: positive(),
-    /** The champion who lands a takedown (killer only until assists, D-024). */
+    /** Every enemy champion in on a takedown: the killer and each one that damaged the victim within `assistSeconds` (D-065). */
     championTakedown: z.number().nonnegative(),
+    assistSeconds: secs(),
+    /** +1 point per this much damage a champion deals to, or takes from, enemy champions (GDD §8). */
+    perDamageDealt: positive(),
+    perDamageTaken: positive(),
   }),
 });
 

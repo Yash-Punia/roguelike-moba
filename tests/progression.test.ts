@@ -182,7 +182,9 @@ describe('Ultimate charge from kills (GDD §8)', () => {
   });
 
   it('gives the killer +25 for a champion takedown; other kills give none', () => {
-    const a = field([{ team: Red, x: 0, y: 5 }, { team: Red, x: 10, y: 30 }]);
+    const a = field([{ team: Red, x: 0, y: 5 }, { team: Red, x: 10, y: 30 }], (c) => {
+      Object.assign(c.progression.ultCharge, { perDamageDealt: Infinity, perDamageTaken: Infinity }); // takedown charge only
+    });
     a.hp(2, 50);
     let before = 0;
     for (let i = 0; i < 10 && a.champ(2).respawnTicks === 0; i++) {
@@ -211,5 +213,53 @@ describe('Ultimate charge from kills (GDD §8)', () => {
     a.sim.debug.kill(m2);
     a.run();
     expect(a.champ(2).ultCharge).toBe(100);
+  });
+});
+
+describe('Ultimate charge from fighting (GDD §8, D-065)', () => {
+  const passive = 100 / 1500; // the arena's charge time, per tick
+
+  it('+1 per 100 damage dealt to enemy champions and per 150 taken from them', () => {
+    const a = field([{ team: Red, x: 0, y: 5 }]);
+    a.hp(2, 1e6);
+    let n = 0;
+    while (a.hp(2) === 1e6 && n < 60) {
+      a.run();
+      n++;
+    }
+    expect(a.champ(a.shooter).ultCharge).toBeCloseTo(n * passive + 95 / 100);
+    expect(a.champ(2).ultCharge).toBeCloseTo(n * passive + 95 / 150);
+  });
+
+  it('gives nothing for damage to or from structures', () => {
+    const a = field([{ team: Red, x: 0, y: 5, structure: 'subBase' }]);
+    const sub = a.sim.stores.structures.ids[0]!;
+    const full = a.hp(sub);
+    let n = 0;
+    while (a.hp(sub) === full && n < 60) {
+      a.run();
+      n++;
+    }
+    expect(a.hp(sub)).toBeLessThan(full);
+    expect(a.champ(a.shooter).ultCharge).toBeCloseTo(n * passive);
+  });
+
+  it('a takedown charges every enemy champion that damaged the victim within 8 s', () => {
+    for (const [wait, assisted] of [[200, true], [280, false]] as const) {
+      const a = field([{ team: Red, x: 0, y: 5 }, { team: Blue, x: 3, y: 5 }]);
+      a.hp(2, 1e6);
+      // The ally (3) lands one bullet on the victim (2), then waits.
+      a.sim.projectiles.spawn(3, Blue, 2, true, 3, 5, -25 / 30, 0, 50, 1, 30);
+      a.run(wait);
+      a.hp(2, 1);
+      const ally = a.champ(3);
+      let before = ally.ultCharge;
+      for (let i = 0; i < 40 && a.champ(2).respawnTicks === 0; i++) {
+        before = ally.ultCharge;
+        a.run();
+      }
+      expect(a.champ(2).respawnTicks).toBeGreaterThan(0);
+      expect(ally.ultCharge - before).toBeCloseTo(passive + (assisted ? 25 : 0));
+    }
   });
 });

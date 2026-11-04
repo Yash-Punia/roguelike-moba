@@ -46,6 +46,9 @@
       "bazookaTank": 8
     },
     "minionRadius": 10,
-    "championTakedown": 25
+    "championTakedown": 25,
+    "assistSeconds": 8,
+    "perDamageDealt": 100,
+    "perDamageTaken": 150
   }
 }

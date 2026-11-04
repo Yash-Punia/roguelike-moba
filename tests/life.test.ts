@@ -54,6 +54,8 @@ describe('death', () => {
 
   it('leaves the knocked-out champion still: no moving, firing, charging or being targeted', () => {
     const a = field([{ team: Red, x: 0, y: 5, armed: true }]);
+    // Bullets it fired before going down may still land and charge it (D-065); this checks the passive charge stops.
+    Object.assign(a.config.progression.ultCharge, { perDamageDealt: Infinity, perDamageTaken: Infinity });
     a.run();
     a.sim.debug.kill(2);
     a.run();
