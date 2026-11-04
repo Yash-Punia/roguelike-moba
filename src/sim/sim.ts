@@ -134,6 +134,9 @@ export interface Champion {
   draftQueue: DraftOffer[];
   /** A `draftPick` slot from this tick's command, or −1. */
   pickQueued: number;
+  /** A reroll was sent this tick, and free rerolls left this match (GDD §8 rule 6). */
+  rerollQueued: boolean;
+  rerollsLeft: number;
   /** Last tick it dealt or took damage (Field Medic's out-of-combat clock). */
   lastCombatTick: number;
   /** Champion takedowns landed and times knocked out this match. */
@@ -291,6 +294,8 @@ export interface EntitySnapshot {
   draftTicksLeft: number;
   draftRecommended: number;
   draftQueued: number;
+  /** Champions: free draft rerolls left this match. */
+  draftRerolls: number;
   /** Champions: owned power stacks by id (read-only). */
   powers: Readonly<Record<string, number>>;
   /** Champions: takedowns landed and times knocked out. */
@@ -518,7 +523,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -661,6 +666,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const e = playerEntity[c.player];
         const m = e === undefined ? undefined : motions.get(e);
         if (m && c.draftPick >= 0) champions.get(e!)!.pickQueued = c.draftPick; // drafting works while down too
+        if (m && c.reroll) champions.get(e!)!.rerollQueued = true;
         if (!m || healths.get(e!)!.hp <= 0) continue; // knocked out: input is ignored
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
@@ -738,7 +744,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -771,6 +777,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.draftTicksLeft = offer ? offer.ticksLeft : 0;
         s.draftRecommended = offer && c ? recommended(config.powers, c, offer.cards) : 0;
         s.draftQueued = c ? Math.max(0, c.draftQueue.length - 1) : 0;
+        s.draftRerolls = c?.rerollsLeft ?? 0;
         s.powers = c ? c.powers : noPowers;
         s.kills = c?.kills ?? 0;
         s.deaths = c?.deaths ?? 0;

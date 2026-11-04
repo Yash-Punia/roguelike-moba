@@ -1,7 +1,7 @@
 {
   "subBase": {
     "name": "Pillbox",
-    "maxHp": 3500,
+    "maxHp": 3000,
     "radius": 1.45,
     "footprint": {
       "shape": "circle",

@@ -134,6 +134,8 @@ const Champion = z.object({
   ultimate: z.discriminatedUnion('id', [FragGrenade, LeadStorm, HeatWave]),
   /** Bots of this champion take a lane of this kind first (TDD §7 lane assignment). */
   lanePreference: z.enum(['centre', 'side']).optional(),
+  /** Tags of shared powers that fit this champion's weapon: an offer always has one of them or a signature power (GDD §8 rule 5, D-064). */
+  weaponTags: z.array(z.string()).default([]),
 });
 
 /** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
@@ -362,6 +364,8 @@ const Power = z.object({
   /** One line of card copy. */
   text: z.string(),
   effects: z.array(Effect).min(1),
+  /** Weapon kinds it may be offered to (Ricochet and Piercing Rounds: bullets only, D-064); any if left out. */
+  weapons: z.array(z.enum(['bullet', 'flak', 'cone', 'rocket'])).optional(),
 });
 
 /** The power catalogue and draft rules (GDD §8, TDD §6.10). */
@@ -377,6 +381,10 @@ const Powers = z.object({
     stackCaps: z.object({ common: z.number().int().min(1), rare: z.number().int().min(1), epic: z.number().int().min(1) }),
     /** Each card's rarity roll (GDD §8 rule 4); with none of a rarity left, the card falls back a tier. */
     rarityOdds: z.object({ common: pct(), rare: pct(), epic: pct() }),
+    /** Level-ups whose offer has a guaranteed Epic in its first slot, "Field Promotion" (GDD §8 rule 4). */
+    guaranteedEpicLevels: z.array(z.number().int().min(2)).default([]),
+    /** Free rerolls of the live offer per match (GDD §8 rule 6). */
+    rerolls: z.number().int().min(0).default(0),
   }),
   powers: z.array(Power).min(1),
 });

@@ -595,6 +595,22 @@ body {
   font-weight: 900;
 }
 
+/* The match's free reroll (GDD §8 rule 6): a small brass icon in the tray head. */
+.draft-reroll {
+  position: relative;
+  margin-left: auto;
+  padding: 0.4cqw 1.8cqw;
+  border: 2px solid #d8a64a;
+  border-radius: 99px;
+  background: #1b1a17;
+  color: #d8a64a;
+  font-size: max(14px, 3.4cqw);
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .draft-timer {
   height: 1.1cqw;
   border-radius: 0.5cqw;

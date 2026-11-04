@@ -3,9 +3,10 @@ import { hud } from './store';
 /**
  * Draft tray (GDD §8, §10): three "field orders" cards slide up above the thumbs on a
  * level-up. Play never pauses; only the cards take taps. The recommended card is highlighted
- * and taken when the timer runs out; "+1" shows another offer waiting.
+ * and taken when the timer runs out; "+1" shows another offer waiting; the ⟳ icon spends the
+ * match's free reroll (GDD §8 rule 6, §10).
  */
-export function DraftTray({ onPick }: { onPick: (slot: 0 | 1 | 2) => void }) {
+export function DraftTray({ onPick, onReroll }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void }) {
   const d = hud.draft.value;
   if (!d || hud.ended.value) return null;
   return (
@@ -13,6 +14,20 @@ export function DraftTray({ onPick }: { onPick: (slot: 0 | 1 | 2) => void }) {
       <div class="draft-head">
         <span class="draft-title">FIELD ORDERS</span>
         {d.queued > 0 && <span class="draft-queued">+{d.queued}</span>}
+        {d.rerolls > 0 && (
+          <button
+            type="button"
+            class="draft-reroll"
+            title="Reroll these cards (once per match)"
+            onPointerDown={(e) => {
+              e.stopPropagation(); // never spawn the joystick under it
+              e.preventDefault();
+              onReroll();
+            }}
+          >
+            ⟳{hud.keyHints.value && <span class="draft-key">R</span>}
+          </button>
+        )}
       </div>
       <div class="draft-timer">
         <div class="fill" style={{ width: `${Math.max(0, (d.secondsLeft / d.totalSeconds) * 100)}%` }} />

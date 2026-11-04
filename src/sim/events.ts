@@ -34,6 +34,8 @@ export type SimEvent =
   | { type: 'matchOver'; winner: number; tick: number }
   /** A draft offer was queued for a champion (power ids). */
   | { type: 'draftOffered'; id: Entity; cards: readonly string[] }
+  /** A champion spent a reroll: the live offer now holds these cards. */
+  | { type: 'draftRerolled'; id: Entity; cards: readonly string[] }
   /** A champion took a power: by choice, or by the timer (`auto`). */
   | { type: 'powerPicked'; id: Entity; power: string; auto: boolean }
   /** A champion reached a new level. */

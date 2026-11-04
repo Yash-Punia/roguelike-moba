@@ -23,6 +23,8 @@ export interface DraftView {
   recommended: number;
   /** Offers waiting behind this one ("+1"). */
   queued: number;
+  /** Free rerolls left this match. */
+  rerolls: number;
 }
 
 export interface StructureView {
@@ -85,7 +87,7 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
         hud.xpFraction.value = band > 0 ? Math.min(1, (e.xp - e.xpLevelStart) / band) : 1;
         hud.kills.value = e.kills;
         hud.deaths.value = e.deaths;
-        hud.draft.value = powers ? draftView(e.draftCards, e.draftTicksLeft, e.draftRecommended, e.draftQueued, e.powers, powers) : null;
+        hud.draft.value = powers ? draftView(e.draftCards, e.draftTicksLeft, e.draftRecommended, e.draftQueued, e.draftRerolls, e.powers, powers) : null;
       }
     } else if (e.kind === Kind.SubBase || e.kind === Kind.HQ) {
       const view: StructureView = {
@@ -111,6 +113,7 @@ function draftView(
   ticksLeft: number,
   rec: number,
   queued: number,
+  rerolls: number,
   owned: Readonly<Record<string, number>>,
   powers: Config['powers'],
 ): DraftView | null {
@@ -123,6 +126,6 @@ function draftView(
   }
   const prev = hud.draft.value;
   const secondsLeft = Math.ceil((ticksLeft / TICK_HZ) * 10) / 10;
-  if (prev && prev.recommended === rec && prev.queued === queued && prev.secondsLeft === secondsLeft && prev.cards.map((c) => c.id).join() === cards.join()) return prev;
-  return { cards: views, secondsLeft, totalSeconds: powers.draft.autoPickSeconds / TICK_HZ, recommended: rec, queued };
+  if (prev && prev.recommended === rec && prev.queued === queued && prev.rerolls === rerolls && prev.secondsLeft === secondsLeft && prev.cards.map((c) => c.id).join() === cards.join()) return prev;
+  return { cards: views, secondsLeft, totalSeconds: powers.draft.autoPickSeconds / TICK_HZ, recommended: rec, queued, rerolls };
 }

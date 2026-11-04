@@ -8,10 +8,11 @@ import { addPct, type Stats } from '../stats';
 
 type Powers = Config['powers'];
 
-/** One draft offer (TDD §6.10): its cards (power ids) and the ticks left before auto-pick. */
+/** One draft offer (TDD §6.10): its cards (power ids), the ticks left before auto-pick, and the level it was for (a reroll keeps its rules). */
 export interface DraftOffer {
   cards: string[];
   ticksLeft: number;
+  level: number;
 }
 
 export interface DraftContext {
@@ -27,49 +28,71 @@ export interface DraftContext {
 
 const powerById = (p: Powers, id: string) => p.powers.find((x) => x.id === id);
 
-/** Powers this champion may be offered: the shared pool and its own signatures, under their stack caps. */
+/** Powers this champion may be offered: the shared pool and its own signatures, under their stack caps, that fit its weapon kind. */
 function eligible(p: Powers, c: Champion): PowerDef[] {
-  return p.powers.filter((x) => (x.pool === 'all' || x.pool === c.championId) && (c.powers[x.id] ?? 0) < p.draft.stackCaps[x.rarity]);
+  const kind = c.def.weapon.kind;
+  return p.powers.filter(
+    (x) => (x.pool === 'all' || x.pool === c.championId) && (c.powers[x.id] ?? 0) < p.draft.stackCaps[x.rarity] && (!x.weapons || x.weapons.includes(kind)),
+  );
+}
+
+/** A signature power, or a shared one sharing a tag with the champion's weapon (GDD §8 rule 5). */
+const relevant = (x: PowerDef, c: Champion) => x.pool === c.championId || x.tags.some((t) => c.def.weaponTags.includes(t));
+
+/** Takes one of the pool's powers that passes `ok`, uniformly on the seeded stream; −1 if none. */
+function drawWhere(pool: PowerDef[], rng: Rng, ok: (x: PowerDef) => boolean): number {
+  let n = 0;
+  for (const x of pool) if (ok(x)) n++;
+  if (n === 0) return -1;
+  let k = Math.floor(rng() * n);
+  for (let i = 0; i < pool.length; i++) if (ok(pool[i]!) && k-- === 0) return i;
+  return -1;
 }
 
 const TIERS = ['epic', 'rare', 'common'] as const;
 
 /**
- * Draws an offer of distinct cards from the seeded `draft` stream (GDD §8 rule 4, pulled
- * forward, D-060): each card rolls its rarity on `rarityOdds`, then a power of it; with none of
- * that rarity left it falls back a tier (Epic → Rare → Common → any). Empty if nothing is eligible.
+ * Draws an offer of distinct cards for `level` from the seeded `draft` stream (GDD §8 rules 4–5,
+ * D-060, D-064):
+ * 1. At a `guaranteedEpicLevels` level the first card is an Epic, if any are left ("Field Promotion").
+ * 2. Every other card rolls its rarity on `rarityOdds`, then a power of it; with none of that
+ *    rarity left it falls back a tier (Epic → Rare → Common → any).
+ * 3. If no card is a signature power or fits the champion's weapon (`weaponTags`), the last card
+ *    is swapped for one that does, if any is left.
+ * Empty if nothing is eligible.
  */
-export function makeOffer(p: Powers, c: Champion, rng: Rng): string[] {
+export function makeOffer(p: Powers, c: Champion, rng: Rng, level: number): string[] {
   const pool = eligible(p, c);
-  const cards: string[] = [];
+  const cards: PowerDef[] = [];
   const odds = p.draft.rarityOdds;
+  const take = (i: number) => {
+    cards.push(pool[i]!);
+    pool.splice(i, 1);
+  };
+  if (p.draft.guaranteedEpicLevels.includes(level)) {
+    const i = drawWhere(pool, rng, (x) => x.rarity === 'epic');
+    if (i >= 0) take(i);
+  }
   while (cards.length < p.draft.cards && pool.length > 0) {
     const roll = rng() * (odds.common + odds.rare + odds.epic);
-    let tier = roll < odds.epic ? 0 : roll < odds.epic + odds.rare ? 1 : 2;
     let pick = -1;
-    for (; tier < TIERS.length && pick < 0; tier++) {
-      let n = 0;
-      for (const x of pool) if (x.rarity === TIERS[tier]) n++;
-      if (n === 0) continue;
-      let k = Math.floor(rng() * n);
-      for (let i = 0; i < pool.length; i++) {
-        if (pool[i]!.rarity !== TIERS[tier]) continue;
-        if (k-- === 0) {
-          pick = i;
-          break;
-        }
-      }
+    for (let tier = roll < odds.epic ? 0 : roll < odds.epic + odds.rare ? 1 : 2; tier < TIERS.length && pick < 0; tier++) {
+      pick = drawWhere(pool, rng, (x) => x.rarity === TIERS[tier]);
     }
-    if (pick < 0) pick = Math.floor(rng() * pool.length);
-    cards.push(pool[pick]!.id);
-    pool.splice(pick, 1);
+    take(pick >= 0 ? pick : Math.floor(rng() * pool.length));
   }
-  return cards;
+  if (cards.length > 0 && !cards.some((x) => relevant(x, c))) {
+    const i = drawWhere(pool, rng, (x) => relevant(x, c));
+    if (i >= 0) cards[cards.length - 1] = pool[i]!;
+  }
+  return cards.map((x) => x.id);
 }
 
+const RANK = { common: 0, rare: 1, epic: 2 } as const;
+
 /**
- * The highlighted card (GDD §8): the one sharing the most tags with powers already owned;
- * ties go to the earlier slot. It is also what the timer picks.
+ * The highlighted card (GDD §8, TDD §6.10): the one sharing the most tags with powers already
+ * owned; ties go to the higher rarity, then the earlier slot. It is also what the timer picks.
  */
 export function recommended(p: Powers, c: Champion, cards: readonly string[]): number {
   const owned = new Set<string>();
@@ -78,7 +101,8 @@ export function recommended(p: Powers, c: Champion, cards: readonly string[]): n
   let bestScore = -1;
   for (let i = 0; i < cards.length; i++) {
     const def = powerById(p, cards[i]!);
-    const score = def ? def.tags.filter((t) => owned.has(t)).length : 0;
+    // Shared tags first; the rarity only breaks ties (it is worth less than one tag).
+    const score = def ? def.tags.filter((t) => owned.has(t)).length + RANK[def.rarity] / 10 : 0;
     if (score > bestScore) {
       best = i;
       bestScore = score;
@@ -117,6 +141,8 @@ function resolveFront(ctx: DraftContext, p: Powers, e: Entity, slot: number, aut
 
 /**
  * The draft (GDD §8, TDD §6.10), in the rewards stage after XP:
+ * 0. A `reroll` from its champion, with rerolls left, redraws the live offer's cards for its
+ *    level and restarts its timer (GDD §8 rule 6, D-064).
  * 1. The live (front) offer resolves on a `draftPick` from its champion, or after
  *    `autoPickSeconds` with the recommended card; the next queued offer then starts its timer.
  * 2. Every level-up this tick (to a level below the max) adds an offer of distinct powers
@@ -129,9 +155,21 @@ export function draftSystem(ctx: DraftContext, p: Powers, events: readonly SimEv
     const e = champions.ids[i]!;
     const c = champions.data[i]!;
     const pick = c.pickQueued;
+    const reroll = c.rerollQueued;
     c.pickQueued = -1;
+    c.rerollQueued = false;
     const front = c.draftQueue[0];
     if (!front) continue;
+    if (reroll && c.rerollsLeft > 0) {
+      const cards = makeOffer(p, c, ctx.rng, front.level);
+      if (cards.length > 0) {
+        c.rerollsLeft--;
+        front.cards = cards;
+        front.ticksLeft = p.draft.autoPickSeconds;
+        ctx.events.push({ type: 'draftRerolled', id: e, cards });
+        continue; // a new hand: a pick sent with the reroll was for the old cards
+      }
+    }
     if (pick >= 0 && pick < front.cards.length) resolveFront(ctx, p, e, pick, false);
     else if (--front.ticksLeft <= 0) resolveFront(ctx, p, e, recommended(p, c, front.cards), true);
   }
@@ -139,13 +177,13 @@ export function draftSystem(ctx: DraftContext, p: Powers, events: readonly SimEv
   for (let k = 0; k < end; k++) {
     const ev = events[k]!;
     if (ev.type !== 'levelUp') continue;
-    if ((ev.level - 1) % p.draft.levelsPerOffer !== 0) continue; // an offer every few levels (D-051)
+    if ((ev.level - 1) % p.draft.levelsPerOffer !== 0) continue; // an offer every `levelsPerOffer` levels (D-051; 1 again, D-064)
     const c = champions.get(ev.id);
     if (!c) continue;
     if (c.draftQueue.length > p.draft.maxQueued) resolveFront(ctx, p, ev.id, recommended(p, c, c.draftQueue[0]!.cards), true);
-    const cards = makeOffer(p, c, ctx.rng);
+    const cards = makeOffer(p, c, ctx.rng, ev.level);
     if (cards.length === 0) continue;
-    c.draftQueue.push({ cards, ticksLeft: p.draft.autoPickSeconds });
+    c.draftQueue.push({ cards, ticksLeft: p.draft.autoPickSeconds, level: ev.level });
     ctx.events.push({ type: 'draftOffered', id: ev.id, cards });
   }
 }

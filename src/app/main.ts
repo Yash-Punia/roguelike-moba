@@ -54,7 +54,7 @@ let lastSnap = sim.snapshot();
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam);
-mountHud(container, (slot) => input.pickCard(slot));
+mountHud(container, (slot) => input.pickCard(slot), () => input.reroll());
 const input = createInput(container, () => config.input, 0, localTeam);
 // The Ultimate button: a 22 mm gauge (GDD §3).
 const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt);

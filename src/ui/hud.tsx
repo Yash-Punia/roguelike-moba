@@ -85,21 +85,21 @@ function Vitals() {
   );
 }
 
-function Hud({ onPick }: { onPick: (slot: 0 | 1 | 2) => void }) {
+function Hud({ onPick, onReroll }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void }) {
   return (
     <>
       <TopStrip />
       <Vitals />
-      <DraftTray onPick={onPick} />
+      <DraftTray onPick={onPick} onReroll={onReroll} />
     </>
   );
 }
 
 /** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards take pointer input. */
-export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void) {
+export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}) {
   const layer = document.createElement('div');
   layer.className = 'hud';
   frame.appendChild(layer);
-  render(<Hud onPick={onPick} />, layer);
+  render(<Hud onPick={onPick} onReroll={onReroll} />, layer);
   return layer;
 }

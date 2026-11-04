@@ -13,11 +13,16 @@ export function createKeyboard() {
   const down = new Set<string>();
   let ultPressed = false;
   let pick: -1 | 0 | 1 | 2 = -1;
+  let reroll = false;
 
   addEventListener('keydown', (e) => {
     if (ULT_KEYS.has(e.code) && !(e.target instanceof HTMLInputElement)) {
       e.preventDefault(); // Space would scroll or click a focused button
       if (!e.repeat) ultPressed = true;
+      return;
+    }
+    if (e.code === 'KeyR' && !(e.target instanceof HTMLInputElement)) {
+      if (!e.repeat) reroll = true; // draft reroll (TDD §8 control map)
       return;
     }
     const slot = PICK_KEYS[e.code];
@@ -43,6 +48,12 @@ export function createKeyboard() {
       const p = pick;
       pick = -1;
       return p;
+    },
+    /** True once per R press (latched until read): reroll the live draft offer. */
+    takeReroll(): boolean {
+      const r = reroll;
+      reroll = false;
+      return r;
     },
     /** True once per Space/E press (latched until read). */
     takeUlt(): boolean {

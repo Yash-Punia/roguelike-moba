@@ -1157,3 +1157,24 @@ From TDD §13:
   - the drone's 40% hits, the dog's 30 bites and armed mine markers all show;
   - 83–100 draw calls, 160 fps, no console errors;
   - not watched on screen: chain arcs, and the shell landing discs.
+
+## D-064 — Full draft rules; offers every level; Sub-base 3,000 HP
+- Date: 2026-11-05
+- Source: user choices (keep the guaranteed Epic at levels 4, 8, 12; offers at every level again, configurable for testing; bullet-only powers never offered to the flamethrower; tune the game back under 6 minutes with Sub-base HP); the rest made during development
+- Decision:
+  - **Offers every level** (`draft.levelsPerOffer` 1), replacing D-051's every second level: up to 24 picks to level 25. Still live in the debug panel.
+  - **Field Promotion:** at a level in `draft.guaranteedEpicLevels` (`[4, 8, 12]`, live), the first card is an Epic drawn from the eligible Epics, if any are left. The other cards roll the odds.
+  - **Champion-relevant card** (GDD rule 5, TDD §6.10):
+    - Each champion has `weaponTags`: Alpha `projectile`, `crit`; Beta `projectile`, `speed`; Gamma `burn`.
+    - If no card is a signature power or shares one of those tags, the last card is swapped for an eligible one that does.
+  - **Weapon filter:** a power may list the weapon kinds it can be offered to. Ricochet and Piercing Rounds are `bullet` only, so Gamma never sees them. Double Tap keeps its flamethrower conversion (D-060).
+  - **Reroll:** one per match (`draft.rerolls`).
+    - The `reroll` command (the R key, or the ⟳ icon in the tray head) redraws the live offer's cards for its level, under the same rules, and restarts its 10 s timer.
+    - A pick sent in the same tick is ignored, because it was for the old cards.
+    - The icon shows only while a reroll is left; bots never reroll.
+  - **Recommendation tie-break:** most shared tags, then the higher rarity, then the earlier slot.
+  - **Pacing** (all-bot 3v3 on The Front, headless, seeds 1–20, fog off):
+    - with offers every level, seed 1 ran 6:57 and broke the 6-minute guard (median 5:09, range 3:11–8:10);
+    - candidates tried: waves +35%/min (seed 1 4:43, median 5:12, range 3:16–8:21); HQ 5,000 HP (no change); Sub-base 3,000 HP;
+    - **shipped: Sub-base `maxHp` 3,500 → 3,000.** Seed 1 4:23–5:12, median about 5:24, range 3:12–9:10. The slowest seed grew from 8:10 to 9:10 (the user's choice over the wave lever).
+- Why: the full draft rules row of M3 (D-046). Every match now has Field Promotions, a choice that fits the champion, a free reroll, and offers that never pitch a bullet power to a flamethrower.

@@ -3,9 +3,11 @@
     "cards": 3,
     "autoPickSeconds": 10,
     "maxQueued": 2,
-    "levelsPerOffer": 2,
+    "levelsPerOffer": 1,
     "stackCaps": { "common": 3, "rare": 2, "epic": 1 },
-    "rarityOdds": { "common": 65, "rare": 30, "epic": 5 }
+    "rarityOdds": { "common": 65, "rare": 30, "epic": 5 },
+    "guaranteedEpicLevels": [4, 8, 12],
+    "rerolls": 1
   },
   "powers": [
     { "id": "rapidFire", "name": "Rapid Fire", "rarity": "common", "pool": "all", "tags": ["damage", "fireRate"], "text": "+12% fire rate",
@@ -27,9 +29,9 @@
 
     { "id": "doubleTap", "name": "Double Tap", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "+1 projectile per shot or burst (flamethrower: +10° cone, +0.5 m range)",
       "effects": [{ "type": "weaponMod", "shots": 1, "shotSpread": 4, "cone": { "angle": 10, "range": 0.5 } }] },
-    { "id": "ricochet", "name": "Ricochet", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets bounce to 1 more enemy within 4 m for 50% damage",
+    { "id": "ricochet", "name": "Ricochet", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets bounce to 1 more enemy within 4 m for 50% damage", "weapons": ["bullet"],
       "effects": [{ "type": "weaponMod", "ricochet": { "count": 1, "radius": 4, "damagePct": 50 } }] },
-    { "id": "piercingRounds", "name": "Piercing Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets pass through the first enemy hit",
+    { "id": "piercingRounds", "name": "Piercing Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "projectile"], "text": "Bullets pass through the first enemy hit", "weapons": ["bullet"],
       "effects": [{ "type": "weaponMod", "pierce": 1 }] },
     { "id": "incendiaryRounds", "name": "Incendiary Rounds", "rarity": "rare", "pool": "all", "tags": ["damage", "burn"], "text": "Hits burn for 20 damage per second for 2 s",
       "effects": [{ "type": "onHit", "burn": { "dps": 20, "seconds": 2 } }] },

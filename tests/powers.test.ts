@@ -217,12 +217,12 @@ describe('Ultimate and flame mods (D-060)', () => {
 describe('rarity odds (GDD §8 rule 4, D-060)', () => {
   it('the first card of an offer is Common ~65%, Rare ~30%, Epic ~5%', () => {
     const cfg = fixtureConfig();
-    const c = { championId: 'alpha', powers: {}, mods: emptyMods() } as unknown as Champion;
+    const c = { championId: 'alpha', def: cfg.champions[0]!, powers: {}, mods: emptyMods() } as unknown as Champion;
     const rng = createStreams(7).draft;
     const count = { common: 0, rare: 0, epic: 0 };
     const n = 4000;
     for (let i = 0; i < n; i++) {
-      const id = makeOffer(cfg.powers, c, rng)[0]!;
+      const id = makeOffer(cfg.powers, c, rng, 2)[0]!; // a level with no guaranteed Epic
       count[cfg.powers.powers.find((p) => p.id === id)!.rarity]++;
     }
     expect(count.common / n).toBeCloseTo(0.65, 1);
@@ -234,8 +234,9 @@ describe('rarity odds (GDD §8 rule 4, D-060)', () => {
     const cfg = fixtureConfig();
     cfg.powers.draft.rarityOdds = { common: 0, rare: 0, epic: 1 };
     cfg.powers.powers = cfg.powers.powers.filter((p) => p.rarity !== 'epic'); // no Epics left to offer
-    const c = { championId: 'beta', powers: {}, mods: emptyMods() } as unknown as Champion;
-    const cards = makeOffer(cfg.powers, c, createStreams(3).draft);
+    const beta = cfg.champions.find((ch) => ch.id === 'beta')!;
+    const c = { championId: 'beta', def: { ...beta, weaponTags: ['damage', 'defence'] }, powers: {}, mods: emptyMods() } as unknown as Champion; // every card fits: no relevance swap
+    const cards = makeOffer(cfg.powers, c, createStreams(3).draft, 2);
     expect(cards).toHaveLength(3);
     for (const id of cards) expect(cfg.powers.powers.find((p) => p.id === id)!.rarity).toBe('rare');
   });
