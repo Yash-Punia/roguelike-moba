@@ -40,7 +40,7 @@ function edge(ctx: StructureContext, t: Transform, o: Entity): number {
 function shootable(ctx: StructureContext, o: Entity, team: Team, t: Transform, range: number, tick: number): boolean {
   if (o === 0 || ctx.teams.get(o) === team || !ctx.seen(o, team)) return false;
   const kind = ctx.kinds.get(o);
-  if (kind !== Kind.Minion && kind !== Kind.Champion) return false;
+  if (kind !== Kind.Minion && kind !== Kind.Champion && kind !== Kind.Summon) return false;
   const h = ctx.healths.get(o);
   if (!h || h.hp <= 0 || isInvulnerable(h, tick)) return false;
   if (edge(ctx, t, o) > range) return false;

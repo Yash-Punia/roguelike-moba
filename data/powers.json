@@ -57,6 +57,23 @@
     { "id": "napalmTank", "name": "Napalm Tank", "rarity": "rare", "pool": "gamma", "tags": ["damage", "burn"], "text": "Flames leave burning ground for 2 s (30 damage per second)",
       "effects": [{ "type": "flameGround", "dps": 30, "seconds": 2, "radius": 1.2, "everySeconds": 0.5 }] },
     { "id": "infernoShell", "name": "Inferno Shell", "rarity": "epic", "pool": "gamma", "tags": ["ultimate", "team"], "text": "Heat Wave radius +30% and duration +2 s",
-      "effects": [{ "type": "ultMod", "radiusPct": 30, "extraSeconds": 2 }] }
+      "effects": [{ "type": "ultMod", "radiusPct": 30, "extraSeconds": 2 }] },
+
+    { "id": "mortarSupport", "name": "Mortar Support", "rarity": "epic", "pool": "all", "tags": ["damage", "push"], "text": "Every 6 s, a mortar shell hits your current target for 150 damage in a 2.5 m radius",
+      "effects": [{ "type": "periodic", "everySeconds": 6, "damage": 150, "radius": 2.5, "flightSeconds": 1 }] },
+    { "id": "attackDrone", "name": "Attack Drone", "rarity": "epic", "pool": "all", "tags": ["damage", "projectile"], "text": "A drone circles you and fires at your target for 40% of your DPS",
+      "effects": [{ "type": "summon", "drone": { "damagePct": 40, "orbit": 1.2 } }] },
+    { "id": "warDog", "name": "War Dog", "rarity": "epic", "pool": "all", "tags": ["damage", "champions"], "text": "A loyal dog fights beside you, biting for 60 damage per second; respawns 20 s after dying",
+      "effects": [{ "type": "summon", "dog": { "maxHp": 600, "radius": 0.4, "moveSpeed": 4.5, "bite": 30, "biteSeconds": 0.5, "reach": 1.2, "leash": 6, "respawnSeconds": 20 } }] },
+    { "id": "teslaRounds", "name": "Tesla Rounds", "rarity": "epic", "pool": "all", "tags": ["damage", "team"], "text": "Every 5th hit chains lightning to 3 nearby enemies for 120 damage each",
+      "effects": [{ "type": "onHit", "chain": { "every": 5, "targets": 3, "damage": 120, "radius": 5 } }] },
+    { "id": "minefield", "name": "Minefield", "rarity": "epic", "pool": "all", "tags": ["damage", "speed"], "text": "While moving, drop a mine every 6 s (120 damage, 2 m radius, max 3 active)",
+      "effects": [{ "type": "whileMoving", "everySeconds": 6, "damage": 120, "radius": 2, "max": 3, "armSeconds": 1, "trigger": 1 }] },
+    { "id": "lastStand", "name": "Last Stand", "rarity": "epic", "pool": "all", "tags": ["defence", "hp"], "text": "Once per life, a lethal hit leaves you at 1 HP and invulnerable for 1.5 s",
+      "effects": [{ "type": "oncePerLife" }] },
+    { "id": "overcharge", "name": "Overcharge", "rarity": "epic", "pool": "all", "tags": ["ultimate"], "text": "The Ultimate can store 2 charges",
+      "effects": [{ "type": "ultMod", "charges": 2 }] },
+    { "id": "airstrikeBeacon", "name": "Airstrike Beacon", "rarity": "epic", "pool": "all", "tags": ["ultimate", "damage"], "text": "Casting the Ultimate also calls a line of 3 bombs across your target, 200 damage each",
+      "effects": [{ "type": "ultMod", "bombs": { "count": 3, "damage": 200, "radius": 2, "spacing": 3, "flightSeconds": 1 } }] }
   ]
 }

@@ -1,10 +1,17 @@
 import type { Entity } from './ecs';
 
 /**
- * Lobbed grenades in flight (TDD §6.5): a fixed arc from where they were thrown to the
- * target's position at cast time; they don't home. Pooled struct-of-arrays like bullets,
- * processed in slot order.
+ * Lobbed grenades and shells in flight (TDD §6.5): a fixed arc from where they were thrown to
+ * the target's position at launch; they don't home. Pooled struct-of-arrays like bullets,
+ * processed in slot order. Each carries its own blast (D-063).
  */
+export enum LobKind {
+  /** Alpha's Frag Grenade: its blast, bomblets and fire pool come from the owner's Ultimate. */
+  Grenade = 0,
+  /** A mortar shell or airstrike bomb: one blast of `damage` in `radius`. */
+  Shell = 1,
+}
+
 export class LobPool {
   capacity = 0;
   live = 0;
@@ -20,6 +27,11 @@ export class LobPool {
   /** Ticks flown so far, out of `total`. */
   elapsed = new Int32Array(0);
   total = new Int32Array(0);
+  kind = new Uint8Array(0);
+  /** Blast damage (shells) and radius, and the arc's apex height (render). */
+  damage = new Float64Array(0);
+  radius = new Float64Array(0);
+  arcHeight = new Float64Array(0);
   private free: number[] = [];
   private nextId = 1;
 
@@ -27,7 +39,7 @@ export class LobPool {
     this.grow(initial);
   }
 
-  spawn(owner: Entity, team: number, x0: number, y0: number, x1: number, y1: number, total: number): number {
+  spawn(owner: Entity, team: number, x0: number, y0: number, x1: number, y1: number, total: number, kind = LobKind.Grenade, damage = 0, radius = 0, arcHeight = 0): number {
     if (this.free.length === 0) this.grow(this.capacity * 2);
     const i = this.free.pop()!;
     this.active[i] = 1;
@@ -40,6 +52,10 @@ export class LobPool {
     this.y1[i] = y1;
     this.elapsed[i] = 0;
     this.total[i] = total;
+    this.kind[i] = kind;
+    this.damage[i] = damage;
+    this.radius[i] = radius;
+    this.arcHeight[i] = arcHeight;
     this.live++;
     return i;
   }
@@ -68,6 +84,10 @@ export class LobPool {
     this.y1 = copy(this.y1, (n) => new Float64Array(n));
     this.elapsed = copy(this.elapsed, (n) => new Int32Array(n));
     this.total = copy(this.total, (n) => new Int32Array(n));
+    this.kind = copy(this.kind, (n) => new Uint8Array(n));
+    this.damage = copy(this.damage, (n) => new Float64Array(n));
+    this.radius = copy(this.radius, (n) => new Float64Array(n));
+    this.arcHeight = copy(this.arcHeight, (n) => new Float64Array(n));
     for (let i = size - 1; i >= old; i--) this.free.push(i);
     this.capacity = size;
   }

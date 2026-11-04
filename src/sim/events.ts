@@ -44,6 +44,12 @@ export type SimEvent =
   | { type: 'waveSpawned'; wave: number }
   /** A champion redeployed at (x, y). */
   | { type: 'respawn'; id: Entity; x: number; y: number }
+  /** Tesla Rounds: lightning jumped from `from` to `to` (render draws the arc). */
+  | { type: 'chain'; owner: Entity; from: Entity; to: Entity }
+  /** A War Dog was knocked out (removed this tick; no XP, D-063). */
+  | { type: 'summonDown'; id: Entity; owner: Entity; x: number; y: number }
+  /** A Minefield mine was laid. */
+  | { type: 'mineLaid'; owner: Entity; team: number; x: number; y: number }
   /** A champion took a Trench medkit (index into `map.medkits`) and healed `amount`. */
   | { type: 'medkitTaken'; id: Entity; medkit: number; amount: number }
   | DamageEvent;

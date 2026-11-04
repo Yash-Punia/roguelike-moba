@@ -499,6 +499,14 @@ body {
   fill: #d8a64a;
 }
 
+/* Overcharge: a second Ultimate charge is stored (D-063). */
+.ult-gauge .charges {
+  display: none;
+  fill: #d8a64a;
+  font: 900 16px/1 system-ui, sans-serif;
+  text-anchor: middle;
+}
+
 .ult-gauge .no-target-icon {
   display: none;
   fill: #3c4147;

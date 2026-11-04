@@ -72,6 +72,7 @@ export function respawnSystem(ctx: LifeContext, map: Config['map']) {
     h.shield = 0;
     h.invulnUntil = 0;
     h.killer = 0;
+    if (c.mods.lastStand) h.lethalSaves = 1; // Last Stand: once per life
     const w = weapons.get(e);
     if (w) {
       w.cooldown = 0;

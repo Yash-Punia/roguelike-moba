@@ -3,7 +3,7 @@ import { isInvulnerable } from '../damage';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { HitQueue } from '../hits';
-import type { LobPool } from '../lobs';
+import { LobKind, type LobPool } from '../lobs';
 import { atan2, cos, len, sin, turnTowards } from '../math';
 import { TargetClass, type Champion, type Collider, type Health, type Motion, type Team, type Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
@@ -118,9 +118,9 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
     const t = transforms.get(e)!;
     const tt = transforms.get(c.ultTargetId)!;
     const ult = c.def.ultimate;
-    c.ultCharge = 0;
+    c.ultCharge -= 100; // one charge (Overcharge stores two)
     if (ult.id === 'fragGrenade') {
-      lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, ult.flightSeconds);
+      lobs.spawn(e, teams.get(e)!, t.x, t.y, tt.x, tt.y, ult.flightSeconds, LobKind.Grenade, 0, ult.radius, ult.arcHeight);
     } else if (ult.id === 'heatWave') {
       c.auraTicks = ult.seconds + c.mods.auraExtraTicks; // Inferno Shell: longer
     } else {
@@ -129,6 +129,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
       ctx.motions.get(e)!.channelMult = ult.moveSpeedPct;
     }
     c.lastCastTick = tick; // casting reveals it in a Trench, like a shot
+    airstrike(ctx, e, c, t, tt);
     events.push({ type: 'ultCast', id: e, target: c.ultTargetId, x: tt.x, y: tt.y });
   }
 }
@@ -149,9 +150,10 @@ function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: 
 }
 
 /**
- * Grenades in flight land after their flight time: the blast hits every enemy it overlaps
- * that no raised ground shields, through the damage pipeline, then leaves a fire pool. Level scaling uses the owner's
- * level (1 until XP arrives in M2 feature 11).
+ * Grenades and shells in flight land after their flight time: the blast hits every enemy it
+ * overlaps that no raised ground shields, through the damage pipeline. A shell (mortar,
+ * airstrike) is just its blast; a Frag Grenade also drops Cluster Grenade bomblets and leaves a
+ * fire pool, with the owner's level scaling.
  */
 export function lobSystem(ctx: UltimateContext) {
   const { lobs, zones, champions, hits, events } = ctx;
@@ -163,7 +165,14 @@ export function lobSystem(ctx: UltimateContext) {
     const team = lobs.team[i]!;
     const x = lobs.x1[i]!;
     const y = lobs.y1[i]!;
+    const kind = lobs.kind[i]!;
     lobs.release(i);
+    if (kind === LobKind.Shell) {
+      const list = enemiesIn(ctx, x, y, lobs.radius[i]!, team, reach);
+      for (let k = 0; k < list.length; k++) hits.push(owner, list[k]!, lobs.damage[i]!);
+      events.push({ type: 'explosion', owner, team, x, y, radius: lobs.radius[i]! });
+      continue;
+    }
     const c = champions.get(owner);
     const ult = c?.def.ultimate;
     if (!c || ult?.id !== 'fragGrenade') continue;
@@ -315,6 +324,22 @@ export function heatWaveMult(ctx: UltimateContext, source: Entity): number {
     else down = Math.max(down, ult.damageDealtPct);
   }
   return (1 + up) * (1 - down);
+}
+
+/** Bombs fall straight down onto a line across the cast target, perpendicular to caster → target (its facing if they're the same spot), with the shell arc's height. */
+const BOMB_ARC = 8;
+function airstrike(ctx: UltimateContext, e: Entity, c: Champion, t: Transform, tt: Transform) {
+  const m = c.mods;
+  if (m.bombCount === 0) return;
+  const d = len(tt.x - t.x, tt.y - t.y);
+  const ax = d > 1e-6 ? (tt.x - t.x) / d : cos(t.facing);
+  const ay = d > 1e-6 ? (tt.y - t.y) / d : sin(t.facing);
+  for (let k = 0; k < m.bombCount; k++) {
+    const off = (k - (m.bombCount - 1) / 2) * m.bombSpacing;
+    const x = tt.x - ay * off;
+    const y = tt.y + ax * off;
+    ctx.lobs.spawn(e, ctx.teams.get(e)!, x, y, x, y, m.bombTicks, LobKind.Shell, m.bombDamage, m.bombRadius, BOMB_ARC);
+  }
 }
 
 /** Heat Wave's radius with Inferno Shell's bonus. */

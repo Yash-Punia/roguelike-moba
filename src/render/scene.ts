@@ -4,6 +4,7 @@ import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
+import { EpicFx } from './epic-fx';
 import { Fog } from './fog';
 import { HpBars, type HpBar } from './hp-bars';
 import { createCave, createMedkit, createModel, createSpawnPad, partsOf } from './models';
@@ -126,6 +127,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   const barLayer = new HpBars();
   scene.add(barLayer.group);
   const tracers = new Tracers((x, y) => arena.terrain.heightAt(x, y));
+  const epicFx = new EpicFx((x, y) => arena.terrain.heightAt(x, y), config, viewer);
+  scene.add(epicFx.group);
   scene.add(tracers.mesh);
   const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
   scene.add(ultFx.group);
@@ -225,6 +228,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     }
     tracers.capture(snap.projectiles, viewer, sees);
     ultFx.capture(snap.lobs, snap.zones, sees);
+    epicFx.capture(snap);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
       // A minion removed on its knock-out tick: the knock-out keeps the model until it fades.
@@ -271,6 +275,22 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         // Roof caves in: a dust and smoke column (GDD §11), then rubble for the rest of the match.
         ultFx.smoke(ev.x, ev.y, 3.2, palette.smoke, 10, now);
         ultFx.smoke(ev.x, ev.y, 2, palette.mud, 6, now);
+      }
+      if (ev.type === 'chain') {
+        const a = interp.get(ev.from);
+        const b = interp.get(ev.to);
+        if (a && b && (sees(a.x, a.y) || sees(b.x, b.y))) epicFx.chain(a.x, a.y, b.x, b.y, now);
+      }
+      if (ev.type === 'summonDown') {
+        // A War Dog falls like a soldier: it is gone from the sim, so the knock-out keeps the model until it fades.
+        const mesh = meshes.get(ev.id);
+        const fade = fades.get(ev.id);
+        if (mesh && !fade?.hidden) {
+          if (fade) unfade(mesh, fade);
+          fades.delete(ev.id);
+          knockouts.start(ev.id, mesh, now);
+        }
+        if (sees(ev.x, ev.y)) ultFx.smoke(ev.x, ev.y, 1, palette.mud, 3, now);
       }
       if (ev.type === 'death') {
         const mesh = meshes.get(ev.id);
@@ -385,6 +405,10 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     fog.update(dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
+    epicFx.update(alpha, now, (id) => {
+      const s = interp.get(id);
+      return s && { x: s.ix, y: s.iy };
+    });
     const me = localId === undefined ? undefined : interp.get(localId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
     if (me) localTeam = teams.get(localId!);

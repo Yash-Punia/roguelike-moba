@@ -17,6 +17,9 @@ import { ZonePool } from './zones';
 import { traitSystem, type TraitContext } from './systems/traits';
 import { deathSystem, medkitSystem, padHealSystem, respawnSystem, type LifeContext } from './systems/life';
 import { emptyMods, foldMods, type PowerMods } from './powers';
+import { MinePool } from './mines';
+import { epicSystem, type EpicContext } from './systems/epics';
+import { summonDeathSystem, summonSystem, type SummonContext } from './systems/summons';
 import { statusSystem, type StatusContext } from './systems/status';
 import { createVision, SEEN_BY_ALL, visibilitySystem, visibleTo, type Vision, type VisibilityContext } from './systems/visibility';
 import { grantXp, progressionSystem, xpForLevel, type ProgressionContext } from './systems/progression';
@@ -45,6 +48,8 @@ export enum Kind {
   SubBase = 1,
   HQ = 2,
   Minion = 3,
+  /** A champion's companion (War Dog, D-063). */
+  Summon = 4,
 }
 
 /** Auto-target priority class (GDD §6): higher wins. */
@@ -144,6 +149,18 @@ export interface Champion {
   lowHpReadyAt: number;
   /** The conditional stat pct it has applied right now (Dug In), removed as a delta. */
   dugInApplied: number;
+  /** Epic power clocks (D-063): ticks to the next mortar shell and mine, weapon hits towards the next Tesla chain. */
+  mortarWait: number;
+  mineWait: number;
+  teslaHits: number;
+  /** Its War Dog (0 = none), and the tick the dog may come back from. */
+  dogId: Entity;
+  dogRespawnAt: number;
+}
+/** A War Dog (D-063): whose it is, and ticks until it can bite again. */
+export interface Summon {
+  owner: Entity;
+  biteWait: number;
 }
 /** Timed effects on a champion or minion (TDD §5 statuses, D-060): a burn, a damage-taken mark, a timed shield and a stat buff. */
 export interface Status {
@@ -299,6 +316,14 @@ export interface EntitySnapshot {
   visibleMask: number;
 }
 
+/** A Minefield mine. */
+export interface MineSnapshot {
+  team: Team;
+  x: number;
+  y: number;
+  armed: boolean;
+}
+
 /** A Trench medkit crate (`map.medkits` order). */
 export interface MedkitSnapshot {
   x: number;
@@ -366,6 +391,8 @@ export interface Snapshot {
   lobs: LobSnapshot[];
   zones: ZoneSnapshot[];
   medkits: MedkitSnapshot[];
+  /** Minefield mines (render shows only the viewer's team's, D-063). */
+  mines: MineSnapshot[];
   /** Each team's fog of war grid (D-010); reused between steps. */
   vision: Vision;
 }
@@ -394,6 +421,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const laneAgents = world.store<LaneAgent>();
   const concealments = world.store<Concealment>();
   const statuses = world.store<Status>();
+  const summons = world.store<Summon>();
+  const mines = new MinePool();
   const seen = (e: Entity, team: Team) => visibleTo(concealments, e, team);
   /** Line of sight (D-018): no raised ground between a and b. */
   const clear = (ax: number, ay: number, bx: number, by: number) => rayBlocked(grid, ax, ay, bx, by) < 0;
@@ -489,7 +518,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, powers: {}, draftQueue: [], pickQueued: -1, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -575,7 +604,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     return a ? config.units[a.unit].structureResistPct : 0;
   } };
   const structureContext: StructureContext = { structures, transforms, colliders, teams, healths, weapons, targetings, kinds, spatial, events, seen, clear, defs: () => config.structures };
-  const statusContext: StatusContext = { champions, statuses, healths, stats, motions, transforms, teams, structures, hits, events, grid: () => grid };
+  const statusContext: StatusContext = { champions, statuses, healths, stats, motions, transforms, teams, structures, hits, events, grid: () => grid, spatial, colliders, seen, clear };
+  const epicContext: EpicContext = { champions, transforms, motions, healths, teams, kinds, colliders, targetings, lobs, mines, hits, events, spatial, clear };
+  const summonContext: SummonContext = {
+    world, summons, champions, transforms, motions, colliders, teams, healths, kinds, models, targetClasses, targetings, concealments, statuses, spatial, hits, events, seen,
+  };
   const visibilityContext: VisibilityContext = {
     concealments, transforms, teams, healths, weapons, champions, kinds, grid: () => grid, vision: createVision(config.map, config.combat.fog.cellSize),
   };
@@ -603,7 +636,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const noCards: readonly string[] = [];
   const noPowers: Readonly<Record<string, number>> = {};
   const match: MatchState = { phase: 'live', winner: undefined, endTick: 0 };
-  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], vision: visibilityContext.vision };
+  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], mines: [], vision: visibilityContext.vision };
 
   return {
     world,
@@ -644,6 +677,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       spatial.rebuild(healths.ids, transforms);
       minionSystem(minionContext, config.units, tick);
+      summonSystem(summonContext, tick);
       movementSystem(motions, transforms, colliders, healths, grid, config.map.bounds, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
       separationSystem(minionContext);
@@ -657,6 +691,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       weaponsSystem(structures.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
+      epicSystem(epicContext, tick);
       projectileSystem(projectileContext, config.combat.weapons);
       // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
       // exactly its flight time later and a new fire pool first burns a full period after landing.
@@ -669,6 +704,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn);
       minionDeathSystem(minionContext);
+      summonDeathSystem(summonContext, tick);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       medkitSystem(lifeContext, config.map, config.combat.medkit, medkitReadyAt, tick);
@@ -753,6 +789,16 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.firing = !!w && w.lastShotTick >= 0 && tick - w.lastShotTick <= w.interval;
         s.visibleMask = concealments.get(e)?.visible ?? SEEN_BY_ALL;
       }
+      let laid = 0;
+      for (let i = 0; i < mines.capacity; i++) {
+        if (!mines.active[i]) continue;
+        const mm = (snap.mines[laid++] ??= { team: Team.Neutral, x: 0, y: 0, armed: false });
+        mm.team = mines.team[i]! as Team;
+        mm.x = mines.x[i]!;
+        mm.y = mines.y[i]!;
+        mm.armed = tick >= mines.armAt[i]!;
+      }
+      snap.mines.length = laid;
       const kits = config.map.medkits;
       snap.medkits.length = kits.length;
       for (let i = 0; i < kits.length; i++) {
@@ -780,7 +826,6 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       for (let i = 0; i < lobs.capacity; i++) {
         if (!lobs.active[i]) continue;
         const l = (snap.lobs[n++] ??= { id: 0, team: Team.Neutral, x0: 0, y0: 0, x1: 0, y1: 0, elapsed: 0, total: 1, radius: 0, arcHeight: 0 });
-        const ult = champions.get(lobs.owner[i]!)?.def.ultimate;
         l.id = lobs.id[i]!;
         l.team = lobs.team[i]! as Team;
         l.x0 = lobs.x0[i]!;
@@ -789,9 +834,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         l.y1 = lobs.y1[i]!;
         l.elapsed = lobs.elapsed[i]!;
         l.total = lobs.total[i]!;
-        const frag = ult?.id === 'fragGrenade' ? ult : undefined;
-        l.radius = frag?.radius ?? 0;
-        l.arcHeight = frag?.arcHeight ?? 0;
+        l.radius = lobs.radius[i]!;
+        l.arcHeight = lobs.arcHeight[i]!;
       }
       snap.lobs.length = n;
       n = 0;
@@ -860,9 +904,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Bullets in flight (read-only). */
     projectiles: pool,
 
-    /** Grenades in flight and ground zones (read-only). */
+    /** Grenades and shells in flight, ground zones and mines (read-only). */
     lobs,
     zones,
+    mines,
 
     /** Every hit through the damage pipeline, at least the last `combat.damage.logSeconds` (read-only). */
     damageLog,
@@ -942,7 +987,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments, statuses },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments, statuses, summons },
 
     /** Built lane polylines (read-only). */
     get lanes() {

@@ -99,6 +99,8 @@ export function applyPower(ctx: DraftContext, p: Powers, e: Entity, id: string, 
   const st = ctx.stats.get(e);
   for (const fx of def.effects) if (fx.type === 'stat' && st) addPct(st, STAT[fx.stat], fx.pct);
   foldMods(c.mods, p, c.powers);
+  const h = ctx.healths.get(e);
+  if (c.mods.lastStand && h && h.hp > 0) h.lethalSaves = Math.max(h.lethalSaves, 1); // Last Stand, armed for this life
   ctx.onStatsChanged(e);
   ctx.events.push({ type: 'powerPicked', id: e, power: id, auto });
 }

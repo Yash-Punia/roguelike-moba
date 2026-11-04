@@ -233,7 +233,8 @@ describe('rarity odds (GDD §8 rule 4, D-060)', () => {
   it('a rarity with nothing left falls back a tier', () => {
     const cfg = fixtureConfig();
     cfg.powers.draft.rarityOdds = { common: 0, rare: 0, epic: 1 };
-    const c = { championId: 'beta', powers: {}, mods: emptyMods() } as unknown as Champion; // Beta has no Epic yet
+    cfg.powers.powers = cfg.powers.powers.filter((p) => p.rarity !== 'epic'); // no Epics left to offer
+    const c = { championId: 'beta', powers: {}, mods: emptyMods() } as unknown as Champion;
     const cards = makeOffer(cfg.powers, c, createStreams(3).draft);
     expect(cards).toHaveLength(3);
     for (const id of cards) expect(cfg.powers.powers.find((p) => p.id === id)!.rarity).toBe('rare');

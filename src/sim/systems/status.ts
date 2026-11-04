@@ -4,7 +4,8 @@ import type { SimEvent } from '../events';
 import { zoneAt, type ObstacleGrid } from '../grid';
 import type { HitQueue } from '../hits';
 import { len } from '../math';
-import type { Champion, Health, Motion, Status, Structure, Team, Transform } from '../sim';
+import type { Champion, Collider, Health, Motion, Status, Structure, Team, Transform } from '../sim';
+import type { SpatialIndex } from '../spatial';
 import { addPct, stat, Stat, type Stats } from '../stats';
 
 export interface StatusContext {
@@ -19,7 +20,16 @@ export interface StatusContext {
   hits: HitQueue;
   events: SimEvent[];
   grid: () => ObstacleGrid;
+  spatial: SpatialIndex;
+  colliders: Store<Collider>;
+  /** Can `team` see `e` (Trench concealment, fog)? */
+  seen(e: Entity, team: Team): boolean;
+  /** Is the line from a to b clear of raised ground (line of sight, D-018)? */
+  clear(ax: number, ay: number, bx: number, by: number): boolean;
 }
+
+const nearby: Entity[] = [];
+const struck: Entity[] = [];
 
 /** Burns hit on a fixed beat this often (0.5 s), so refreshing one adds no extra hits and its damage numbers stay readable. */
 const BURN_PERIOD = 15;
@@ -85,6 +95,7 @@ export function statusSystem(ctx: StatusContext, events: readonly SimEvent[], ti
         s.markPct = Math.max(s.markTicks > 0 ? s.markPct : 0, m.markPct);
         s.markTicks = m.markTicks;
       }
+      if (m.chainEvery > 0 && ++c.teslaHits % m.chainEvery === 0) chain(ctx, ev.source, ev.target, c);
     } else if (ev.type === 'death') {
       const killer = champions.get(ev.killer);
       if (ev.unit === undefined && killer && killer.mods.killPct > 0 && teams.get(ev.killer) !== ev.team && healths.get(ev.killer)!.hp > 0) {
@@ -148,6 +159,39 @@ export function statusSystem(ctx: StatusContext, events: readonly SimEvent[], ti
       }
       s.buffPct = 0;
     }
+  }
+}
+
+/**
+ * Tesla Rounds (D-063): lightning jumps from the struck unit to up to `chainTargets` other living
+ * enemy units its team can see within `chainRadius` (nearest first; ties to the lower id) that
+ * raised ground doesn't shield, each taking `chainDamage` through the pipeline (an effect, not a
+ * weapon hit). Queued for the next damage stage.
+ */
+function chain(ctx: StatusContext, source: Entity, from: Entity, c: Champion) {
+  const m = c.mods;
+  const team = ctx.teams.get(source)!;
+  const at = ctx.transforms.get(from)!;
+  ctx.spatial.query(at.x, at.y, m.chainRadius + 1, nearby);
+  struck.length = 0;
+  for (let n = 0; n < m.chainTargets; n++) {
+    let best: Entity = 0;
+    let bestD = Infinity;
+    for (let k = 0; k < nearby.length; k++) {
+      const o = nearby[k]!;
+      if (o === from || struck.includes(o) || ctx.teams.get(o) === team || ctx.structures.has(o)) continue;
+      const h = ctx.healths.get(o);
+      if (!h || h.hp <= 0 || !ctx.seen(o, team)) continue;
+      const ot = ctx.transforms.get(o)!;
+      const d = len(ot.x - at.x, ot.y - at.y) - (ctx.colliders.get(o)?.radius ?? 0);
+      if (d > m.chainRadius || d >= bestD || !ctx.clear(at.x, at.y, ot.x, ot.y)) continue;
+      best = o;
+      bestD = d;
+    }
+    if (best === 0) break;
+    struck.push(best);
+    ctx.hits.push(source, best, m.chainDamage);
+    ctx.events.push({ type: 'chain', owner: source, from, to: best });
   }
 }
 

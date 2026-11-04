@@ -1119,3 +1119,34 @@ From TDD §13:
   - The two Shock Troops tests in `tests/pacing.test.ts` kill a Sub-base on tick 0 and expect the next wave to be Shock Troops. With waves at 0:00, that wave leaves before the kill lands.
   - Those tests now pin their own 5 s first wave, so they test the Shock Troops rule and not the wave timing.
 - Why: the user wants waves on the lanes from the start.
+
+## D-063 — Power catalogue, part 2: the shared Epics
+- Date: 2026-11-04
+- Source: plan approved by the user (War Dog a sturdy, shootable pet; mines hidden from enemies); the rest made during development
+- Decision:
+  - **Records:** new effect types `periodic`, `whileMoving`, `oncePerLife` and `summon` (drone, dog), plus `onHit.chain`, `ultMod.charges` and `ultMod.bombs`. All of them fold into `PowerMods`.
+  - **Shells:** `LobPool` lobs now carry their own kind, damage, radius and arc.
+    - A shell is a single blast with line of sight; the Frag Grenade path is unchanged.
+    - The landing disc doubles as the telegraph.
+  - **Mortar Support:** while the champion has a living auto-target, a 150 shell (2.5 m blast, 1 s flight) lands on the target every 6 s.
+  - **Airstrike Beacon:** every Ultimate cast also drops 3 bombs of 200 (2 m blasts, 1 s fall) in a line across the cast target, perpendicular to caster → target.
+    - The bombs are 3 m apart, not the 2.5 m first planned, so the target takes one bomb rather than all three.
+    - Heat Wave's "target" is Gamma himself.
+  - **Tesla Rounds:** every 5th weapon hit chains to the 3 nearest other seen enemy units within 5 m of the struck one, with line of sight, for 120 each. These are effect hits, not weapon hits, and each link emits a `chain` event.
+  - **Last Stand:** `lethalSaves` is set to 1 when picked (if alive) and on every respawn; the existing lethal save does the rest.
+  - **Overcharge:** charge caps at 100 per stored charge, and a cast spends 100. The gauge shows a ×2 badge at 200.
+  - **Minefield:**
+    - A mine every 6 s while moving, at most 3 (the oldest goes).
+    - It arms after 1 s and bursts (120 in 2 m, line of sight) when an enemy unit (not a structure) comes within 1 m.
+    - Mines outlive their layer's knock-out.
+    - The snapshot carries all mines; render draws only the viewer's team's.
+  - **Attack Drone:** no entity. Each trigger pull fires one homing bullet from the orbit point (1.2 m, once round per 2 s, shared with render via `dronePosition`) at the owner's target, for 40% of everything that pull fires.
+  - **War Dog:**
+    - `Kind.Summon`, targeted with minions.
+    - 600 HP, 4.5 m/s, a bite of 30 every 0.5 s within 1.2 m, credited to the owner as a fixed amount.
+    - It bites the owner's target within 6 m of the owner, else the nearest seen enemy unit there; otherwise it heels within 2 m.
+    - It vanishes on the owner's knock-out and returns with them, and comes back 20 s after its own death.
+    - Its fall emits `summonDown`, not `death`, so no XP, kill or Adrenaline.
+    - Towers shoot it.
+- Why: the second half of the catalogue row (D-060, D-046).
+- Not yet measured: the pacing run and the in-browser check of the new visuals (dog, drone, mines, chain arcs, shells).

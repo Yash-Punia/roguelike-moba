@@ -288,6 +288,8 @@ const Effect = z.discriminatedUnion('type', [
     type: z.literal('onHit'),
     burn: z.object({ dps: positive(), seconds: secs() }).optional(),
     mark: z.object({ pct: pct(), seconds: secs() }).optional(),
+    /** Every Nth weapon hit chains to up to `targets` other enemies within `radius` of the one struck, `damage` each (Tesla Rounds). */
+    chain: z.object({ every: z.number().int().min(1), targets: z.number().int().min(1), damage: positive(), radius: positive() }).optional(),
   }),
   /** Heal healPct of max HP when an enemy minion dies within radius (Scavenger). */
   z.object({ type: z.literal('onNearbyMinionDeath'), radius: positive(), healPct: pct() }),
@@ -299,12 +301,51 @@ const Effect = z.discriminatedUnion('type', [
   z.object({ type: z.literal('onKill'), stat: StatName, pct: pct(), seconds: secs() }),
   /** A cone weapon leaves burning ground (radius) every everySeconds while firing, dps for seconds (Napalm Tank). */
   z.object({ type: z.literal('flameGround'), dps: positive(), seconds: secs(), radius: positive(), everySeconds: secs().refine((t) => t >= 1, 'at least one tick') }),
-  /** Ultimate changes: grenade bomblets round the impact; aura radius and duration. */
+  /**
+   * Ultimate changes: grenade bomblets round the impact; aura radius and duration; `charges`
+   * stored (Overcharge); `bombs` falling in a line across the cast target, `spacing` apart, on
+   * every cast (Airstrike Beacon).
+   */
   z.object({
     type: z.literal('ultMod'),
     bomblets: z.object({ count: z.number().int().min(1), damage: positive(), radius: positive(), spread: nonneg() }).optional(),
     radiusPct: pct().default(0),
     extraSeconds: secs().default(0),
+    charges: z.number().int().min(1).default(1),
+    bombs: z.object({ count: z.number().int().min(1), damage: positive(), radius: positive(), spacing: nonneg(), flightSeconds: secs().refine((t) => t >= 1, 'at least one tick') }).optional(),
+  }),
+  /** Every `everySeconds` while it has a living auto-target, a shell lobbed onto the target's spot (Mortar Support). */
+  z.object({ type: z.literal('periodic'), everySeconds: secs().refine((t) => t >= 1, 'at least one tick'), damage: positive(), radius: positive(), flightSeconds: secs().refine((t) => t >= 1, 'at least one tick') }),
+  /** While moving, a mine every `everySeconds` (at most `max` out; the oldest goes); it arms after `armSeconds` and bursts when an enemy comes within `trigger` (Minefield). */
+  z.object({
+    type: z.literal('whileMoving'),
+    everySeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+    damage: positive(),
+    radius: positive(),
+    max: z.number().int().min(1),
+    armSeconds: secs(),
+    trigger: positive(),
+  }),
+  /** Once per life, a lethal hit leaves 1 HP and `combat.damage.lethalSaveSeconds` of invulnerability (Last Stand). */
+  z.object({ type: z.literal('oncePerLife') }),
+  /**
+   * A companion. `drone`: circles at `orbit` and fires a bullet for `damagePct` of each trigger
+   * pull at the owner's target (Attack Drone). `dog`: a unit that bites the owner's target within
+   * `leash` of the owner and comes back `respawnSeconds` after dying (War Dog).
+   */
+  z.object({
+    type: z.literal('summon'),
+    drone: z.object({ damagePct: pct(), orbit: positive() }).optional(),
+    dog: z.object({
+      maxHp: positive(),
+      radius: positive(),
+      moveSpeed: positive(),
+      bite: positive(),
+      biteSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+      reach: positive(),
+      leash: positive(),
+      respawnSeconds: secs(),
+    }).optional(),
   }),
 ]);
 

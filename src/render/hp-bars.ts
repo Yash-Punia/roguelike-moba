@@ -13,6 +13,7 @@ const sizes: Record<Kind, { width: number; height: number; lift: number }> = {
   [Kind.SubBase]: { width: 2.4, height: 0.2, lift: 3.6 },
   [Kind.HQ]: { width: 3.4, height: 0.24, lift: 4.9 },
   [Kind.Minion]: { width: 0.8, height: 0.12, lift: 1.45 },
+  [Kind.Summon]: { width: 0.7, height: 0.1, lift: 1.1 },
 };
 
 const DARK = 0x1b1a17;

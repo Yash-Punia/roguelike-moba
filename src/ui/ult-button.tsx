@@ -34,6 +34,7 @@ export function mountUltGauge(frame: HTMLElement, sizePx: number, onPress: () =>
         <circle class="track" cx="50" cy="50" r={RING_R} />
         <circle class="ring" cx="50" cy="50" r={RING_R} stroke-dasharray={RING_LENGTH} stroke-dashoffset={RING_LENGTH} transform="rotate(-90 50 50)" />
         <text class="label" x="50" y="62">ULT</text>
+        <text class="charges" x="74" y="84">×2</text>
         <g class="needle">
           <polygon points="48.5,50 51.5,50 50,17" />
           <circle cx="50" cy="50" r="4" />
@@ -49,10 +50,11 @@ export function mountUltGauge(frame: HTMLElement, sizePx: number, onPress: () =>
   );
   const ring = host.querySelector<SVGCircleElement>('.ring')!;
   const needle = host.querySelector<SVGGElement>('.needle')!;
+  const charges = host.querySelector<SVGTextElement>('.charges')!;
   let shown = -1;
 
   return {
-    /** Every tick: charge 0–100 and whether the Ultimate has a target right now. */
+    /** Every tick: charge (0–100 per stored charge; Overcharge stores 2, D-063) and whether the Ultimate has a target right now. */
     set(charge: number, targetable: boolean) {
       const c = Math.round(charge * 10) / 10;
       if (c !== shown) {
@@ -63,6 +65,7 @@ export function mountUltGauge(frame: HTMLElement, sizePx: number, onPress: () =>
       }
       host.classList.toggle('ready', charge >= 100 && targetable);
       host.classList.toggle('no-target', !targetable);
+      charges.style.display = charge >= 200 ? 'inline' : 'none'; // a second charge stored
     },
     /** Shows the "Space" key plate (last input was a keyboard). */
     keyHint(on: boolean) {

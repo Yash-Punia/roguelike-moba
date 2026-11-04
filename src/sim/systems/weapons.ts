@@ -3,7 +3,7 @@ import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { HitQueue } from '../hits';
 import { asin, atan2, cos, len, sin, turnTowards, wrapAngle } from '../math';
-import type { PowerMods } from '../powers';
+import { dronePosition, type PowerMods } from '../powers';
 import type { ProjectilePool } from '../projectiles';
 import type { Rng } from '../rng';
 import type { ZonePool } from '../zones';
@@ -108,6 +108,7 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
     w.shotCount++;
     const critMult = mods && mods.critEvery > 0 && w.shotCount % mods.critEvery === 0 ? critMultiplier : critRoll(w, ctx, critMultiplier);
     w.lastShotTick = tick;
+    if (mods && mods.dronePct > 0) drone(e, w, t, ctx, cfg, target, mods, tick);
     if (w.kind === 'cone') {
       flame(e, w, t, ctx, critMult);
       if (mods && mods.groundDps > 0 && w.groundWait <= 0) {
@@ -176,6 +177,26 @@ function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult
     ctx.hits.push(e, o, w.damage, critMult, 1, false, true);
   }
   ctx.events.push({ type: 'shot', id: e, target: 0 });
+}
+
+const droneAt = { x: 0, y: 0 };
+
+/**
+ * Attack Drone (D-063): on each trigger pull the drone fires one homing bullet from its orbit
+ * point at the owner's target, for `dronePct` of everything that pull fires (a burst's bullets,
+ * Double Tap's extra ones; one flame for a cone). It doesn't stack crits or warm-up.
+ */
+function drone(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Config['combat']['weapons'], target: Entity, mods: PowerMods, tick: number) {
+  const tt = ctx.transforms.get(target);
+  if (!tt) return;
+  const p = dronePosition(t.x, t.y, mods.droneOrbit, tick, droneAt);
+  const bullets = w.kind === 'cone' ? 1 : w.burstCount * (1 + (w.burstCount <= 1 ? mods.shots : 0));
+  const dx = tt.x - p.x;
+  const dy = tt.y - p.y;
+  const d = len(dx, dy) || 1;
+  const speed = (w.kind === 'cone' ? 25 : w.projectileSpeed) / TICK_HZ;
+  const life = Math.ceil((d + mods.droneOrbit + cfg.bulletOvershoot) / speed);
+  ctx.pool.spawn(e, ctx.teams.get(e)!, target, true, p.x, p.y, (dx / d) * speed, (dy / d) * speed, w.damage * bullets * mods.dronePct, 1, life);
 }
 
 const critRoll = (w: Weapon, ctx: WeaponsContext, mult: number) => (w.critChance > 0 && ctx.crit() < w.critChance ? mult : 1);

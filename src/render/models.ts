@@ -57,6 +57,7 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'mgSoldier') mgSoldier(root, team);
   else if (modelId === 'shockTrooper') shockTrooper(root, team);
   else if (modelId === 'bazookaTank') bazookaTank(root, team);
+  else if (modelId === 'warDog') warDog(root, team);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
@@ -361,6 +362,22 @@ function gamma(root: THREE.Object3D, team: Team) {
  * machine gun with a drum magazine held forward at port arms. Legs and upper body are
  * separate parts so the gun tracks the target. About 400 tris.
  */
+/** War Dog (D-063): a stocky khaki-brown dog in a team collar, facing +x like every unit. */
+function warDog(root: THREE.Object3D, team: Team) {
+  part(root, box(0.62, 0.26, 0.28), palette.leather, 0, 0.36, 0);
+  for (const x of [-0.22, 0.22]) for (const z of [-0.1, 0.1]) part(root, box(0.08, 0.24, 0.08), palette.leather, x, 0.12, z);
+  part(root, box(0.24, 0.22, 0.22), palette.greatcoat, 0.36, 0.52, 0);
+  part(root, box(0.16, 0.1, 0.12), palette.greatcoat, 0.52, 0.47, 0);
+  part(root, box(0.04, 0.04, 0.05), EYES, 0.6, 0.5, 0);
+  for (const z of [-0.08, 0.08]) {
+    part(root, box(0.06, 0.12, 0.05), palette.leather, 0.3, 0.66, z);
+    part(root, box(0.02, 0.04, 0.03), EYES, 0.48, 0.57, z * 0.7);
+  }
+  part(root, box(0.06, 0.07, 0.26), teamColour(team), 0.24, 0.48, 0);
+  const tail = part(root, box(0.2, 0.05, 0.05), palette.leather, -0.38, 0.47, 0);
+  tail.rotation.z = 0.6;
+}
+
 function mgSoldier(root: THREE.Object3D, team: Team) {
   for (const z of [-0.08, 0.08]) {
     part(root, box(0.11, 0.2, 0.11), palette.infantry, 0, 0.16, z);
