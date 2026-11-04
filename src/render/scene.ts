@@ -99,7 +99,15 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   scene.background = new THREE.Color(palette.haze);
 
   // Lights: warm late-afternoon sun at ~45°, cool hemisphere fill (GDD §11).
-  scene.add(new THREE.HemisphereLight(0xbcd3e6, palette.mud, 1.4));
+  const sky = new THREE.HemisphereLight(0xbcd3e6, palette.mud, 1.4);
+  scene.add(sky);
+  // Sudden Death (D-068): haze and sky light ease towards red over about 2 s.
+  const calmHaze = new THREE.Color(palette.haze);
+  const calmSky = new THREE.Color(0xbcd3e6);
+  const redHaze = new THREE.Color(0x5a2620);
+  const redSky = new THREE.Color(0xe8a08a);
+  let redness = 0;
+  let suddenDeath = false;
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
   const sunOffset = new THREE.Vector3(-12, 20, 8);
   sun.castShadow = true;
@@ -161,6 +169,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
 
   /** Call after every sim tick: shifts current → previous. */
   function capture(snap: Snapshot) {
+    if (snap.match.phase !== 'ended') suddenDeath = snap.match.phase === 'suddenDeath'; // the sky stays red over the end banner
     fog.capture(snap.vision, config.combat.fog.darkPct);
     seen.clear();
     for (const e of snap.entities) {
@@ -410,6 +419,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       root.visible = f.k > 0;
     }
     knockouts.update(now, dt);
+    const towards = suddenDeath ? 1 : 0;
+    if (redness !== towards) {
+      redness = towards > redness ? Math.min(1, redness + dt / 2) : Math.max(0, redness - dt / 2);
+      (scene.background as THREE.Color).copy(calmHaze).lerp(redHaze, redness);
+      sky.color.copy(calmSky).lerp(redSky, redness);
+    }
     fog.update(dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);

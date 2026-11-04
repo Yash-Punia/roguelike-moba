@@ -211,7 +211,7 @@ export function createBot(
       cmd.tick = tick;
       cmd.moveX = cmd.moveY = 0;
       cmd.ult = false;
-      if (snap.match.phase !== 'live' || !laneTrack()) return cmd;
+      if (snap.match.phase === 'ended' || !laneTrack()) return cmd;
       readLane(read, snap, self, team, track!, cfg, laneId);
       const me = read.me;
       if (!me) return cmd;

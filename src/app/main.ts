@@ -54,7 +54,7 @@ let lastSnap = sim.snapshot();
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam);
-mountHud(container, (slot) => input.pickCard(slot), () => input.reroll());
+mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender());
 const input = createInput(container, () => config.input, 0, localTeam);
 // The Ultimate button: a 22 mm gauge (GDD §3).
 const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt);
@@ -75,7 +75,7 @@ const SLOW_MOTION_MS = 1000;
 const SLOW_MOTION_SCALE = 0.25;
 let ended = false;
 
-function endMatch(winner: Team) {
+function endMatch(winner: Team | undefined, reason: 'hq' | 'timeout' | 'surrender') {
   ended = true;
   ultGauge.hide();
   banner.classList.remove('show');
@@ -83,7 +83,8 @@ function endMatch(winner: Team) {
   setTimeout(() => {
     view.setTimeScale(1);
     const me = sim.snapshot().entities.find((e) => e.id === localEntity);
-    showEndBanner(container, winner === localTeam, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0, me?.assists ?? 0);
+    const result = winner === undefined ? 'draw' : winner === localTeam ? 'won' : 'lost';
+    showEndBanner(container, result, reason, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0, me?.assists ?? 0);
   }, SLOW_MOTION_MS);
 }
 
@@ -118,7 +119,7 @@ const loop = startLoop({
     if (ended) return;
     for (const ev of events) {
       if (ev.type === 'structureDestroyed' && ev.kind === 'hq') cameraFocus = ev.id; // watch it fall
-      if (ev.type === 'matchOver') endMatch(ev.winner);
+      if (ev.type === 'matchOver') endMatch(ev.winner, ev.reason);
     }
     if (ended) return;
     const me = entityIn(snap, localEntity);

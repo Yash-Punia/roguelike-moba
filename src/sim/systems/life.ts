@@ -32,14 +32,14 @@ export function homeOf(c: Champion, team: Team, map: Config['map']) {
  * starts its respawn timer and stops; it keeps its level, Ultimate charge and powers.
  * Kill XP, charge and assists hook onto the `death` event (M2 features 11 and 13, M3).
  */
-export function deathSystem(ctx: LifeContext, cfg: Config['match']['respawn']) {
+export function deathSystem(ctx: LifeContext, cfg: Config['match']['respawn'], timerMult = 1) {
   const { champions, healths, motions, transforms, events } = ctx;
   for (let i = 0; i < champions.ids.length; i++) {
     const e = champions.ids[i]!;
     const c = champions.data[i]!;
     const h = healths.get(e);
     if (!h || h.hp > 0 || c.respawnTicks > 0) continue;
-    c.respawnTicks = respawnTicks(c.level, cfg);
+    c.respawnTicks = Math.round(respawnTicks(c.level, cfg) * timerMult); // ×1.5 in Sudden Death (GDD §9)
     c.deaths++;
     const killer = champions.get(h.killer);
     if (killer && ctx.teams.get(h.killer) !== ctx.teams.get(e)) killer.kills++;

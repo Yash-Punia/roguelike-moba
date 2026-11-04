@@ -12,6 +12,7 @@ export function createInput(frame: HTMLElement, getConfig: () => Config['input']
   const ult = createLatch();
   let tappedCard: -1 | 0 | 1 | 2 = -1;
   let tappedReroll = false;
+  let surrender = false;
   // The last kind of input used, for key hints on the HUD (TDD §10).
   let lastInput: InputKind = 'pointer';
   for (const type of ['keydown', 'pointerdown']) {
@@ -30,7 +31,10 @@ export function createInput(frame: HTMLElement, getConfig: () => Config['input']
       tappedCard = -1;
       const reroll = keyboard.takeReroll() || tappedReroll;
       tappedReroll = false;
-      return buildCommand(tick, player, move, team, keyUlt || buttonUlt, pick, reroll);
+      const cmd = buildCommand(tick, player, move, team, keyUlt || buttonUlt, pick, reroll);
+      if (surrender) cmd.surrender = true;
+      surrender = false;
+      return cmd;
     },
     /** A draft card was tapped (HUD tray); sent with the next command. */
     pickCard(slot: 0 | 1 | 2) {
@@ -39,6 +43,10 @@ export function createInput(frame: HTMLElement, getConfig: () => Config['input']
     /** The draft reroll icon was tapped (HUD tray); sent with the next command. */
     reroll() {
       tappedReroll = true;
+    },
+    /** The surrender was confirmed (HUD button); sent with the next command. */
+    surrender() {
+      surrender = true;
     },
     /** The on-screen Ultimate button was pressed (HUD gauge). */
     pressUlt: ult.press,

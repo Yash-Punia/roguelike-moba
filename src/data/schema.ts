@@ -20,6 +20,10 @@ const Match = z.object({
   respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive(), sprintPct: pct().default(0) }),
   /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9). */
   spawnPad: z.object({ radius: positive(), healPctPerSecond: pct() }),
+  /** Match phases (GDD §2, TDD §6.12): Sudden Death from `suddenDeathSeconds`, the time-out at `timeoutSeconds`, surrender allowed from `surrenderFromSeconds`. Deploy lasts until the first wave. */
+  phases: z.object({ suddenDeathSeconds: secs(), timeoutSeconds: secs(), surrenderFromSeconds: secs() }),
+  /** Sudden Death: structures take `structureDamageTakenPct` more damage and respawn timers run `respawnPct` longer. */
+  suddenDeath: z.object({ structureDamageTakenPct: pct(), respawnPct: pct() }),
 });
 
 /** One weapon (TDD §6.3). `interval` is seconds between shots; speeds stay in m/s. */

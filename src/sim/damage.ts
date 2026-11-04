@@ -25,6 +25,8 @@ export interface DamageContext {
   structureResist(target: Entity): number;
   /** Extra damage taken from a mark on the target (Tracer Rounds +0.1); 0 when unmarked. */
   markOf(target: Entity): number;
+  /** Multiplier on all damage structures take (Sudden Death 1.5, D-068). */
+  structureTakenMult(): number;
 }
 
 const eventPool: DamageEvent[] = [];
@@ -77,7 +79,7 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
     // Structure rules: the hit's own structure share (fire pool 50%, Bazooka Tank rockets 200%),
     // then backdoor protection; the other way round, the Bazooka Tank's resistance to structure fire.
     if (kind === Kind.SubBase || kind === Kind.HQ) {
-      amount *= hits.structureMult[k]!;
+      amount *= hits.structureMult[k]! * ctx.structureTakenMult();
       if (ctx.structures.get(target)?.backdoor) amount *= 1 - backdoorPct; // no enemy minion near (GDD §5)
     } else if (ctx.structures.has(source)) {
       amount *= 1 - ctx.structureResist(target);

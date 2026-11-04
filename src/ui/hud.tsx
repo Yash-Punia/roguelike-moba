@@ -1,4 +1,5 @@
 import { render } from 'preact';
+import { useSignal } from '@preact/signals';
 import { hud, type StructureView } from './store';
 import { DraftTray } from './draft-tray';
 
@@ -44,6 +45,7 @@ function TopStrip() {
       </div>
       <div class="hud-centre">
         <div class="hud-timer">{clock(hud.seconds.value)}</div>
+        {hud.suddenDeath.value && <div class="hud-sudden-death">SUDDEN DEATH</div>}
         <div class="hud-score">
           <span class="ours">{ours}</span> · <span class="theirs">{theirs}</span>
         </div>
@@ -85,10 +87,35 @@ function Vitals() {
   );
 }
 
-function Hud({ onPick, onReroll }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void }) {
+/** Surrender (GDD §2), from 5:00 until the M4 pause menu takes it: the first tap asks, a second within 3 s concedes. */
+function SurrenderButton({ onSurrender }: { onSurrender: () => void }) {
+  const confirming = useSignal(false);
+  if (!hud.canSurrender.value || hud.ended.value) return null;
+  return (
+    <button
+      type="button"
+      class={`hud-surrender${confirming.value ? ' confirm' : ''}`}
+      onPointerDown={(e) => {
+        e.stopPropagation(); // never spawn the joystick under it
+        e.preventDefault();
+        if (confirming.value) {
+          onSurrender();
+          return;
+        }
+        confirming.value = true;
+        setTimeout(() => (confirming.value = false), 3000);
+      }}
+    >
+      {confirming.value ? 'Confirm?' : 'Surrender'}
+    </button>
+  );
+}
+
+function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void }) {
   return (
     <>
       <TopStrip />
+      <SurrenderButton onSurrender={onSurrender} />
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
     </>
@@ -96,10 +123,10 @@ function Hud({ onPick, onReroll }: { onPick: (slot: 0 | 1 | 2) => void; onReroll
 }
 
 /** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards take pointer input. */
-export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}) {
+export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}, onSurrender: () => void = () => {}) {
   const layer = document.createElement('div');
   layer.className = 'hud';
   frame.appendChild(layer);
-  render(<Hud onPick={onPick} onReroll={onReroll} />, layer);
+  render(<Hud onPick={onPick} onReroll={onReroll} onSurrender={onSurrender} />, layer);
   return layer;
 }

@@ -1233,3 +1233,33 @@ From TDD §13:
     - single seeds swing a lot, so the seed 1 test is now a smoke test that matches still end within 12 minutes;
     - long matches, and the median above the 4:30–5:30 target, stay open for the user to look at.
 - Why: the respawn row of M3 (D-046). Players get back to the fight faster, and ganks pay everyone involved.
+
+## D-068 — Match phases, time-out and surrender
+- Date: 2026-11-05
+- Source: user choices (the GDD's 10:00 and 13:00; a temporary HUD surrender button); plan approved by the user; the rest made during development
+- Decision:
+  - **Phases** (TDD §6.12):
+    - `deploy` until the first wave (`waves.firstSeconds`; 0 today, D-062, so it's skipped);
+    - `live`;
+    - `suddenDeath` from `match.phases.suddenDeathSeconds` (600);
+    - `ended`.
+    - A `phaseChanged` event marks each change. The times are in `data/match.json`, live in the debug panel.
+  - **Sudden Death:** structures take +50% (`suddenDeath.structureDamageTakenPct`), a new multiplier in damage pipeline step 4. Respawn timers run ×1.5 (`suddenDeath.respawnPct`, moved here from the respawn row, D-067).
+  - **Time-out** at `timeoutSeconds` (780): the match ends with reason `timeout`. The winner is decided by:
+    1. the higher HQ HP% (a fallen HQ counts 0);
+    2. then more enemy Sub-bases destroyed;
+    3. then more champion takedowns (kills);
+    4. all equal is a draw (no winner).
+  - **Surrender:**
+    - an optional `surrender` command flag, accepted from `surrenderFromSeconds` (300); the other team wins, reason `surrender`;
+    - bots never send it; offline, the one human is "unanimous" (GDD §2);
+    - the snapshot's `match.canSurrender` drives the button.
+  - **Match state** gains `reason` (`hq`, `timeout` or `surrender`) and `canSurrender`. `matchOver` carries the reason and an optional winner. Bots play in every phase but `ended`.
+  - **HUD and render:**
+    - a red "SUDDEN DEATH" badge under the clock;
+    - the haze and sky light ease to red over about 2 s and stay red over the end banner;
+    - a temporary "Surrender" button top right from 5:00: tap, then "Confirm?" within 3 s. It moves into the M4 pause menu.
+    - The end banner shows VICTORY, DEFEAT or DRAW, with "Time-out" or "Surrendered".
+    - The GDD's cosmetic biplanes wait for the M5 effects work.
+  - **Tests:** two older match tests now start in Deploy, since the test fixture's first wave is at 0:15.
+- Why: the match phases row of M3 (D-046). Every match now has a guaranteed end.

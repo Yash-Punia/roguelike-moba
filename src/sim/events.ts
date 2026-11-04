@@ -30,8 +30,10 @@ export type SimEvent =
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions are removed the same tick, so they carry their `unit`. */
   | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number; unit?: 'mgSoldier' | 'shockTrooper' | 'bazookaTank' }
-  /** An HQ fell: the match is over and the sim stops advancing (TDD §6.12 `Ended`). */
-  | { type: 'matchOver'; winner: number; tick: number }
+  /** The match is over and the sim stops advancing (TDD §6.12 `Ended`): an HQ fell, the time-out decided it, or a team surrendered. No winner: a draw. */
+  | { type: 'matchOver'; winner: number | undefined; reason: 'hq' | 'timeout' | 'surrender'; tick: number }
+  /** The match moved to a new phase (Deploy → Live → Sudden Death). */
+  | { type: 'phaseChanged'; phase: 'deploy' | 'live' | 'suddenDeath' }
   /** A draft offer was queued for a champion (power ids). */
   | { type: 'draftOffered'; id: Entity; cards: readonly string[] }
   /** A champion spent a reroll: the live offer now holds these cards. */

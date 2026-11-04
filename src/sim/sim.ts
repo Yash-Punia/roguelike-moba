@@ -70,6 +70,8 @@ export interface Command {
   ult: boolean;
   draftPick: -1 | 0 | 1 | 2;
   reroll: boolean;
+  /** Concede the match (from `phases.surrenderFromSeconds`; humans only, bots abstain). */
+  surrender?: boolean;
 }
 
 export interface PlayerSetup {
@@ -387,13 +389,19 @@ export interface ProjectileSnapshot {
   vy: number;
 }
 
-/** Match state (TDD §6.12): `live` until an HQ falls, then `ended` with the winner. */
+/**
+ * Match state (TDD §6.12, D-068): `deploy` until the first wave, `live`, `suddenDeath` from
+ * `phases.suddenDeathSeconds`, then `ended` with the winner (undefined: a draw, or still playing)
+ * and why.
+ */
 export interface MatchState {
-  phase: 'live' | 'ended';
-  /** The team that destroyed the other HQ; undefined while live. */
+  phase: 'deploy' | 'live' | 'suddenDeath' | 'ended';
   winner: Team | undefined;
-  /** Tick the match ended on (0 while live). */
+  reason: 'hq' | 'timeout' | 'surrender' | undefined;
+  /** Tick the match ended on (0 while playing). */
   endTick: number;
+  /** A surrender would be accepted now. */
+  canSurrender: boolean;
 }
 
 export interface Snapshot {
@@ -609,7 +617,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     onStatsChanged: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events, stats };
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures, markOf: (t) => {
+  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures,
+    structureTakenMult: () => (match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.structureDamageTakenPct : 1),
+    markOf: (t) => {
     const s = statuses.get(t);
     return s && s.markTicks > 0 ? s.markPct : 0;
   }, dealtMult: (s) => heatWaveMult(ultimateContext, s), structureResist: (t) => {
@@ -648,7 +658,48 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 
   const noCards: readonly string[] = [];
   const noPowers: Readonly<Record<string, number>> = {};
-  const match: MatchState = { phase: 'live', winner: undefined, endTick: 0 };
+  const match: MatchState = { phase: 'deploy', winner: undefined, reason: undefined, endTick: 0, canSurrender: false };
+
+  function endMatch(winner: Team | undefined, reason: NonNullable<MatchState['reason']>) {
+    match.phase = 'ended';
+    match.winner = winner;
+    match.reason = reason;
+    match.endTick = tick;
+    match.canSurrender = false;
+  }
+
+  /** The phase the clock says it is (Deploy lasts until the first wave). */
+  function phaseNow(): 'deploy' | 'live' | 'suddenDeath' {
+    if (tick >= config.match.phases.suddenDeathSeconds) return 'suddenDeath';
+    return tick >= config.waves.firstSeconds ? 'live' : 'deploy';
+  }
+
+  /**
+   * The time-out (GDD §2): the higher HQ HP% wins; then more enemy Sub-bases destroyed; then more
+   * champion takedowns; all equal is a draw.
+   */
+  function timeoutWinner(): Team | undefined {
+    const hqPct = [0, 0];
+    const fallen = [0, 0]; // enemy Sub-bases each team destroyed
+    for (let i = 0; i < structures.ids.length; i++) {
+      const e = structures.ids[i]!;
+      const st = structures.data[i]!;
+      const team = teams.get(e)!;
+      if (st.kind === 'hq') {
+        const h = healths.get(e)!;
+        hqPct[team] = st.destroyed ? 0 : h.hp / h.maxHp;
+      } else if (st.destroyed) {
+        fallen[team === Team.Blue ? Team.Red : Team.Blue]!++;
+      }
+    }
+    const takedowns = [0, 0];
+    for (let i = 0; i < champions.ids.length; i++) takedowns[teams.get(champions.ids[i]!)!]! += champions.data[i]!.kills;
+    for (const score of [hqPct, fallen, takedowns]) {
+      if (score[0]! > score[1]!) return Team.Blue;
+      if (score[1]! > score[0]!) return Team.Red;
+    }
+    return undefined;
+  }
   const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], mines: [], vision: visibilityContext.vision };
 
   return {
@@ -661,7 +712,19 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     /** Advances exactly one tick. Returned events are valid until the next step. */
     step(commands: readonly Command[]): StepResult {
       if (tick > 0) events.length = 0;
-      if (match.phase === 'ended') return { tick, events }; // frozen once an HQ has fallen
+      if (match.phase === 'ended') return { tick, events }; // frozen once the match is over
+      if (tick >= config.match.phases.timeoutSeconds) {
+        endMatch(timeoutWinner(), 'timeout');
+        events.push({ type: 'matchOver', winner: match.winner, reason: 'timeout', tick });
+        tick++;
+        return { tick, events };
+      }
+      const phase = phaseNow();
+      if (phase !== match.phase) {
+        match.phase = phase;
+        events.push({ type: 'phaseChanged', phase });
+      }
+      match.canSurrender = tick >= config.match.phases.surrenderFromSeconds;
       respawnSystem(lifeContext, config.map, config.match.respawn, tick);
       for (let i = 0; i < pendingXp.length; i += 2) {
         const e = pendingXp[i]!;
@@ -675,6 +738,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const m = e === undefined ? undefined : motions.get(e);
         if (m && c.draftPick >= 0) champions.get(e!)!.pickQueued = c.draftPick; // drafting works while down too
         if (m && c.reroll) champions.get(e!)!.rerollQueued = true;
+        if (m && c.surrender && match.canSurrender && (match.phase as MatchState['phase']) !== 'ended') {
+          const team = teams.get(e!)!;
+          endMatch(team === Team.Blue ? Team.Red : Team.Blue, 'surrender');
+          events.push({ type: 'matchOver', winner: match.winner, reason: 'surrender', tick });
+        }
         if (!m || healths.get(e!)!.hp <= 0) continue; // knocked out: input is ignored
         m.intentX = c.moveX / 127;
         m.intentY = c.moveY / 127;
@@ -717,7 +785,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
       damageChargeSystem(progressionContext, config.progression, events);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
-      deathSystem(lifeContext, config.match.respawn);
+      deathSystem(lifeContext, config.match.respawn, match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.respawnPct : 1);
       minionDeathSystem(minionContext);
       summonDeathSystem(summonContext, tick);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
@@ -726,19 +794,19 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       structureDeathSystem(structureContext);
       statusSystem(statusContext, events, tick);
       // Win and lose (GDD §2): the first HQ to fall this tick ends the match.
-      for (let i = progressionFrom; i < events.length && match.phase === 'live'; i++) {
+      let hqFell = false;
+      for (let i = progressionFrom; i < events.length && (match.phase as MatchState['phase']) !== 'ended'; i++) {
         const ev = events[i]!;
         if (ev.type !== 'structureDestroyed' || ev.kind !== 'hq') continue;
-        match.phase = 'ended';
-        match.winner = ev.team === Team.Blue ? Team.Red : Team.Blue;
-        match.endTick = tick;
+        endMatch(ev.team === Team.Blue ? Team.Red : Team.Blue, 'hq');
+        hqFell = true;
       }
       progressionSystem(progressionContext, config.progression, events, progressionFrom, tick);
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
       sprintSystem(lifeContext);
       structureRegenSystem(structureContext, config.structures);
-      if (match.phase === 'ended') events.push({ type: 'matchOver', winner: match.winner!, tick });
+      if (hqFell) events.push({ type: 'matchOver', winner: match.winner, reason: 'hq', tick });
       tick++;
       return { tick, events };
     },

@@ -60,6 +60,10 @@ export const hud = {
   keyHints: signal(false),
   /** The match is over: the tray hides. */
   ended: signal(false),
+  /** Sudden Death is on (D-068). */
+  suddenDeath: signal(false),
+  /** Surrender would be accepted now. */
+  canSurrender: signal(false),
 };
 
 const order = (a: StructureView, b: StructureView) => (a.kind === b.kind ? a.id - b.id : a.kind === 'hq' ? -1 : 1);
@@ -69,6 +73,8 @@ const same = (a: StructureView[], b: StructureView[]) =>
 /** Copies the HUD's values from a snapshot, for the champion `localId` on team `localTeam`. */
 export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam: Team, powers?: Config['powers']) {
   hud.ended.value = snap.match.phase === 'ended';
+  hud.suddenDeath.value = snap.match.phase === 'suddenDeath';
+  hud.canSurrender.value = snap.match.canSurrender;
   hud.seconds.value = Math.floor((snap.match.phase === 'ended' ? snap.match.endTick : snap.tick) / TICK_HZ);
   let ours = 0;
   let theirs = 0;

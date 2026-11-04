@@ -10,5 +10,14 @@
   "spawnPad": {
     "radius": 2.3,
     "healPctPerSecond": 10
+  },
+  "phases": {
+    "suddenDeathSeconds": 600,
+    "timeoutSeconds": 780,
+    "surrenderFromSeconds": 300
+  },
+  "suddenDeath": {
+    "structureDamageTakenPct": 50,
+    "respawnPct": 50
   }
 }
