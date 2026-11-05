@@ -1444,3 +1444,17 @@ From TDD §13:
   - A* per bot per decision (more work per tick for the same paths);
   - pairing without a shared board, each bot computing the same plan from the snapshot (bots don't know which allies are bots);
   - letting a lone bot take a camp (it loses, D-074).
+
+## D-076 — Project skills; browser checks in Chrome DevTools
+- Date: 2026-11-06
+- Source: user request (skills for the repeated tasks; fix testing in the browser with the Chrome DevTools plugin)
+- Decision:
+  - **Skills** in `.claude/skills/`, for the work that kept repeating in M3 and M4:
+    - `ship-feature`: the commit rules, the MILESTONES backfill and the DECISIONS format;
+    - `browser-check`: the live game check;
+    - `sim-probe`: headless all-bot stats and traces, with a match-stats template;
+    - `add-config`: the `/data` → schema → loader → test-pin path.
+  - **Browser checks run in Chrome through the Chrome DevTools MCP.** The game loop runs on `requestAnimationFrame`, and the app's built-in Browser pane gets none while it is hidden, so matches froze at 0:00 there. The DevTools Chrome keeps running: a 3v3 there ran at 160 fps with the pane hidden.
+  - **Dev hook:** `window.warfront` (dev builds and `?debug`) now also has `bots` and `squads`, so a check can read bot modes and farm plans. Checks teleport champions through `sim.stores.transforms` instead of steering with key events.
+- Why: these steps were redone by hand for every feature; the live check failed whenever the pane wasn't on screen.
+- Alternatives: keep using the built-in pane and ask for it to be shown each time (it blocks every check on the user); a committed `scripts/` stats runner (the probes change per question, so a template fits better).

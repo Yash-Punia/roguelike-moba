@@ -62,6 +62,12 @@ Prefix shell commands with `rtk`.
 
 TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (D-011).
 
+Project skills in `.claude/skills/` (D-076):
+- `ship-feature`: checks, MILESTONES, DECISIONS, commit, push;
+- `browser-check`: run the game in Chrome via the Chrome DevTools MCP, not the built-in pane, which freezes the game while hidden;
+- `sim-probe`: headless all-bot stats and scenario traces;
+- `add-config`: wire a new `/data` number or file.
+
 ## Workflow (hard rules)
 
 - **One feature = one commit**, committed on `main`.

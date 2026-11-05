@@ -157,7 +157,7 @@ const loop = startLoop({
 });
 
 if (debug) {
-  Object.assign(window, { warfront: { sim, view, loop, bot, get config() { return config; } } });
+  Object.assign(window, { warfront: { sim, view, loop, bot, bots, squads, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
       raw,
