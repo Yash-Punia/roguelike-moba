@@ -82,7 +82,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | Status | Feature | Hash |
 | --- | --- | --- |
 | `[p]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | b317a2d |
-| `[p]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048); lane waypoints skip structure footprints (D-069); medkit trenches end in a lane (D-070) | 3e50e0a |
+| `[p]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048); lane waypoints skip structure footprints (D-069); medkit trenches end in a lane (D-070), 380e91a; default map since D-071 | 3e50e0a |
 | `[p]` | Match config: team size 2v2–5v5 via `?size=` + debug panel, default 3v3 (`match.json`), your lane via `?lane=`; duplicate champions allowed (D-009, D-048) | 9cd0505 |
 | `[p]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms; hidden enemies fade out (D-056); sandbag walls later removed (D-061) | 6ed7a33 |
 | `[p]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018); blasts and splash get cover (D-057) | 7c0643c |

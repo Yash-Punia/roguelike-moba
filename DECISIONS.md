@@ -1312,3 +1312,10 @@ From TDD §13:
   - The map generator now swaps `right` → `left` in twin ids too: `trench-c1-right` is renamed `trench-c1-left`, the lane it actually reaches.
 - Why: a trench mouth at the spawn pad let the jungle come straight into the base.
 - Alternatives: bending it into the side of the base grass about 10 m out; removing the trench (M1/M2 then reached only from their camps).
+
+## D-071 — The Bridgehead is the default map
+- Date: 2026-11-05
+- Source: user choice
+- Decision: `match.lanes` in `data/match.json` is 2, so a plain page load plays The Bridgehead. `?lanes=3` (or the debug panel's lanes picker) plays The Front. Tests still build The Front from `rawConfig.map` unless they pick `maps[2]`, so their numbers don't move.
+- Why: the user wants the 2-lane map as the everyday match.
+- Alternatives: none considered.
