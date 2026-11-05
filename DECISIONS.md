@@ -1301,3 +1301,14 @@ From TDD §13:
   - A river bed at −1.0 m under a translucent water plane: more geometry and a second material for little gain at this camera.
   - Moving the Sub-bases off the control points: that breaks the spec's coordinates.
   - Making minions accept a waypoint at the footprint edge: a per-tick check for every minion, and it doesn't fix the route the bots read.
+
+## D-070 — The Bridgehead: medkit trenches end in a lane, not at the base
+- Date: 2026-11-05
+- Source: user feedback after testing (the trench started right in front of the HQ); user choice (into the lane)
+- Decision:
+  - The spec's M2 → Red base apron trench, and its M1 twin, ended at (0, ±55.5), about 5 m in front of the spawn pad.
+  - It now runs from the medkit room into the nearest lane: M2 (6, 40) → (11, 46) → (15.5, 52) on the right lane; M1 → (−15.5, −52) on the left lane. The mouth is about 21 m from the HQ.
+  - A map test keeps every trench point more than 15 m from both HQs.
+  - The map generator now swaps `right` → `left` in twin ids too: `trench-c1-right` is renamed `trench-c1-left`, the lane it actually reaches.
+- Why: a trench mouth at the spawn pad let the jungle come straight into the base.
+- Alternatives: bending it into the side of the base grass about 10 m out; removing the trench (M1/M2 then reached only from their camps).

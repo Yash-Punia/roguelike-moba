@@ -176,6 +176,14 @@ describe('The Bridgehead (D-069)', () => {
     expect(reachable(only, { x: 11.3, y: 2.5 }, { x: 6, y: 2.4 })).toBe(true);
   });
 
+  it('keeps every trench mouth at least 15 m from an HQ (D-070)', () => {
+    const hqs = bh.structures.filter((p) => p.kind === 'hq');
+    for (const w of bh.walkable) {
+      if (w.shape !== 'path' || w.surface !== 'trench') continue;
+      for (const p of w.points) for (const hq of hqs) expect(Math.hypot(p.x - hq.x, p.y - hq.y), w.id).toBeGreaterThan(15);
+    }
+  });
+
   it('puts every Sub-base on its lane centre line', () => {
     const lanes = buildLanes(bh);
     for (const p of bh.structures) {

@@ -162,7 +162,7 @@
       ]
     },
     {
-      "id": "trench-c1-right",
+      "id": "trench-c1-left",
       "shape": "path",
       "surface": "trench",
       "width": 4,
@@ -325,7 +325,7 @@
       ]
     },
     {
-      "id": "trench-m2-red-apron",
+      "id": "trench-m2-right",
       "shape": "path",
       "surface": "trench",
       "width": 4,
@@ -333,12 +333,12 @@
       "endHeight": 0,
       "points": [
         { "x": 6, "y": 40 },
-        { "x": 3, "y": 49 },
-        { "x": 0, "y": 55.5 }
+        { "x": 11, "y": 46 },
+        { "x": 15.5, "y": 52 }
       ]
     },
     {
-      "id": "trench-m1-blue-apron",
+      "id": "trench-m1-left",
       "shape": "path",
       "surface": "trench",
       "width": 4,
@@ -346,8 +346,8 @@
       "endHeight": 0,
       "points": [
         { "x": -6, "y": -40 },
-        { "x": -3, "y": -49 },
-        { "x": 0, "y": -55.5 }
+        { "x": -11, "y": -46 },
+        { "x": -15.5, "y": -52 }
       ]
     },
     {
