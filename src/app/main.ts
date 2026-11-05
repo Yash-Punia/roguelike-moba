@@ -7,6 +7,7 @@ import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot }
 import { TICK_HZ } from '../data/schema';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
+import { Squad } from '../sim/bots/squad';
 import { matchSlots, type Slot } from '../sim/match-setup';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
@@ -53,7 +54,9 @@ const seed = params.has('seed') ? Number(params.get('seed')) >>> 0 : (Math.rando
 console.info(`Warfront match seed ${seed} (replay with ?seed=${seed})`);
 const sim = createSim(config, seed, players);
 // Created and asked in ascending player id: they share the `ai` stream (D-048).
-const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), entity: sim.entityOf(i + 1)! }));
+// Each team's bots share a farming board, to take camps in pairs (D-075).
+const squads = [new Squad(), new Squad()];
+const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, squads[s.team], () => sim.grid), entity: sim.entityOf(i + 1)! }));
 const bot = bots[0]?.bot; // the enemy in your lane, shown in the debug panel
 let lastSnap = sim.snapshot();
 

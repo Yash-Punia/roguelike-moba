@@ -38,6 +38,8 @@ export interface Camp {
   /** Engaged: every unit that hit the camp within `resetSeconds` and can still be fought, and the tick of its last hit. */
   attackers: Entity[];
   attackerTicks: number[];
+  /** Members shooting each attacker this tick, so the camp spreads its fire (D-074). */
+  attackerLoad: number[];
 }
 
 /** A camp unit (TDD §5 `Neutral`): its camp, and its own spot and facing at the camp. */
@@ -85,7 +87,7 @@ export interface CampBundle {
 /** Every camp of the map, waiting for its first spawn. */
 export function createCamps(map: Config['map'], n: Neutrals): Camp[] {
   return map.camps.map((spot) => ({
-    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [],
+    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [], attackerLoad: [],
   }));
 }
 
@@ -216,8 +218,9 @@ export function campAggroSystem(ctx: CampContext, log: DamageLog, tick: number) 
  * Neutral camps (GDD §4, TDD §6.8, D-073), before movement:
  * - `Respawning` → spawn at `respawnAt` → `Idle`: units hold their spot and fire at nothing.
  * - `Engaged` (on first damage, `campAggroSystem`): each member shoots the nearest unit that hit
- *   the camp within `resetSeconds` and that it can reach and see; otherwise it walks to the
- *   nearest of them (D-074). A
+ *   the camp within `resetSeconds` and that it can reach and see, spreading the camp's fire
+ *   (the attacker fewest members are on, then the nearest); otherwise it walks to the nearest
+ *   of them (D-074). A
  *   chase step that would take a member past `leashRadius` from its spot, no attacker left, or
  *   `resetSeconds` without a hit dealt or taken sends the camp home.
  * - `Leashing`: invulnerable, no shooting, everyone walks to their spot `returnSpeedPct` faster.
@@ -244,6 +247,8 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
       camp.attackerTicks[kept++] = camp.attackerTicks[k]!;
     }
     camp.attackers.length = camp.attackerTicks.length = kept;
+    camp.attackerLoad.length = kept;
+    camp.attackerLoad.fill(0);
     if (camp.attackers.length === 0 || tick - camp.lastCombatTick > n.resetSeconds) goHome(ctx, camp, c, tick);
   }
 
@@ -259,28 +264,32 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
     m.intentX = m.intentY = 0;
     m.speed = def.moveSpeed;
     if (camp.state === CampState.Engaged) {
-      // The nearest attacker it can shoot; otherwise walk to the nearest one.
+      // The attacker fewest members are on, then one it can shoot, then the nearest: the camp spreads its fire,
+      // walking to an attacker it can't reach or see.
       const range = weapons.get(e)!.range;
       let target: Entity = 0;
       let best = Infinity;
+      let inReach = false;
       for (let k = 0; k < camp.attackers.length; k++) {
         const o = camp.attackers[k]!;
         const ot = transforms.get(o)!;
         const dist = len(ot.x - t.x, ot.y - t.y);
         const shootable = dist - (colliders.get(o)?.radius ?? 0) <= range && ctx.clear(t.x, t.y, ot.x, ot.y);
-        const score = shootable ? dist : dist + 1e6; // anything in range beats the rest
+        const score = camp.attackerLoad[k]! * 1000 + (shootable ? 0 : 500) + dist;
         if (score < best) {
           best = score;
           target = o;
+          inReach = shootable;
         }
       }
       if (target === 0) continue;
+      camp.attackerLoad[camp.attackers.indexOf(target)]!++;
       camp.aggro = target;
       const ot = transforms.get(target)!;
       const dx = ot.x - t.x;
       const dy = ot.y - t.y;
       const d = len(dx, dy);
-      if (best < 1e6) {
+      if (inReach) {
         tg.targetId = target;
         continue;
       }

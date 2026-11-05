@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { maps, parseConfig, rawConfig } from '../src/data/load';
 import { createBot } from '../src/sim/bots/bot';
+import { Squad } from '../src/sim/bots/squad';
 import { matchSlots } from '../src/sim/match-setup';
 import { createSim, Kind, Team, type Command } from '../src/sim/sim';
 import { arena, withPowers } from './helpers';
@@ -115,7 +116,8 @@ describe('match length (D-051)', () => {
     const config = parseConfig({ ...rawConfig, map: maps[lanes] });
     const slots = matchSlots(config, { teamSize: 3, localTeam: Blue });
     const sim = createSim(config, 1, slots);
-    const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), e: sim.entityOf(pl)! }));
+    const squads = [new Squad(), new Squad()];
+    const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, squads[s.team], () => sim.grid), e: sim.entityOf(pl)! }));
     let snap = sim.snapshot();
     let over = false;
     while (!over && sim.tick < 12 * 60 * 30) {

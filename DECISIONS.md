@@ -1392,3 +1392,55 @@ From TDD §13:
 - Alternatives:
   - one camp target for everyone, with only more HP (the tank champion still takes all the damage);
   - camp stats that grow with match time (not asked for; levels already make camps easier, which is the reward for farming).
+
+## D-075 — Bots farm camps in pairs; flow-field navigation
+- Date: 2026-11-06
+- Source: user request (bots should think about farming XP and levelling up, and clear camps and nests at the start and throughout the match); the design made during development
+- Decision:
+  - **Pairs through a squad:** each team's bots share a `Squad` board (`src/sim/bots/squad.ts`).
+    - Bots are asked for commands in ascending player order every tick, so the board is deterministic.
+    - Every bot reports whether it is free. Free means:
+      - no plan, and its cooldown is over;
+      - HP at least `farm.minHpPct` (60%);
+      - in a calm lane mode (contest, push, freeze, backoff, siege);
+      - its tower isn't threatened, and no visible enemy champion is within `threatRadius`.
+    - A free bot pairs itself with another free bot of its squad for a camp. The camp must:
+      - be up, not fighting and not leashing;
+      - not be taken by another pair;
+      - have no visible enemy champion within 12 m;
+      - be within `maxTravel` (45 m) walk for both bots.
+    - It picks the shortest walk for the two together. A camp in the enemy half counts 20 m further.
+    - Humans are never paired: only bots with a squad farm, so a lone human teammate isn't left waiting.
+  - **The `farm` mode** scores 0.85 while in a pair, above contesting the wave (0.4). Retreat, defending a tower, trades and all-ins can still win over it.
+    - The pair walks to the camp and waits just out of range until both have arrived, unless the camp is already fighting.
+    - Both then stand at the shorter of their two ranges, with line of sight, so both draw fire.
+    - A bot casts its Ultimate on a camp that still has more than 30% of its HP.
+  - **A plan ends** when:
+    - the camp is cleared;
+    - the camp starts leashing;
+    - 45 s pass;
+    - the partner dies or stops farming for 1.5 s. Alone, a bot still finishes a fighting camp below 35% of its HP.
+    - Both bots then stay in lane for 20 s (`cooldownSeconds`) before they may farm again.
+  - **Navigation:** flow fields over the obstacle grid (`src/sim/bots/nav.ts`), not A* per bot.
+    - A field holds the walking cost to a goal from every open cell: a camp, the bot's own lane, its spawn pad. It is built once with Dijkstra (8 directions, no corner cutting) on walls grown by a 0.6 m clearance, and shared by all bots through the grid.
+    - A bot aims at the farthest of the next 6 cells down the field that it can reach in a straight line without touching a wall. The line check walks the grid exactly.
+    - A bot inside the wall margin first joins the field at a cell it can reach in a straight line.
+    - Off its lane by more than 3 m (after a camp), a bot walks back through the trenches on the lane field, or on the pad field when retreating. Trades and all-ins still chase directly.
+  - **Camps spread their fire** (amends D-074): each member picks the attacker the fewest members are already on, then one it can shoot, then the nearest, and walks to it if it can't reach or see it.
+    - Without this, a shorter-ranged champion (Beta) standing a step closer took the whole squad's fire, retreated, and left its partner to finish alone.
+  - **Snapshot:** `snapshot.camps` (map order) gives each camp's living units, HP, and whether it is fighting or leashing, for bots and later the HUD.
+  - **Measured** (all-bot 3v3, seeds 1–10):
+    - each team clears its first camp at 12–14 s;
+    - 3 to 16 clears per team per match;
+    - camps killed a champion in 2 of 20 matches;
+    - most plans end in a clear (127 of 179 over six seeds a map), none time out, and the rest end when a partner leaves for a fight or dies;
+    - match length: The Front median 4.8 min, range 3.4–7.0 (6.2 min without farming); The Bridgehead median 3.6 min, range 2.5–5.5 (3.4 without). Farmed levels snowball on The Front.
+  - **Tests:**
+    - walking each camp's field from the Blue pad reaches every camp on both maps without touching a wall;
+    - each team's first clear in an all-bot match happens with two champions at the camp;
+    - the lane-assignment test now runs without farming, since a bot out at a camp isn't in its lane.
+- Why: camps take two champions (D-074), and the GDD's bot behaviour tree lists "take a Trench camp when the lane is clear". Farming in pairs makes XP a reason to leave the lane together. Flow fields fit a map with a few fixed goals: one Dijkstra per goal, no per-bot path search.
+- Alternatives:
+  - A* per bot per decision (more work per tick for the same paths);
+  - pairing without a shared board, each bot computing the same plan from the snapshot (bots don't know which allies are bots);
+  - letting a lone bot take a camp (it loses, D-074).

@@ -1,13 +1,16 @@
 import type { Config } from '../../data/schema';
 import type { LanePath } from '../../data/map-geometry';
 import type { Entity } from '../ecs';
+import { rayBlocked, type ObstacleGrid } from '../grid';
 import { len, sin } from '../math';
 import type { Rng } from '../rng';
 import { Kind, Team, type Command, type EntitySnapshot, type PlayerId, type Snapshot } from '../sim';
 import { steerAround } from '../systems/minions';
 import { LaneTrack } from './lane';
 import { emptyRead, readLane, type LaneRead } from './lane-read';
+import { FAR, navFor, type Nav } from './nav';
 import { rollPersonality, type Personality } from './personality';
+import type { FarmPlan, Squad } from './squad';
 
 /**
  * Bot modes (D-043), after Dota 2's desire-scored bot modes and MOBA wave play:
@@ -15,10 +18,17 @@ import { rollPersonality, type Personality } from './personality';
  * - `defend`: fight under its own tower; `freeze`: hold near it when behind;
  * - `contest`: clear the enemy wave; `push`: advance with a winning wave;
  * - `siege`: hit the enemy tower while it shoots our minions;
- * - `trade`: harass the enemy champion; `allin`: chase it down for the kill.
+ * - `trade`: harass the enemy champion; `allin`: chase it down for the kill;
+ * - `farm`: take a neutral camp for its XP with an allied bot (D-075).
  */
-export type BotMode = 'retreat' | 'backoff' | 'defend' | 'freeze' | 'contest' | 'push' | 'siege' | 'trade' | 'allin' | 'dead';
-const MODES: readonly Exclude<BotMode, 'dead'>[] = ['retreat', 'backoff', 'defend', 'freeze', 'contest', 'push', 'siege', 'trade', 'allin'];
+export type BotMode = 'retreat' | 'backoff' | 'defend' | 'freeze' | 'contest' | 'push' | 'siege' | 'trade' | 'allin' | 'farm' | 'dead';
+const MODES: readonly Exclude<BotMode, 'dead'>[] = ['retreat', 'backoff', 'defend', 'freeze', 'contest', 'push', 'siege', 'trade', 'allin', 'farm'];
+/** Lane modes in which a bot may leave its lane to farm. */
+const CALM = new Set<BotMode>(['contest', 'push', 'freeze', 'backoff', 'siege']);
+/** Camp units this far from their camp's centre count as that camp's (m; the leash is 10). */
+const CAMP_REACH = 12;
+/** Cells ahead it aims along a flow field. */
+const NAV_LOOK = 6;
 const FIGHTING = new Set<BotMode>(['trade', 'allin', 'defend', 'siege']);
 
 /** How far ahead along the lane it aims while travelling (m; beyond a Sub-base the lane runs through), and when it has arrived. */
@@ -47,11 +57,15 @@ export function createBot(
   rng: Rng,
   /** The lane it plays (`map.lanes` id); falls back to the first lane if the map has none by that id. */
   laneId = 'centre',
+  /** Its team's farming board and the sim's obstacle grid: without them it never farms camps (D-075). */
+  squad?: Squad,
+  getGrid?: () => ObstacleGrid,
 ) {
   const personality: Personality = rollPersonality(getConfig().bots.personality, rng);
   const desires: Record<Exclude<BotMode, 'dead'>, number> = {
-    retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0,
+    retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0, farm: 0,
   };
+  const side = team === Team.Blue ? 1 : -1;
   const state = {
     mode: 'contest' as BotMode,
     committedUntil: 0,
@@ -191,6 +205,127 @@ export function createBot(
     }
   }
 
+  /** Flow fields: to camp i, to its own lane, to its spawn pad. */
+  const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
+  const laneField = (nav: Nav) =>
+    nav.field(`lane:${laneId}`, () => {
+      const cells: number[] = [];
+      for (const l of getLanes()) if (l.id === laneId) for (const pts of l.branches) cells.push(...nav.polyline(pts));
+      return cells.length ? cells : nav.polyline(trackFrom!);
+    });
+  const padField = (nav: Nav, cfg: Config) => {
+    const pad = team === Team.Blue ? cfg.map.spawn.blue : cfg.map.spawn.red;
+    return nav.field(`pad:${team}`, () => nav.disc(pad.x, pad.y, 1));
+  };
+  /** Walking cost along a field in metres (Infinity: can't get there). */
+  const metres = (nav: Nav, f: Uint16Array, x: number, y: number) => {
+    const c = nav.cost(f, x, y);
+    return c === FAR ? Infinity : (c / 2) * nav.grid.cell;
+  };
+
+  /** A visible enemy champion within `r` of (x, y)? */
+  function enemyNear(snap: Snapshot, x: number, y: number, r: number): boolean {
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind === Kind.Champion && e.team !== team && e.hp > 0 && (e.visibleMask & (1 << team)) !== 0 && len(e.x - x, e.y - y) <= r) return true;
+    }
+    return false;
+  }
+
+  /** A camp's living HP as a share of the full camp. */
+  function campShare(cfg: Config, snap: Snapshot, i: number): number {
+    const c = snap.camps[i]!;
+    return c.hp / (cfg.map.camps[i]!.count * cfg.neutrals.camps[c.kind].unit.maxHp);
+  }
+
+  /** Is this pair's job done (cleared, failed, out of time, or its partner gone)? */
+  function planOver(cfg: Config, snap: Snapshot, plan: FarmPlan, self: Entity, tick: number): boolean {
+    const f = cfg.bots.farm;
+    const camp = snap.camps[plan.camp];
+    if (!camp || camp.members === 0 || camp.leashing || tick - plan.started > f.maxSeconds) return true;
+    const partner = byId(snap, plan.a === self ? plan.b : plan.a);
+    const seen = plan.a === self ? plan.seenB : plan.seenA;
+    const gone = !partner || partner.hp <= 0 || tick - seen > f.staleSeconds;
+    // Alone, it finishes only a camp that is nearly down.
+    return gone && !(camp.engaged && campShare(cfg, snap, plan.camp) < f.finishHpPct);
+  }
+
+  /**
+   * A free bot with no plan looks for another free bot of its squad and a camp for both
+   * (D-075): up, not fought over, no enemy champion at it, within `maxTravel` for each, and
+   * the shortest walk for the two of them (camps in the enemy half count further away).
+   */
+  function tryForm(cfg: Config, snap: Snapshot, nav: Nav, me: EntitySnapshot, tick: number): FarmPlan | undefined {
+    const f = cfg.bots.farm;
+    let best = Infinity;
+    let bestCamp = -1;
+    let bestPartner: Entity = 0;
+    for (let k = 0; k < squad!.ids.length; k++) {
+      const o = squad!.ids[k]!;
+      if (o === me.id || !squad!.isFree(o, tick)) continue;
+      const partner = byId(snap, o);
+      if (!partner || partner.hp <= 0) continue;
+      for (let i = 0; i < snap.camps.length; i++) {
+        const camp = snap.camps[i]!;
+        if (camp.members === 0 || camp.engaged || camp.leashing || squad!.campTaken(i) || enemyNear(snap, camp.x, camp.y, f.contestRadius)) continue;
+        const field = campField(nav, cfg, i);
+        const dMe = metres(nav, field, me.x, me.y);
+        const dPartner = metres(nav, field, partner.x, partner.y);
+        if (dMe > f.maxTravel || dPartner > f.maxTravel) continue;
+        const cost = dMe + dPartner + (camp.y * side > 0 ? f.enemyHalfPenalty : 0);
+        if (cost < best) {
+          best = cost;
+          bestCamp = i;
+          bestPartner = o;
+        }
+      }
+    }
+    if (bestCamp < 0) return undefined;
+    squad!.form(bestCamp, me.id, bestPartner, tick);
+    return squad!.planOf(me.id);
+  }
+
+  /**
+   * Where to stand while farming: down the camp's flow field until in its own range of the
+   * nearest camp unit; until its partner has caught up (or the camp is already fighting), it
+   * waits just out of range so it doesn't pull the camp alone.
+   */
+  function farmAim(cfg: Config, snap: Snapshot, nav: Nav, plan: FarmPlan, me: EntitySnapshot): { x: number; y: number } | undefined {
+    const camp = snap.camps[plan.camp]!;
+    const field = campField(nav, cfg, plan.camp);
+    let near: EntitySnapshot | undefined;
+    let nd = Infinity;
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind !== Kind.Neutral || e.hp <= 0 || len(e.x - camp.x, e.y - camp.y) > CAMP_REACH) continue;
+      const d = len(e.x - me.x, e.y - me.y) - e.radius;
+      if (d < nd) {
+        nd = d;
+        near = e;
+      }
+    }
+    const partner = byId(snap, plan.a === me.id ? plan.b : plan.a);
+    const together = camp.engaged || !partner || partner.hp <= 0 || metres(nav, field, partner.x, partner.y) <= metres(nav, field, me.x, me.y) + cfg.bots.farm.gatherSlack;
+    // The pair stands at the shorter of its two ranges, so both draw the camp's fire.
+    const partnerRange = partner && partner.hp > 0 ? (cfg.champions.find((c) => c.id === partner.modelId)?.weapon.range ?? read.range) : read.range;
+    const range = Math.min(read.range, partnerRange);
+    if (near) {
+      const sight = rayBlocked(nav.grid, me.x, me.y, near.x, near.y) < 0;
+      if (together && sight && nd <= range * personality.spacing * 0.9) return undefined; // in place: shoot
+      if (!together && nd <= range + 1.5) {
+        if (nd > range + 0.5) return undefined; // wait here, just out of range
+        p.x = me.x + (me.x - near.x); // too close to wait: step back
+        p.y = me.y + (me.y - near.y);
+        return p;
+      }
+    }
+    if (nav.towards(field, me.x, me.y, NAV_LOOK, p)) return p;
+    if (!near) return undefined;
+    p.x = near.x;
+    p.y = near.y;
+    return p;
+  }
+
   return {
     personality,
     desires: desires as Readonly<typeof desires>,
@@ -221,9 +356,16 @@ export function createBot(
         return cmd;
       }
       const hpMe = me.hp / me.maxHp;
+      const nav = squad && getGrid ? navFor(getGrid(), b.farm.clearance) : undefined;
+      let plan = squad?.planOf(self);
+      if (plan && planOver(cfg, snap, plan, self, tick)) {
+        squad!.end(plan, tick, b.farm.cooldownSeconds);
+        plan = undefined;
+      }
 
       // Decide: on the beat, or at once when retreat fires.
       score(cfg, hpMe);
+      desires.farm = plan ? b.farm.desire : 0;
       const urgent = desires.retreat >= 1 && state.mode !== 'retreat';
       if (tick >= state.nextDecision || urgent || state.mode === 'dead') {
         state.nextDecision = tick + b.decisionSeconds;
@@ -246,13 +388,36 @@ export function createBot(
           state.pauseUntil = tick + Math.round((b.hesitation.minSeconds + (b.hesitation.maxSeconds - b.hesitation.minSeconds) * rng()) * 30);
         }
       }
+      // Farming (D-075): report whether it is free; a free bot pairs up for a camp at once.
+      if (squad && nav) {
+        const free = !plan && hpMe >= b.farm.minHpPct && CALM.has(state.mode) && !read.ownTowerThreatened && !enemyNear(snap, me.x, me.y, b.lane.threatRadius);
+        squad.report(self, free, me.x, me.y, tick);
+        if (free) {
+          plan = tryForm(cfg, snap, nav, me, tick);
+          if (plan) {
+            state.mode = 'farm';
+            state.committedUntil = tick + personality.patience;
+          }
+        }
+        if (plan && state.mode === 'farm') squad.seen(plan, self, tick);
+      }
+      if (state.mode === 'farm' && !plan) state.mode = 'contest';
       if (tick < state.pauseUntil && state.mode !== 'retreat') return cmd;
 
       // Where to go.
       const mode = state.mode;
       const enemy = read.enemy;
       let aim: { x: number; y: number } | undefined;
-      if (mode === 'retreat') {
+      // Off its lane (in a trench after a camp), it walks back through the trenches first.
+      track!.project(me.x, me.y);
+      const offLane = !!nav && Math.sqrt(track!.lastDistSq) > b.farm.offLane;
+      if (mode === 'farm' && plan && nav) {
+        aim = farmAim(cfg, snap, nav, plan, me);
+      } else if (offLane && mode === 'retreat' && nav!.towards(padField(nav!, cfg), me.x, me.y, NAV_LOOK, p)) {
+        aim = p;
+      } else if (offLane && mode !== 'trade' && mode !== 'allin' && nav!.towards(laneField(nav!), me.x, me.y, NAV_LOOK, p)) {
+        aim = p;
+      } else if (mode === 'retreat') {
         const pad = team === Team.Blue ? cfg.map.spawn.blue : cfg.map.spawn.red;
         // Follow the lane home until level with the pad, then walk onto it. The track starts at
         // the cave behind the HQ (D-051), so following it to its start would end behind the bunker.
@@ -331,7 +496,8 @@ export function createBot(
         }
       } else if (me.ultCharge >= 100 && me.ultTargetable && me.ultTargetId !== 0 && mode !== 'retreat') {
         const target = byId(snap, me.ultTargetId);
-        if (target?.kind === Kind.Champion) cmd.ult = FIGHTING.has(mode) || target.hp / target.maxHp < 0.6 || state.confidence > 0.2;
+        if (target?.kind === Kind.Neutral) cmd.ult = mode === 'farm' && !!plan && campShare(cfg, snap, plan.camp) > 0.3;
+        else if (target?.kind === Kind.Champion) cmd.ult = FIGHTING.has(mode) || target.hp / target.maxHp < 0.6 || state.confidence > 0.2;
         else if (target?.kind === Kind.Minion && (mode === 'push' || mode === 'siege' || mode === 'contest' || mode === 'defend')) {
           let near = 0;
           for (let i = 0; i < snap.entities.length; i++) {

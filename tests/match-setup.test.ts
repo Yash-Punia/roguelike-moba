@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { maps, parseConfig, rawConfig } from '../src/data/load';
 import { createBot } from '../src/sim/bots/bot';
+import { Squad } from '../src/sim/bots/squad';
 import { LaneTrack } from '../src/sim/bots/lane';
 import { emptyRead, readLane } from '../src/sim/bots/lane-read';
 import { matchSlots, spreadLanes } from '../src/sim/match-setup';
@@ -87,12 +88,13 @@ describe('the lane read with several enemies', () => {
   });
 });
 
-/** An all-bot 3v3 on The Front (or The Bridgehead with lanes = 2); returns the sim, its slots and the state hash every 300 ticks. */
-function botMatch(seed: number, ticks: number, lanes: 2 | 3 = 3) {
+/** An all-bot 3v3 on The Front (or The Bridgehead with lanes = 2); returns the sim, its slots and the state hash every 300 ticks. `farm`: bots take camps in pairs (D-075). */
+function botMatch(seed: number, ticks: number, lanes: 2 | 3 = 3, farm = true) {
   const config = parseConfig({ ...rawConfig, map: maps[lanes] });
   const slots = matchSlots(config, { teamSize: 3, localTeam: Team.Blue });
   const sim = createSim(config, seed, slots);
-  const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), e: sim.entityOf(pl)! }));
+  const squads = [new Squad(), new Squad()];
+  const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, farm ? squads[s.team] : undefined, () => sim.grid), e: sim.entityOf(pl)! }));
   let snap = sim.snapshot();
   const hashes: number[] = [];
   for (let t = 0; t < ticks; t++) {
@@ -109,8 +111,8 @@ describe('3v3 bot matches', () => {
     expect(botMatch(5, 600).hashes).toEqual(botMatch(5, 600).hashes);
   }, 30_000);
 
-  it.each([3, 2] as const)('send every bot to its own lane (at the first clash, 30 s; %d lanes)', (lanes) => {
-    const { sim, slots } = botMatch(5, 900, lanes);
+  it.each([3, 2] as const)('send every bot to its own lane (at the first clash, 30 s; %d lanes; no camp farming)', (lanes) => {
+    const { sim, slots } = botMatch(5, 900, lanes, false);
     const tracks = sim.lanes.map((l) => ({ id: l.id, tracks: l.branches.map((b) => new LaneTrack(b)) }));
     slots.forEach((s, pl) => {
       const t = sim.stores.transforms.get(sim.entityOf(pl)!)!;

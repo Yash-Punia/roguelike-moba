@@ -34,7 +34,7 @@ import {
 } from './systems/structures';
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
-import { campAggroSystem, campDeathSystem, campSystem, createCamps, type CampContext, type Neutral } from './systems/camps';
+import { campAggroSystem, campDeathSystem, campSystem, CampState, createCamps, type CampContext, type Neutral } from './systems/camps';
 
 export type PlayerId = number;
 export enum Team {
@@ -349,6 +349,20 @@ export interface MedkitSnapshot {
   ready: boolean;
 }
 
+/** A neutral camp (`map.camps` order): its living units' HP and what it is doing (bots, D-075). */
+export interface CampSnapshot {
+  x: number;
+  y: number;
+  kind: 'deserter' | 'sniper';
+  /** Living units; 0 while it waits to respawn. */
+  members: number;
+  hp: number;
+  maxHp: number;
+  /** Fighting someone, or walking home invulnerable. */
+  engaged: boolean;
+  leashing: boolean;
+}
+
 /** A grenade in flight: thrown from (x0, y0), lands at (x1, y1) after `total` ticks. */
 export interface LobSnapshot {
   id: number;
@@ -415,6 +429,7 @@ export interface Snapshot {
   lobs: LobSnapshot[];
   zones: ZoneSnapshot[];
   medkits: MedkitSnapshot[];
+  camps: CampSnapshot[];
   /** Minefield mines (render shows only the viewer's team's, D-063). */
   mines: MineSnapshot[];
   /** Each team's fog of war grid (D-010); reused between steps. */
@@ -710,7 +725,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     }
     return undefined;
   }
-  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], mines: [], vision: visibilityContext.vision };
+  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], camps: [], mines: [], vision: visibilityContext.vision };
 
   return {
     world,
@@ -907,6 +922,25 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         k.x = kits[i]!.x;
         k.y = kits[i]!.y;
         k.ready = (medkitReadyAt[i] ?? 0) <= tick;
+      }
+      const camps = campContext.camps;
+      snap.camps.length = camps.length;
+      for (let i = 0; i < camps.length; i++) {
+        const c = camps[i]!;
+        const cs = (snap.camps[i] ??= { x: 0, y: 0, kind: 'deserter', members: 0, hp: 0, maxHp: 0, engaged: false, leashing: false });
+        cs.x = c.spot.x;
+        cs.y = c.spot.y;
+        cs.kind = c.spot.kind;
+        cs.members = c.members;
+        cs.engaged = c.state === CampState.Engaged;
+        cs.leashing = c.state === CampState.Leashing;
+        cs.hp = cs.maxHp = 0;
+      }
+      for (let i = 0; i < neutrals.ids.length; i++) {
+        const cs = snap.camps[neutrals.data[i]!.camp]!;
+        const h = healths.get(neutrals.ids[i]!)!;
+        cs.hp += Math.max(0, h.hp);
+        cs.maxHp += h.maxHp;
       }
       let n = 0;
       for (let i = 0; i < pool.capacity; i++) {

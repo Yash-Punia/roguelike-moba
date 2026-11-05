@@ -490,6 +490,34 @@ const Bots = z.object({
   }),
   /** Casts on a minion target only with this many enemy minions within `clusterRadius` of it. */
   ult: z.object({ minionCluster: z.number().int().min(1), clusterRadius: positive() }),
+  /**
+   * Camp farming in pairs (D-075): two free bots of a team take a camp together, from the
+   * start and whenever their lanes are quiet.
+   */
+  farm: z.object({
+    /** The farm mode's desire while in a pair (lane modes score 0.4–1). */
+    desire: z.number().nonnegative(),
+    /** Free to farm only at this much HP or more. */
+    minHpPct: pct(),
+    /** Each walks at most this far to a camp (m). */
+    maxTravel: positive(),
+    /** A camp in the enemy half counts this much further away (m). */
+    enemyHalfPenalty: z.number().nonnegative(),
+    /** Skips a camp with a visible enemy champion this close to it (m). */
+    contestRadius: positive(),
+    /** Waits out of range until its partner is this close to the camp too (m, compared with its own distance). */
+    gatherSlack: z.number().nonnegative(),
+    /** Gives up after this long, and stays in lane this long after a farm. */
+    maxSeconds: secs(),
+    cooldownSeconds: secs(),
+    /** A partner that stops farming for this long ends the pair; alone it finishes a camp below `finishHpPct`. */
+    staleSeconds: secs(),
+    finishHpPct: pct(),
+    /** Off its lane by more than this, a bot walks back to it through the trenches (m). */
+    offLane: positive(),
+    /** Champion clearance from walls on the navigation grid (m). */
+    clearance: positive(),
+  }),
 });
 
 /** Minion waves (GDD §5, TDD §6.6). */
