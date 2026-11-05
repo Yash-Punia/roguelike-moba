@@ -109,7 +109,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[ ]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads (3 or 4 per camp), Sniper Nests, in the spec's dugout rooms; models per the neutrals sheet; camp Ultimate charge +5–8% (moved here, D-065) | |
+| `[c]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads (3 or 4 per camp), Sniper Nests, in the spec's dugout rooms; models per the neutrals sheet; camp Ultimate charge +5–8% (moved here, D-065); `neutrals.json`, `map.camps`, reward on clear, sniper aim line (D-073) | |
 | `[ ]` | Telegraph events and ground markers (danger red #FF3B30 only) | |
 | `[ ]` | Halftrack (Supply Drop) and Field Gun (Artillery Support) in their 13 m sunken arenas; models per the bosses sheet | |
 | `[ ]` | Behemoth: spawn at 6:00, capture, pushes centre lane; in The Crater (Front) and on the river island (Bridgehead); model per the bosses sheet | |

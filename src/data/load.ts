@@ -6,6 +6,7 @@ import map from '../../data/map-3lane.json';
 import map2 from '../../data/map-2lane.json';
 import structures from '../../data/structures.json';
 import units from '../../data/units.json';
+import neutrals from '../../data/neutrals.json';
 import waves from '../../data/waves.json';
 import progression from '../../data/progression.json';
 import powers from '../../data/powers.json';
@@ -18,7 +19,7 @@ import input from '../../data/input.json';
 export const maps = { 2: map2, 3: map } as unknown as Record<2 | 3, RawConfig['map']>;
 export const mapFiles = { 2: 'map-2lane.json', 3: 'map-3lane.json' } as const;
 
-export const rawConfig: RawConfig = { match, champions, map, structures, units, waves, progression, powers, bots, combat, camera, input } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
+export const rawConfig: RawConfig = { match, champions, map, structures, units, neutrals, waves, progression, powers, bots, combat, camera, input } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {
@@ -27,6 +28,7 @@ export const configFiles: Record<keyof RawConfig, string> = {
   map: 'map-3lane.json',
   structures: 'structures.json',
   units: 'units.json',
+  neutrals: 'neutrals.json',
   waves: 'waves.json',
   progression: 'progression.json',
   powers: 'powers.json',

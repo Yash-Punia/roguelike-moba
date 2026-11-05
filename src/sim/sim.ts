@@ -34,6 +34,7 @@ import {
 } from './systems/structures';
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
+import { campAggroSystem, campDeathSystem, campSystem, createCamps, type CampContext, type Neutral } from './systems/camps';
 
 export type PlayerId = number;
 export enum Team {
@@ -50,6 +51,8 @@ export enum Kind {
   Minion = 3,
   /** A champion's companion (War Dog, D-063). */
   Summon = 4,
+  /** A neutral camp unit (Deserter, Sniper; D-073). */
+  Neutral = 5,
 }
 
 /** Auto-target priority class (GDD §6): higher wins. */
@@ -443,6 +446,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const concealments = world.store<Concealment>();
   const statuses = world.store<Status>();
   const summons = world.store<Summon>();
+  const neutrals = world.store<Neutral>();
   const mines = new MinePool();
   const seen = (e: Entity, team: Team) => visibleTo(concealments, e, team);
   /** Line of sight (D-018): no raised ground between a and b. */
@@ -607,6 +611,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       return f.shape === 'circle' ? f.r : Math.max(f.w, f.h) / 2;
     },
   };
+  const campContext: CampContext = {
+    world, neutrals, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, concealments, statuses, events, clear,
+    camps: createCamps(config.map, config.neutrals),
+    lanes: () => lanes,
+    pool: [],
+  };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);
   const progressionContext: ProgressionContext = {
     champions, transforms, healths, teams, spatial, stats, events, log: damageLog,
@@ -759,6 +769,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       spatial.rebuild(healths.ids, transforms);
       minionSystem(minionContext, config.units, tick);
+      campSystem(campContext, config.neutrals, damageLog, tick);
       summonSystem(summonContext, tick);
       movementSystem(motions, transforms, colliders, healths, grid, config.map, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
@@ -773,6 +784,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       weaponsSystem(champions.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       weaponsSystem(laneAgents.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       weaponsSystem(structures.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
+      weaponsSystem(neutrals.ids, weaponsContext, config.combat.weapons, config.combat.damage.critMultiplier, tick);
       epicSystem(epicContext, tick);
       projectileSystem(projectileContext, config.combat.weapons);
       // Existing zones and lobs advance before new casts, so a grenade thrown this tick lands
@@ -786,9 +798,11 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       damageChargeSystem(progressionContext, config.progression, events);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn, match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.respawnPct : 1);
+      campDeathSystem(campContext, config.neutrals, tick); // before minions go, so a minion's killing blow still has a team
       minionDeathSystem(minionContext);
       summonDeathSystem(summonContext, tick);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
+      campAggroSystem(campContext, damageLog, tick);
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       medkitSystem(lifeContext, config.map, config.combat.medkit, medkitReadyAt, tick);
       structureDeathSystem(structureContext);
@@ -801,7 +815,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         endMatch(ev.team === Team.Blue ? Team.Red : Team.Blue, 'hq');
         hqFell = true;
       }
-      progressionSystem(progressionContext, config.progression, events, progressionFrom, tick);
+      progressionSystem(progressionContext, config.progression, config.neutrals, events, progressionFrom, tick);
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
       sprintSystem(lifeContext);
@@ -974,6 +988,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         setMaxHp(healths.get(e)!, def.maxHp);
         Object.assign(weapons.get(e)!, def.weapon);
       }
+      for (let i = 0; i < neutrals.ids.length; i++) {
+        const e = neutrals.ids[i]!;
+        const def = next.neutrals.camps[campContext.camps[neutrals.data[i]!.camp]!.spot.kind].unit;
+        motions.get(e)!.speed = def.moveSpeed;
+        colliders.get(e)!.radius = def.radius;
+        setMaxHp(healths.get(e)!, def.maxHp);
+        Object.assign(weapons.get(e)!, def.weapon);
+      }
       lanes = laneRoutes(next);
       rebuildGrid();
       const v = visibilityContext.vision;
@@ -1074,7 +1096,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
 
     /** Component stores (read-only outside the sim; for tests, bots-in-sim and debug views). */
-    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments, statuses, summons },
+    stores: { transforms, colliders, healths, weapons, targetings, targetClasses, stats, teams, kinds, champions, motions, laneAgents, structures, concealments, statuses, summons, neutrals },
+
+    /** Neutral camps, in `map.camps` order (read-only). */
+    camps: campContext.camps as readonly Readonly<CampContext['camps'][number]>[],
 
     /** Built lane polylines (read-only). */
     get lanes() {

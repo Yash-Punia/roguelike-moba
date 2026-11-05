@@ -279,6 +279,16 @@
   ],
   "caves": [{ "team": "blue", "x": 0, "y": -81 }, { "team": "red", "x": 0, "y": 81 }],
   "medkits": [{ "x": -9, "y": -56 }, { "x": 8, "y": -24 }, { "x": -8, "y": 24 }, { "x": 9, "y": 56 }],
+  "camps": [
+    { "id": "C1", "kind": "deserter", "x": -14, "y": -44, "count": 4 },
+    { "id": "C2", "kind": "deserter", "x": 13, "y": -52, "count": 3 },
+    { "id": "C3", "kind": "deserter", "x": -13, "y": 52, "count": 3 },
+    { "id": "C4", "kind": "deserter", "x": 14, "y": 44, "count": 4 },
+    { "id": "S1", "kind": "sniper", "x": -15, "y": -26 },
+    { "id": "S2", "kind": "sniper", "x": 18, "y": -17 },
+    { "id": "S3", "kind": "sniper", "x": -18, "y": 17 },
+    { "id": "S4", "kind": "sniper", "x": 15, "y": 26 }
+  ],
   "lanes": [
     { "id": "left", "route": [["blue-cave-left"], ["left"], ["red-cave-left"]] },
     { "id": "centre", "route": [["blue-cave-centre"], ["centre-blue"], ["centre-west", "centre-east"], ["centre-red"], ["red-cave-centre"]] },

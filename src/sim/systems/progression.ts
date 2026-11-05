@@ -96,10 +96,11 @@ function takedownCredit(ctx: ProgressionContext, victim: Entity, killer: Entity,
  *   `assistSeconds`) the full takedown XP, plus the killer's bonus to the killer (D-067);
  * Ultimate charge follows the same deaths: each living enemy champion near a dying minion, and
  * every enemy champion in on a takedown (D-040, D-065).
+ * - a cleared neutral camp pays the clearing team's living champions near its last unit (D-073);
  * - a destroyed Sub-base pays every champion of the other team, alive or not.
  * Events are read in the order they happened, so grants are deterministic.
  */
-export function progressionSystem(ctx: ProgressionContext, p: Progression, events: readonly SimEvent[], from: number, tick: number) {
+export function progressionSystem(ctx: ProgressionContext, p: Progression, neutrals: Config['neutrals'], events: readonly SimEvent[], from: number, tick: number) {
   const { champions, transforms, healths, teams, spatial } = ctx;
   const end = events.length; // grants push levelUp events; don't read those
   for (let i = from; i < end; i++) {
@@ -120,9 +121,10 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
         }
         continue;
       }
-      // A minion: shared by presence, worth what its unit is worth.
+      // A minion: shared by presence, worth what its unit is worth. Camp units pay on `campCleared`.
       const team = ev.team;
       const unit = ev.unit ?? 'mgSoldier';
+      if (unit === 'deserter' || unit === 'sniper') continue;
       spatial.query(ev.x, ev.y, Math.max(p.shareRadius, p.ultCharge.minionRadius) + 1, nearby);
       sharers.length = 0;
       for (let k = 0; k < nearby.length; k++) {
@@ -136,6 +138,21 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, event
       }
       const xp = p.minionXp[unit];
       for (let k = 0; k < sharers.length; k++) grantXp(ctx, p, sharers[k]!, xp / sharers.length);
+    } else if (ev.type === 'campCleared' && ev.team !== undefined) {
+      // A camp (GDD §4, D-073): its XP split between the clearing team's living champions near the
+      // last unit, and its Ultimate charge to each of them.
+      const camp = neutrals.camps[ev.kind];
+      spatial.query(ev.x, ev.y, neutrals.rewardRadius + 1, nearby);
+      sharers.length = 0;
+      for (let k = 0; k < nearby.length; k++) {
+        const o = nearby[k]!;
+        if (!champions.has(o) || teams.get(o) !== ev.team || healths.get(o)!.hp <= 0) continue;
+        const t = transforms.get(o)!;
+        if (len(t.x - ev.x, t.y - ev.y) > neutrals.rewardRadius) continue;
+        sharers.push(o);
+        addUltCharge(champions.get(o)!, ctx.stats.get(o), camp.ultCharge);
+      }
+      for (let k = 0; k < sharers.length; k++) grantXp(ctx, p, sharers[k]!, camp.xp / sharers.length);
     } else if (ev.type === 'structureDestroyed' && ev.kind === 'subBase') {
       for (let k = 0; k < champions.ids.length; k++) {
         const c = champions.ids[k]!;

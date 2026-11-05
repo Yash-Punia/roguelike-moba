@@ -1,0 +1,47 @@
+{
+  "leashRadius": 10,
+  "resetSeconds": 4,
+  "returnSpeedPct": 150,
+  "rewardRadius": 10,
+  "ringRadius": 1.2,
+  "camps": {
+    "deserter": {
+      "name": "Deserter Squad",
+      "firstSpawnSeconds": 30,
+      "respawnSeconds": 40,
+      "xp": 60,
+      "ultCharge": 5,
+      "unit": {
+        "maxHp": 350,
+        "radius": 0.35,
+        "moveSpeed": 2.6,
+        "weapon": {
+          "kind": "bullet",
+          "damage": 20,
+          "interval": 1,
+          "range": 5,
+          "projectileSpeed": 25
+        }
+      }
+    },
+    "sniper": {
+      "name": "Sniper Nest",
+      "firstSpawnSeconds": 30,
+      "respawnSeconds": 60,
+      "xp": 80,
+      "ultCharge": 8,
+      "unit": {
+        "maxHp": 300,
+        "radius": 0.35,
+        "moveSpeed": 0,
+        "weapon": {
+          "kind": "bullet",
+          "damage": 60,
+          "interval": 2.5,
+          "range": 9,
+          "projectileSpeed": 40
+        }
+      }
+    }
+  }
+}

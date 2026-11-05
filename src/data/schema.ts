@@ -186,6 +186,8 @@ const MapConfig = z.object({
   caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
+  /** Neutral camps in the Trench rooms (GDD §4, map spec C1–C4 and S1–S4): `count` units at the room centre (x, y). */
+  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
   /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
   fordSlowPct: pct().default(0),
 });
@@ -243,6 +245,31 @@ const MinionDef = z.object({
 const Units = z.object({ mgSoldier: MinionDef, shockTrooper: MinionDef, bazookaTank: MinionDef });
 /** Per lane minion type, valued in XP and Ultimate charge. */
 const perUnit = () => z.object({ mgSoldier: z.number().nonnegative(), shockTrooper: z.number().nonnegative(), bazookaTank: z.number().nonnegative() });
+
+/** One neutral camp kind (GDD §4, NT-01): its units, timers and reward. */
+const CampDef = z.object({
+  name: z.string(),
+  firstSpawnSeconds: secs(),
+  respawnSeconds: secs(),
+  /** Split between the killer's team's champions within `rewardRadius` when the camp is cleared. */
+  xp: nonneg(),
+  /** Ultimate charge points each of those champions gains (not split). */
+  ultCharge: nonneg(),
+  unit: z.object({ maxHp: positive(), radius: positive(), /** 0: holds its spot (the sniper). */ moveSpeed: nonneg(), weapon: Weapon }),
+});
+/** Neutral camps (GDD §4, TDD §6.8, D-073). */
+const Neutrals = z.object({
+  /** A member pulled further than this from its spot (m) sends the camp home. */
+  leashRadius: positive(),
+  /** An engaged camp with no damage dealt or taken for this long goes home. */
+  resetSeconds: secs(),
+  /** Walking home this much faster than its move speed (the sniper still walks back at the deserters' pace). */
+  returnSpeedPct: pct(),
+  rewardRadius: positive(),
+  /** Squad members stand on a ring this wide round the campfire (m). */
+  ringRadius: nonneg(),
+  camps: z.object({ deserter: CampDef, sniper: CampDef }),
+});
 
 /** XP and levels (GDD §8). */
 const Progression = z.object({
@@ -568,6 +595,7 @@ export const ConfigSchema = z.object({
   map: MapConfig,
   structures: Structures,
   units: Units,
+  neutrals: Neutrals,
   waves: Waves,
   progression: Progression,
   powers: Powers,
@@ -585,6 +613,7 @@ export type SurfaceKind = z.output<typeof Surface>;
 export type StructureKind = z.output<typeof StructureKind>;
 export type StructureDef = z.output<typeof StructureDef>;
 export type MinionDef = z.output<typeof MinionDef>;
+export type CampKind = keyof Config['neutrals']['camps'];
 export type Footprint = z.output<typeof Footprint>;
 export type ChampionConfig = Config['champions'][number];
 export type FragGrenadeConfig = z.output<typeof FragGrenade>;

@@ -58,6 +58,8 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'shockTrooper') shockTrooper(root, team);
   else if (modelId === 'bazookaTank') bazookaTank(root, team);
   else if (modelId === 'warDog') warDog(root, team);
+  else if (modelId.startsWith('deserter')) deserter(root, Number(modelId.slice(8)) || 0);
+  else if (modelId === 'sniper') sniper(root);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
@@ -96,8 +98,8 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     traitRing: find(names.traitRing),
     tracked: modelId === 'bazookaTank',
   } satisfies ModelParts);
-  // Real shadows for champions and structures; soldiers get a cheap ground blob instead (D-044).
-  const casts = kind !== Kind.Minion;
+  // Real shadows for champions and structures; soldiers and camp units get a cheap ground blob instead (D-044).
+  const casts = kind !== Kind.Minion && kind !== Kind.Neutral;
   root.traverse((o) => {
     o.castShadow = casts;
     o.receiveShadow = true;
@@ -410,6 +412,107 @@ function mgSoldier(root: THREE.Object3D, team: Team) {
   part(helmet, cyl(0.31, 0.31, 0.035, 12), teamShade(team), 0, 0.01, 0);
 }
 
+/** NT-01 neutral colours: faded uniforms, less saturated than either team. */
+const FADED_GREY = 0x7b7870;
+const FADED_BROWN = 0x7a6450;
+const OLIVE_DRAB = 0x6f7445;
+const RAG = 0xf2efe6;
+const GINGER = 0xb0602e;
+const DARK_SKIN = 0x9a6a48;
+
+/**
+ * A deserter (NT-01): the MG Soldier's chibi body in a mismatched faded uniform with a white
+ * rag armband, no team colour. Variant by place in the squad: 0 Rifleman (knitted cap, beard,
+ * rifle), 1 Scrounger (field cap and head bandage, SMG), 2 Old Hand (weathered helmet, rifle,
+ * darker skin), 3 Gunner (bare head, ginger beard, heavy MG). About 400 tris.
+ */
+function deserter(root: THREE.Object3D, variant: number) {
+  const coat = [FADED_GREY, palette.khaki, OLIVE_DRAB, FADED_BROWN][variant % 4]!;
+  const trousers = [OLIVE_DRAB, palette.trouserNavy, FADED_BROWN, palette.khaki][variant % 4]!;
+  const skin = variant === 2 ? DARK_SKIN : palette.skin;
+  for (const z of [-0.08, 0.08]) {
+    part(root, box(0.11, 0.2, 0.11), trousers, 0, 0.16, z);
+    part(root, box(0.16, 0.08, 0.12), palette.leather, 0.02, 0.04, z);
+  }
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+  part(upper, box(0.3, 0.32, 0.34), coat, 0, 0.42, 0);
+  part(upper, box(0.31, 0.05, 0.35), palette.leather, 0, 0.3, 0);
+  part(upper, box(0.14, 0.2, 0.22), FADED_BROWN, -0.21, 0.44, 0);
+  for (const z of [-0.15, 0.15]) {
+    part(upper, box(0.24, 0.09, 0.09), coat, 0.12, 0.44, z);
+    part(upper, box(0.08, 0.08, 0.08), skin, 0.26, 0.44, z * 0.6);
+  }
+  part(upper, box(0.06, 0.1, 0.1), RAG, 0.02, 0.48, -0.17); // the neutral armband
+  // Weapon: rifle (long thin barrel), SMG (short with a drum), or heavy MG (thick, long).
+  if (variant === 1) {
+    part(upper, box(0.3, 0.07, 0.06), palette.gunmetal, 0.3, 0.47, 0);
+    part(upper, cyl(0.07, 0.07, 0.05, 8), palette.gunmetal, 0.28, 0.41, 0).rotation.x = Math.PI / 2;
+  } else if (variant === 3) {
+    part(upper, box(0.3, 0.1, 0.09), palette.gunmetal, 0.28, 0.48, 0);
+    part(upper, box(0.4, 0.06, 0.06), palette.gunmetal, 0.62, 0.5, 0);
+  } else {
+    part(upper, box(0.3, 0.06, 0.06), palette.wood, 0.24, 0.47, 0);
+    part(upper, box(0.36, 0.035, 0.035), palette.gunmetal, 0.52, 0.49, 0);
+  }
+  part(upper, new THREE.IcosahedronGeometry(0.23, 1), skin, 0.02, 0.77, 0);
+  for (const z of [-0.07, 0.07]) part(upper, box(0.02, 0.05, 0.04), EYES, 0.235, 0.76, z);
+  if (variant === 0) part(upper, box(0.1, 0.12, 0.26), FADED_BROWN, 0.18, 0.66, 0); // full beard
+  if (variant === 3) part(upper, box(0.1, 0.1, 0.24), GINGER, 0.18, 0.66, 0);
+  const cap = new THREE.Group();
+  cap.position.y = 0.82;
+  upper.add(cap);
+  partsOf(root).cap = cap;
+  if (variant === 0) {
+    part(cap, new THREE.SphereGeometry(0.25, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), FADED_BROWN, 0, 0, 0); // knitted cap
+  } else if (variant === 1) {
+    part(cap, cyl(0.2, 0.23, 0.1, 10), OLIVE_DRAB, 0, 0.04, 0); // field cap
+    part(cap, cyl(0.245, 0.245, 0.06, 12), RAG, 0, -0.05, 0); // head bandage
+  } else if (variant === 2) {
+    part(cap, new THREE.SphereGeometry(0.27, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), OLIVE_DRAB, 0, 0, 0);
+    part(cap, cyl(0.31, 0.31, 0.035, 12), FADED_GREY, 0, 0.01, 0);
+  } else {
+    part(cap, box(0.06, 0.04, 0.06), GINGER, 0, 0.02, 0.12); // bare head: a tuft
+  }
+}
+
+/**
+ * The sniper (NT-01): a chibi body under a ghillie cape of camo scraps, with a long rifle. The
+ * sandbag horseshoe is a static prop of the nest (`createSniperNest`). About 380 tris.
+ */
+function sniper(root: THREE.Object3D) {
+  for (const z of [-0.08, 0.08]) {
+    part(root, box(0.11, 0.2, 0.11), OLIVE_DRAB, 0, 0.16, z);
+    part(root, box(0.16, 0.08, 0.12), palette.leather, 0.02, 0.04, z);
+  }
+  const upper = new THREE.Group();
+  root.add(upper);
+  partsOf(root).upper = upper;
+  part(upper, box(0.3, 0.32, 0.34), OLIVE_DRAB, 0, 0.42, 0);
+  // Ghillie cape: shaggy layers over back, shoulders and hood.
+  part(upper, box(0.26, 0.4, 0.42), palette.camoNet, -0.08, 0.46, 0);
+  for (const [x, y, z] of [[-0.18, 0.3, -0.16], [-0.2, 0.34, 0.15], [-0.05, 0.62, -0.18], [-0.06, 0.62, 0.18], [-0.22, 0.55, 0]] as const) {
+    part(upper, box(0.12, 0.14, 0.12), palette.grass, x, y, z);
+  }
+  for (const z of [-0.15, 0.15]) {
+    part(upper, box(0.24, 0.09, 0.09), palette.camoNet, 0.12, 0.44, z);
+    part(upper, box(0.08, 0.08, 0.08), palette.skin, 0.26, 0.44, z * 0.6);
+  }
+  part(upper, box(0.06, 0.1, 0.1), RAG, 0.02, 0.48, -0.17);
+  part(upper, box(0.3, 0.06, 0.06), palette.wood, 0.22, 0.47, 0);
+  part(upper, box(0.62, 0.035, 0.035), palette.gunmetal, 0.66, 0.49, 0);
+  part(upper, cyl(0.03, 0.03, 0.16, 6), palette.gunmetal, 0.3, 0.54, 0).rotation.z = Math.PI / 2; // scope
+  part(upper, new THREE.IcosahedronGeometry(0.23, 1), palette.skin, 0.02, 0.77, 0);
+  for (const z of [-0.07, 0.07]) part(upper, box(0.02, 0.05, 0.04), EYES, 0.235, 0.76, z);
+  const hood = new THREE.Group();
+  hood.position.y = 0.82;
+  upper.add(hood);
+  partsOf(root).cap = hood;
+  part(hood, new THREE.SphereGeometry(0.28, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), palette.camoNet, -0.03, 0, 0);
+  for (const z of [-0.14, 0.14]) part(hood, box(0.1, 0.1, 0.1), palette.grass, -0.08, 0.1, z);
+}
+
 /**
  * Shock Trooper (UN-01): the MG Soldier 12% larger, with goggles on the helmet, a team armband,
  * a bigger pack and spare drums on the belt. About 470 tris.
@@ -593,6 +696,45 @@ export function createMedkit(): THREE.Object3D {
   part(root, box(0.82, 0.1, 0.57), palette.khaki, 0, 0.12, 0);
   part(root, box(0.42, 0.02, 0.13), 0xffffff, 0, 0.51, 0);
   part(root, box(0.13, 0.02, 0.42), 0xffffff, 0, 0.51, 0);
+  bake(root, [root]);
+  root.traverse((o) => (o.castShadow = o.receiveShadow = true));
+  return root;
+}
+
+/**
+ * A deserter camp's campfire (NT-01): a ring of stones, crossed logs and a bright flame, the
+ * only warm colour in the Trench so camps are easy to spot. One baked mesh, no light (draw-call
+ * budget, D-073).
+ */
+export function createCampfire(): THREE.Object3D {
+  const root = new THREE.Group();
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    part(root, new THREE.IcosahedronGeometry(0.11, 0), palette.concrete, Math.cos(a) * 0.38, 0.07, Math.sin(a) * 0.38);
+  }
+  part(root, box(0.6, 0.08, 0.1), palette.wood, 0, 0.06, 0).rotation.y = 0.6;
+  part(root, box(0.6, 0.08, 0.1), palette.scorched, 0, 0.1, 0).rotation.y = -0.6;
+  part(root, new THREE.ConeGeometry(0.18, 0.5, 6), palette.fire, 0, 0.35, 0);
+  part(root, new THREE.ConeGeometry(0.1, 0.32, 5), palette.muzzle, 0.03, 0.3, 0.02);
+  bake(root, [root]);
+  root.traverse((o) => (o.receiveShadow = true));
+  return root;
+}
+
+/**
+ * A sniper nest's sandbag horseshoe (NT-01): three rows round the front, open at the back.
+ * Faces local +x (the nearest lane); decoration only, sandbags don't block (D-061).
+ */
+export function createSniperNest(): THREE.Object3D {
+  const root = new THREE.Group();
+  for (let row = 0; row < 3; row++) {
+    const n = 7 - row;
+    for (let i = 0; i < n; i++) {
+      const a = -1.6 + (3.2 * (i + (row % 2) * 0.5)) / (n - 1 + (row % 2));
+      const bag = part(root, box(0.22, 0.14, 0.42), row % 2 ? palette.sandbagShadow : palette.sandbag, Math.cos(a) * 0.95, 0.07 + row * 0.14, -Math.sin(a) * 0.95);
+      bag.rotation.y = a;
+    }
+  }
   bake(root, [root]);
   root.traverse((o) => (o.castShadow = o.receiveShadow = true));
   return root;

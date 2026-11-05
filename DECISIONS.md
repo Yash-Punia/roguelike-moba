@@ -1331,3 +1331,45 @@ From TDD §13:
   - The power text and the GDD §8 table say "+1 bullet per shot, fired straight after it at the same target".
 - Why: a fan spreads bullets off a single target, so a stack could miss with most of its shots. In a line every bullet reaches the target.
 - Alternatives: parallel bullets side by side (they would still miss a thin target); a longer gap between bullets (slower damage for no gain).
+
+## D-073 — Neutral camps: Deserter Squads and Sniper Nests
+- Date: 2026-11-06
+- Source: M4 row 1; numbers from GDD §4 and the NT-01 sheet, the rest made during development
+- Decision:
+  - **Data:** `data/neutrals.json` holds the camp kinds (unit stats, first spawn 0:30, respawn 40 / 60 s, XP 60 / 80, Ultimate charge +5 / +8) and the shared rules. `map.camps` lists each camp explicitly (id, kind, centre, count), like `medkits`, rather than reading room ids.
+  - **Squad size** follows the map spec: 4 deserters at C1 and C4, 3 at C2 and C3, on both maps. The GDD says squads of 3; the milestone row says 3 or 4.
+  - **Numbers the docs don't give:**
+    - deserter rifle: 20 damage every 1 s, 5 m, 25 m/s;
+    - sniper: one shot every 2.5 s, 40 m/s;
+    - both 0.35 m radius;
+    - the sniper never moves (move speed 0) and holds its nest;
+    - squad members stand on a 1.2 m ring round the campfire, facing it.
+    - A lone unit (the sniper) faces the nearest lane point. Deserter variants (Rifleman, Scrounger, Old Hand, Gunner) go by place in the ring, never RNG.
+  - **State machine** (TDD §6.8): `Idle` → `Engaged` on the first hit → `Leashing` → `Idle`; the last death goes to `Respawning` (`Dead` has no state of its own).
+    - Engaged: every member fights the camp's target. It keeps that target while the target stands; otherwise it takes the latest unit that hit the camp within `resetSeconds`. Members walk to it until it is in range and in sight.
+    - Leashing starts when a chase step would take a member past 10 m from its spot, when no attacker is left, or after `resetSeconds` (4 s) without a hit dealt or taken. The last rule is what resets the sniper, which never moves.
+    - Leashing: `Health.invulnerable` on, no shooting, walk home 50% faster. When all are home, or after `resetSeconds` (stragglers stuck on a wall snap home), they heal to full, burns end, and the camp is `Idle`.
+    - Members killed before a leash stay dead until the whole camp respawns.
+  - **Targeting:**
+    - camps ignore Trench concealment and fog: they only fight whoever hit them;
+    - they never fight structures;
+    - champions shoot them last (`TargetClass.Neutral`); minions, towers and the lane read ignore them (new `Kind.Neutral`).
+    - Camp units hide in the Trench like everything else (D-056), so from a lane you see the campfire, not the deserters.
+  - **Rewards:**
+    - the last death emits `campCleared` with the killing blow's team, which can be a minion's team, e.g. Bazooka splash;
+    - every living champion of that team within `rewardRadius` (10 m) of the last unit gets the Ultimate charge (not split) and an even share of the XP;
+    - a debug kill pays nobody;
+    - single deaths pay nothing (no per-unit XP);
+    - neutral deaths count as non-champion kills for powers: Scavenger heals, Adrenaline doesn't.
+  - **Render:**
+    - deserters and the sniper reuse the MG Soldier's chibi body in faded neutral colours with a white rag armband (the sniper wears a ghillie cape);
+    - they get ground blobs, not shadow-map shadows;
+    - campfires and the sniper's sandbag horseshoe are static baked props, decoration only (D-061);
+    - the campfire has no light, only bright flame colours (draw-call budget);
+    - a sniper the viewer can see draws a thin danger-red aim line to its target while it has one, all in one draw. Ground telegraphs come with the next row.
+  - **Not yet:** bots taking camps (M4 bot AI), the deserters sitting round the fire.
+- Why: M4 row 1. Clearing a camp is a reward that only movement and positioning decide: kite the squad, leash it, or let it chase.
+- Alternatives:
+  - XP per unit death (it would pay partial clears and split rewards between teams);
+  - a sniper that walks out to chase (it would leave its nest, against the sheet);
+  - a point light per campfire (an extra shader cost on every lit material).

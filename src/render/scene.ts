@@ -7,7 +7,8 @@ import { DamageNumbers, damageColours } from './damage-numbers';
 import { EpicFx } from './epic-fx';
 import { Fog } from './fog';
 import { HpBars, type HpBar } from './hp-bars';
-import { createCave, createMedkit, createModel, createSpawnPad, partsOf } from './models';
+import { createCampfire, createCave, createMedkit, createModel, createSniperNest, createSpawnPad, partsOf } from './models';
+import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
 import { Knockouts } from './knockout';
 import { TargetLine } from './target-line';
@@ -133,6 +134,16 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   blobs.renderOrder = 1;
   scene.add(blobs);
   const blobMatrix = new THREE.Matrix4();
+  // Sniper aim lines (NT-01): thin danger red from each sniper to its target, all in one draw.
+  const MAX_AIM_LINES = 8;
+  const aimLines = new THREE.LineSegments(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_AIM_LINES * 6), 3)),
+    new THREE.LineBasicMaterial({ color: palette.danger, transparent: true, opacity: 0.85, depthWrite: false }),
+  );
+  aimLines.frustumCulled = false;
+  aimLines.renderOrder = 4;
+  scene.add(aimLines);
+  const snipers = new Set<number>();
   // Every HP bar in three instanced draws (D-044).
   const barLayer = new HpBars();
   scene.add(barLayer.group);
@@ -182,6 +193,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         const root = createModel(e.kind, e.modelId, side(e.team));
         scene.add(root);
         meshes.set(e.id, root);
+        if (e.modelId === 'sniper') snipers.add(e.id);
       }
       let bar = bars.get(e.id);
       if (!bar && e.maxHp > 0) {
@@ -255,6 +267,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       interp.delete(id);
       teams.delete(id);
       fades.delete(id);
+      snipers.delete(id);
       bars.get(id)?.dispose();
       bars.delete(id);
     }
@@ -370,7 +383,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.ix = x;
       s.iy = y;
       mesh.position.set(x, arena.terrain.heightAt(x, y), -y);
-      if (s.kind === Kind.Minion && blobCount < blobs.instanceMatrix.count && (fades.get(id)?.k ?? 1) > 0) {
+      if ((s.kind === Kind.Minion || s.kind === Kind.Neutral) && blobCount < blobs.instanceMatrix.count && (fades.get(id)?.k ?? 1) > 0) {
         blobMatrix.makeTranslation(x, mesh.position.y + 0.03, -y);
         blobs.setMatrixAt(blobCount++, blobMatrix);
       }
@@ -395,6 +408,21 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     }
     blobs.count = blobCount;
     blobs.instanceMatrix.needsUpdate = true;
+    // A sniper the viewer can see draws its aim line while it has a target (TDD §10 danger red).
+    const linePos = aimLines.geometry.getAttribute('position') as THREE.BufferAttribute;
+    let lines = 0;
+    for (const id of snipers) {
+      const s = interp.get(id);
+      const t = s && s.targetId ? interp.get(s.targetId) : undefined;
+      if (!s || !t || fades.has(id) || lines >= MAX_AIM_LINES) continue;
+      const h = arena.terrain.heightAt;
+      linePos.setXYZ(lines * 2, s.ix, h(s.ix, s.iy) + 0.95, -s.iy);
+      linePos.setXYZ(lines * 2 + 1, t.ix, h(t.ix, t.iy) + 0.7, -t.iy);
+      lines++;
+    }
+    linePos.needsUpdate = true;
+    aimLines.geometry.setDrawRange(0, lines * 2);
+    aimLines.visible = lines > 0;
     for (const [id, f] of fades) {
       const root = meshes.get(id)!;
       const step = (dt * 1000) / CONCEAL_MS;
@@ -517,5 +545,24 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     group.add(kit);
     return kit;
   });
+  // Camp props (NT-01): a campfire at each deserter camp, a sandbag horseshoe facing the nearest lane at each sniper nest.
+  const lanePts = buildLanes(map).flatMap((l) => l.branches);
+  for (const c of map.camps) {
+    const prop = c.kind === 'sniper' ? createSniperNest() : createCampfire();
+    prop.position.set(c.x, terrain.heightAt(c.x, c.y), -c.y);
+    if (c.kind === 'sniper') {
+      let best = Infinity;
+      for (const pts of lanePts) {
+        for (let k = 0; k < pts.length; k += 2) {
+          const d = Math.hypot(pts[k]! - c.x, pts[k + 1]! - c.y);
+          if (d < best) {
+            best = d;
+            prop.rotation.y = Math.atan2(pts[k + 1]! - c.y, pts[k]! - c.x);
+          }
+        }
+      }
+    }
+    group.add(prop);
+  }
   return { group, terrain, medkits };
 }
