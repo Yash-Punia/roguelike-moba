@@ -612,7 +612,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     },
   };
   const campContext: CampContext = {
-    world, neutrals, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, concealments, statuses, events, clear,
+    world, neutrals, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, statuses, events, clear,
     camps: createCamps(config.map, config.neutrals),
     lanes: () => lanes,
     pool: [],
@@ -769,7 +769,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       spatial.rebuild(healths.ids, transforms);
       minionSystem(minionContext, config.units, tick);
-      campSystem(campContext, config.neutrals, damageLog, tick);
+      campSystem(campContext, config.neutrals, tick);
       summonSystem(summonContext, tick);
       movementSystem(motions, transforms, colliders, healths, grid, config.map, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);

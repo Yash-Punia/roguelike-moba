@@ -175,3 +175,45 @@ describe('camp placement (map spec)', () => {
     }
   });
 });
+
+describe('camps are always seen, and need two champions (D-074)', () => {
+  it('stay visible to both teams in a Trench and in the fog', () => {
+    const a = arena([], (c) => {
+      c.combat.fog.enabled = true;
+      c.map.camps = [SQUAD];
+    });
+    a.step(1);
+    const snap = a.sim.snapshot();
+    const units = snap.entities.filter((e) => e.kind === Kind.Neutral);
+    expect(units).toHaveLength(3); // the shipped camps spawn at 0:00
+    for (const e of units) expect(e.visibleMask & 3).toBe(3);
+  });
+
+  /** Shipped camp numbers against level 1 Alphas that stand and shoot: who is left after a minute? */
+  function duel(spot: Config['map']['camps'][number], champions: number) {
+    const others: Unit[] = champions > 1 ? [{ team: Team.Blue, x: spot.x + 1.5, y: spot.y - 6, armed: true }] : [];
+    const a = arena(others, (c) => {
+      c.map.camps = [spot];
+    });
+    a.move(a.shooter, spot.x - 1.5, spot.y - 6);
+    let cleared = false;
+    let down = false; // arena champions respawn: stop at the first knock-out
+    for (let i = 0; i < 60 * 30 && !cleared && !down; i++) {
+      for (const ev of a.sim.step([]).events) {
+        if (ev.type === 'campCleared') cleared = true;
+        if (ev.type === 'death' && ev.unit === undefined) down = true;
+      }
+    }
+    const alive = a.sim.stores.champions.ids.filter((e) => a.sim.stores.healths.get(e)!.hp > 0).length;
+    return { cleared, alive };
+  }
+
+  it.each([
+    ['a deserter squad of 3', SQUAD],
+    ['a deserter squad of 4', { ...SQUAD, count: 4 }],
+    ['a sniper nest', NEST],
+  ])('one champion loses to %s, two clear it', (_, spot) => {
+    expect(duel(spot, 1)).toEqual({ cleared: false, alive: 0 });
+    expect(duel(spot, 2)).toEqual({ cleared: true, alive: 2 });
+  });
+});

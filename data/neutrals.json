@@ -7,17 +7,17 @@
   "camps": {
     "deserter": {
       "name": "Deserter Squad",
-      "firstSpawnSeconds": 30,
+      "firstSpawnSeconds": 0,
       "respawnSeconds": 40,
-      "xp": 60,
+      "xp": 200,
       "ultCharge": 5,
       "unit": {
-        "maxHp": 350,
+        "maxHp": 900,
         "radius": 0.35,
         "moveSpeed": 2.6,
         "weapon": {
           "kind": "bullet",
-          "damage": 20,
+          "damage": 32,
           "interval": 1,
           "range": 5,
           "projectileSpeed": 25
@@ -26,18 +26,18 @@
     },
     "sniper": {
       "name": "Sniper Nest",
-      "firstSpawnSeconds": 30,
+      "firstSpawnSeconds": 0,
       "respawnSeconds": 60,
-      "xp": 80,
+      "xp": 160,
       "ultCharge": 8,
       "unit": {
-        "maxHp": 300,
+        "maxHp": 2000,
         "radius": 0.35,
         "moveSpeed": 0,
         "weapon": {
           "kind": "bullet",
-          "damage": 60,
-          "interval": 2.5,
+          "damage": 140,
+          "interval": 2,
           "range": 9,
           "projectileSpeed": 40
         }

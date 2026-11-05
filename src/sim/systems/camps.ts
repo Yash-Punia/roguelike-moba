@@ -6,7 +6,7 @@ import type { SimEvent } from '../events';
 import { atan2, cos, len, sin } from '../math';
 import {
   Kind, TargetClass, Team,
-  type Collider, type Concealment, type Health, type Motion, type Status, type Targeting, type Transform, type Weapon,
+  type Collider, type Health, type Motion, type Status, type Targeting, type Transform, type Weapon,
 } from '../sim';
 
 type Neutrals = Config['neutrals'];
@@ -35,6 +35,9 @@ export interface Camp {
   leashTick: number;
   /** Respawning: the tick the camp comes back. */
   respawnAt: number;
+  /** Engaged: every unit that hit the camp within `resetSeconds` and can still be fought, and the tick of its last hit. */
+  attackers: Entity[];
+  attackerTicks: number[];
 }
 
 /** A camp unit (TDD §5 `Neutral`): its camp, and its own spot and facing at the camp. */
@@ -58,7 +61,6 @@ export interface CampContext {
   targetClasses: Store<TargetClass>;
   kinds: Store<Kind>;
   models: Store<string>;
-  concealments: Store<Concealment>;
   statuses: Store<Status>;
   events: SimEvent[];
   camps: Camp[];
@@ -77,14 +79,13 @@ export interface CampBundle {
   weapon: Weapon;
   targeting: Targeting;
   neutral: Neutral;
-  concealment: Concealment;
   status: Status;
 }
 
 /** Every camp of the map, waiting for its first spawn. */
 export function createCamps(map: Config['map'], n: Neutrals): Camp[] {
   return map.camps.map((spot) => ({
-    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds,
+    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [],
   }));
 }
 
@@ -132,7 +133,6 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
       weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 },
       targeting: { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 },
       neutral: { camp: 0, homeX: 0, homeY: 0, homeFacing: 0 },
-      concealment: { zone: 0, visible: 0 },
       status: { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffStat: 0, buffPct: 0, buffTicks: 0 },
     };
     Object.assign(b.transform, { x, y, facing });
@@ -142,7 +142,6 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
     Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
     Object.assign(b.neutral, { camp: index, homeX: x, homeY: y, homeFacing: facing });
-    Object.assign(b.concealment, { zone: 0, visible: 0xff });
     Object.assign(b.status, { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffPct: 0, buffTicks: 0 });
     ctx.transforms.add(e, b.transform);
     ctx.motions.add(e, b.motion);
@@ -155,7 +154,6 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     ctx.kinds.add(e, Kind.Neutral);
     ctx.models.add(e, spot.kind === 'sniper' ? 'sniper' : `deserter${k % 4}`);
     ctx.neutrals.add(e, b.neutral);
-    ctx.concealments.add(e, b.concealment);
     ctx.statuses.add(e, b.status);
   }
   camp.members = spot.count;
@@ -172,21 +170,10 @@ function fightable(ctx: CampContext, e: Entity): boolean {
   return !!h && h.hp > 0;
 }
 
-/** The latest unit that hit a member of `camp` since `since` and can still be fought, or 0. */
-function recentAttacker(ctx: CampContext, log: DamageLog, camp: number, since: number): Entity {
-  for (let k = log.count - 1; k >= 0; k--) {
-    const s = log.slot(k);
-    if (log.tick[s]! < since) break;
-    if (ctx.neutrals.get(log.target[s]!)?.camp !== camp) continue;
-    const src = log.source[s]!;
-    if (fightable(ctx, src)) return src;
-  }
-  return 0;
-}
-
 function goHome(ctx: CampContext, camp: Camp, index: number, tick: number) {
   camp.state = CampState.Leashing;
   camp.aggro = 0;
+  camp.attackers.length = camp.attackerTicks.length = 0;
   camp.leashTick = tick;
   const { neutrals } = ctx;
   for (let i = 0; i < neutrals.ids.length; i++) {
@@ -196,9 +183,8 @@ function goHome(ctx: CampContext, camp: Camp, index: number, tick: number) {
 
 /**
  * Camp aggro (TDD §6.8), right after the damage stage like call for help: a hit on a member
- * engages an idle camp on the attacker; an engaged camp keeps its target while it stands and
- * otherwise takes the latest attacker. Hits
- * dealt or taken keep the camp in combat. A leashing camp is invulnerable, so takes none.
+ * engages an idle camp and adds the attacker to the camp's list (D-074). Hits dealt or taken
+ * keep the camp in combat. A leashing camp is invulnerable, so takes none.
  */
 export function campAggroSystem(ctx: CampContext, log: DamageLog, tick: number) {
   const { neutrals, camps } = ctx;
@@ -214,24 +200,33 @@ export function campAggroSystem(ctx: CampContext, log: DamageLog, tick: number) 
     if (camp.state !== CampState.Idle && camp.state !== CampState.Engaged) continue;
     camp.lastCombatTick = tick;
     if (!fightable(ctx, src)) continue;
-    if (camp.state === CampState.Idle || !fightable(ctx, camp.aggro)) camp.aggro = src;
+    if (camp.state === CampState.Idle) camp.aggro = src;
     camp.state = CampState.Engaged;
+    const at = camp.attackers.indexOf(src);
+    if (at < 0) {
+      camp.attackers.push(src);
+      camp.attackerTicks.push(tick);
+    } else if (camp.attackerTicks[at]! < tick) {
+      camp.attackerTicks[at] = tick;
+    }
   }
 }
 
 /**
  * Neutral camps (GDD §4, TDD §6.8, D-073), before movement:
  * - `Respawning` → spawn at `respawnAt` → `Idle`: units hold their spot and fire at nothing.
- * - `Engaged` (on first damage, `campAggroSystem`): every member fights the aggro target, the
- *   latest attacker still standing; members walk to it until it is in range and in sight. A
+ * - `Engaged` (on first damage, `campAggroSystem`): each member shoots the nearest unit that hit
+ *   the camp within `resetSeconds` and that it can reach and see; otherwise it walks to the
+ *   nearest of them (D-074). A
  *   chase step that would take a member past `leashRadius` from its spot, no attacker left, or
  *   `resetSeconds` without a hit dealt or taken sends the camp home.
  * - `Leashing`: invulnerable, no shooting, everyone walks to their spot `returnSpeedPct` faster.
  *   When all are home (or after `resetSeconds`, snapping stragglers stuck on walls) they heal to
  *   full and the camp is `Idle` again.
- * Camps ignore Trench concealment and fog: they only ever fight whoever hit them.
+ * Camp units have no concealment: they are seen by everyone, in a Trench or the fog (D-074). They
+ * fight only units that hit them, each member the nearest it can shoot, so a pair splits the fire.
  */
-export function campSystem(ctx: CampContext, n: Neutrals, log: DamageLog, tick: number) {
+export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
   const { camps, neutrals, transforms, motions, weapons, targetings, colliders } = ctx;
   for (let c = 0; c < camps.length; c++) {
     const camp = camps[c]!;
@@ -240,8 +235,16 @@ export function campSystem(ctx: CampContext, n: Neutrals, log: DamageLog, tick: 
       continue;
     }
     if (camp.state !== CampState.Engaged) continue;
-    if (!fightable(ctx, camp.aggro)) camp.aggro = recentAttacker(ctx, log, c, tick - n.resetSeconds);
-    if (camp.aggro === 0 || tick - camp.lastCombatTick > n.resetSeconds) goHome(ctx, camp, c, tick);
+    // Forget attackers that are down, gone or quiet for `resetSeconds` (in place, keeping order).
+    let kept = 0;
+    for (let k = 0; k < camp.attackers.length; k++) {
+      const o = camp.attackers[k]!;
+      if (!fightable(ctx, o) || tick - camp.attackerTicks[k]! > n.resetSeconds) continue;
+      camp.attackers[kept] = o;
+      camp.attackerTicks[kept++] = camp.attackerTicks[k]!;
+    }
+    camp.attackers.length = camp.attackerTicks.length = kept;
+    if (camp.attackers.length === 0 || tick - camp.lastCombatTick > n.resetSeconds) goHome(ctx, camp, c, tick);
   }
 
   for (let i = 0; i < neutrals.ids.length; i++) {
@@ -256,12 +259,28 @@ export function campSystem(ctx: CampContext, n: Neutrals, log: DamageLog, tick: 
     m.intentX = m.intentY = 0;
     m.speed = def.moveSpeed;
     if (camp.state === CampState.Engaged) {
-      const target = camp.aggro;
+      // The nearest attacker it can shoot; otherwise walk to the nearest one.
+      const range = weapons.get(e)!.range;
+      let target: Entity = 0;
+      let best = Infinity;
+      for (let k = 0; k < camp.attackers.length; k++) {
+        const o = camp.attackers[k]!;
+        const ot = transforms.get(o)!;
+        const dist = len(ot.x - t.x, ot.y - t.y);
+        const shootable = dist - (colliders.get(o)?.radius ?? 0) <= range && ctx.clear(t.x, t.y, ot.x, ot.y);
+        const score = shootable ? dist : dist + 1e6; // anything in range beats the rest
+        if (score < best) {
+          best = score;
+          target = o;
+        }
+      }
+      if (target === 0) continue;
+      camp.aggro = target;
       const ot = transforms.get(target)!;
       const dx = ot.x - t.x;
       const dy = ot.y - t.y;
       const d = len(dx, dy);
-      if (d - (colliders.get(target)?.radius ?? 0) <= weapons.get(e)!.range && ctx.clear(t.x, t.y, ot.x, ot.y)) {
+      if (best < 1e6) {
         tg.targetId = target;
         continue;
       }
@@ -341,6 +360,7 @@ export function campDeathSystem(ctx: CampContext, n: Neutrals, tick: number) {
       events.push({ type: 'campCleared', camp: camp.spot.id, kind, team: team === Team.Neutral ? undefined : team, x: t.x, y: t.y });
       camp.state = CampState.Respawning;
       camp.aggro = 0;
+      camp.attackers.length = camp.attackerTicks.length = 0;
       camp.respawnAt = tick + n.camps[kind].respawnSeconds;
     }
     ctx.pool.push({
@@ -351,7 +371,6 @@ export function campDeathSystem(ctx: CampContext, n: Neutrals, tick: number) {
       weapon: ctx.weapons.get(e)!,
       targeting: ctx.targetings.get(e)!,
       neutral: u,
-      concealment: ctx.concealments.get(e)!,
       status: ctx.statuses.get(e)!,
     });
     ctx.world.destroy(e);

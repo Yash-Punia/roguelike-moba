@@ -1373,3 +1373,22 @@ From TDD §13:
   - XP per unit death (it would pay partial clears and split rewards between teams);
   - a sniper that walks out to chase (it would leave its nest, against the sheet);
   - a point light per campfire (an extra shader cost on every lit material).
+
+## D-074 — Camps: always visible, up from 0:00, a job for two champions
+- Date: 2026-11-06
+- Source: user request (keep deserters and sniper nests visible at all times, spawn them at the start, make them hard enough that a camp takes two champions); the numbers made during development
+- Decision:
+  - **Visible:** camp units have no `Concealment`, so both teams see them in a Trench and in the fog. Supersedes D-073's "camp units hide in the Trench".
+  - **Spawn:** `firstSpawnSeconds` 0 for both kinds, so every camp is up from the first tick.
+  - **Split fire:** a camp keeps a list of its attackers: every unit that hit it, dropped after `resetSeconds` without a hit or when it falls. Each member shoots the nearest attacker it can reach and see, otherwise walks to the nearest one. Two champions therefore share the damage. Before this, the whole camp focused one champion, which made a second champion barely safer.
+    - The list replaces reading the damage log. A hit on a member that has since died no longer counts as nothing, which had sent a camp home in mid-fight.
+  - **Tuning** against a level 1 champion that stands and shoots (Alpha: 1,000 HP, about 114 damage a second):
+    - deserter: 900 HP and 32 damage a second each (was 350 / 20). A squad of 3 deals about 1,500 to one Alpha, but about 380 to each of two.
+    - sniper: 2,000 HP and 140 every 2 s (was 300 / 60 every 2.5 s). Alone, Alpha takes about 1,230.
+    - Rewards up to match the work: deserter squad 200 XP, sniper nest 160 XP (were 60 / 80). The Ultimate charge is unchanged.
+    - Champions outgrow camps: with +4% damage and +5% HP a level, a single champion can take a squad alone from about level 7 to 8.
+  - **Tests:** with the shipped numbers, one Alpha loses to a squad of 3, a squad of 4 and a nest, and two Alphas clear each one with both standing.
+- Why: camps should be a team objective, and a reason to leave the lane together. Bots farming them in pairs is the next commit.
+- Alternatives:
+  - one camp target for everyone, with only more HP (the tank champion still takes all the damage);
+  - camp stats that grow with match time (not asked for; levels already make camps easier, which is the reward for farming).
