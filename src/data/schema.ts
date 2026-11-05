@@ -283,7 +283,7 @@ const Effect = z.discriminatedUnion('type', [
   /** Heal pctPerSecond of max HP while out of combat for outOfCombatSeconds (Field Medic). */
   z.object({ type: z.literal('regen'), pctPerSecond: pct(), outOfCombatSeconds: secs() }),
   /**
-   * Weapon changes. `shots`: more projectiles per trigger pull, `shotSpread` apart (a burst
+   * Weapon changes. `shots`: more bullets per trigger pull, fired as a burst straight at the target (D-072; a burst
    * weapon gets them as more bullets per burst; a cone weapon converts them, GDD §8 rule 8, to
    * `cone.angle` wider and `cone.range` longer). `burst`: more bullets per burst. `pierce`:
    * enemies a bullet passes through. `ricochet`: on its last hit a bullet bounces to the nearest
@@ -292,7 +292,6 @@ const Effect = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('weaponMod'),
     shots: z.number().int().min(0).default(0),
-    shotSpread: deg().default(4),
     cone: z.object({ angle: deg(), range: nonneg() }).optional(),
     burst: z.number().int().min(0).default(0),
     pierce: z.number().int().min(0).default(0),

@@ -33,9 +33,8 @@ export const STAT: Record<StatName, Stat> = {
  * radians as converted at load. 0 = none.
  */
 export interface PowerMods {
-  /** Extra projectiles per trigger pull, and the angle between them. */
+  /** Extra bullets per trigger pull, fired as a burst straight at the target (Double Tap, D-072). */
   shots: number;
-  shotSpread: number;
   /** Cone weapons: wider and longer instead of extra projectiles. */
   coneAngle: number;
   coneRange: number;
@@ -118,7 +117,7 @@ export interface PowerMods {
 
 export function emptyMods(): PowerMods {
   return {
-    shots: 0, shotSpread: 0, coneAngle: 0, coneRange: 0, burst: 0, pierce: 0, ricochetCount: 0, ricochetRadius: 0, ricochetPct: 0, critEvery: 0,
+    shots: 0, coneAngle: 0, coneRange: 0, burst: 0, pierce: 0, ricochetCount: 0, ricochetRadius: 0, ricochetPct: 0, critEvery: 0,
     burnDps: 0, burnTicks: 0, markPct: 0, markTicks: 0, scavengeRadius: 0, scavengePct: 0, lowHpBelow: 0, lowHpShield: 0, lowHpTicks: 0, lowHpCooldown: 0,
     dugInStat: Stat.DamageTaken, dugInPct: 0, dugInRadius: 0, killStat: Stat.MoveSpeed, killPct: 0, killTicks: 0,
     groundDps: 0, groundTicks: 0, groundRadius: 0, groundEvery: 0, bombletCount: 0, bombletDamage: 0, bombletRadius: 0, bombletSpread: 0, auraRadiusPct: 0, auraExtraTicks: 0,
@@ -138,7 +137,6 @@ export function foldMods(m: PowerMods, p: Config['powers'], owned: Readonly<Reco
       switch (fx.type) {
         case 'weaponMod':
           m.shots += fx.shots * n;
-          m.shotSpread = Math.max(m.shotSpread, fx.shotSpread);
           if (fx.cone) {
             m.coneAngle += fx.cone.angle * n;
             m.coneRange += fx.cone.range * n;

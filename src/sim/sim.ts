@@ -513,7 +513,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       Object.assign(w, def.weapon);
       if (mods) {
         if (w.kind === 'cone') w.coneAngle += mods.coneAngle;
-        else if (w.burstCount > 1) w.burstCount += mods.shots; // a burst weapon's extra projectiles join the burst
+        else w.burstCount += mods.shots; // Double Tap: extra bullets join the burst, straight at the target (D-072)
         w.burstCount += mods.burst;
       }
     }

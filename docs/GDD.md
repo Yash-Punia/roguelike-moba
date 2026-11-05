@@ -381,7 +381,7 @@ A solo laner earns roughly 240 XP per minute from waves alone, so an active play
 | Flak Vest | Common | All | −10% damage taken |
 | Field Medic | Common | All | Regenerate 2% max HP per second after 3 s out of combat |
 | Quick Charge | Common | All | +15% Ultimate charge from all sources |
-| Double Tap | Rare | All | +1 projectile per shot or burst (Gamma: +10° cone, +0.5 m range) |
+| Double Tap | Rare | All | +1 bullet per shot, fired straight after it at the same target (Gamma: +10° cone, +0.5 m range) |
 | Ricochet | Rare | All | Bullets bounce to 1 more enemy within 4 m for 50% damage |
 | Piercing Rounds | Rare | All | Bullets pass through the first enemy hit |
 | Incendiary Rounds | Rare | All | Hits burn for 20 damage per second for 2 s |

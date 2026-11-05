@@ -54,7 +54,7 @@ export interface WeaponsContext {
  * Each shot rolls `critChance` on the seeded `crit` stream (only when the chance is above 0);
  * a crit carries `critMultiplier` into the damage pipeline. A cone weapon (Gamma) aims the
  * same way but fires no projectile: each flame hits every enemy in its sector at once.
- * Powers (D-060): extra projectiles fan out `shotSpread` apart round the aim; every
+ * Powers (D-060): Double Tap's extra bullets join the burst (D-072); every
  * `critEvery`th trigger pull is a crit; bullets carry pierce and ricochet counters; a cone
  * leaves burning ground every `groundEvery` while it flames.
  */
@@ -122,11 +122,9 @@ export function weaponsSystem(shooters: readonly Entity[], ctx: WeaponsContext, 
       continue;
     }
     const boost = ctx.shotMultiplier(e, target);
-    // Extra projectiles (Double Tap) fan out round the aim; a burst weapon gets them in its burst instead.
-    const extra = mods && w.burstCount <= 1 ? mods.shots : 0;
-    for (let j = 0; j <= extra; j++) fire(e, w, t, ctx, cfg, target, desired + (j - extra / 2) * (mods?.shotSpread ?? 0), w.damage * boost, critMult, boost);
+    fire(e, w, t, ctx, cfg, target, desired, w.damage * boost, critMult, boost);
     w.cooldown += w.interval;
-    // A burst weapon (Beta's SMG) queues the rest along its aim, `burstGapSeconds` apart (TDD §6.3).
+    // A burst (Beta's SMG, or Double Tap's extra bullets, D-072) queues the rest along its aim, `burstGapSeconds` apart (TDD §6.3).
     w.burstLeft = w.burstCount - 1;
     w.burstWait = w.burstGapSeconds;
     w.burstTarget = target;
@@ -190,7 +188,7 @@ function drone(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, cfg: Con
   const tt = ctx.transforms.get(target);
   if (!tt) return;
   const p = dronePosition(t.x, t.y, mods.droneOrbit, tick, droneAt);
-  const bullets = w.kind === 'cone' ? 1 : w.burstCount * (1 + (w.burstCount <= 1 ? mods.shots : 0));
+  const bullets = w.kind === 'cone' ? 1 : w.burstCount;
   const dx = tt.x - p.x;
   const dy = tt.y - p.y;
   const d = len(dx, dy) || 1;

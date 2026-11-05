@@ -40,7 +40,18 @@ describe('stat Rares (D-060)', () => {
 });
 
 describe('weapon mods (D-060)', () => {
-  it('Double Tap: two bullets per shot that both land; a burst weapon gets one more bullet per burst', () => {
+  it('Double Tap: a second bullet straight behind the first, same line, both land (D-072); a burst weapon gets one more bullet per burst', () => {
+    const m = withGrants([{ team: Red, x: 0, y: 5 }], ['doubleTap']);
+    expect(m.sim.stores.weapons.get(m.shooter)!.burstCount).toBe(2);
+    // Both bullets in flight fly the same direction (no fan).
+    let seen = 0;
+    for (let i = 0; i < 60 && seen < 2; i++) {
+      m.step(1);
+      const ps = m.sim.snapshot().projectiles;
+      seen = ps.length;
+      if (ps.length === 2) expect(Math.atan2(ps[1]!.vy, ps[1]!.vx)).toBeCloseTo(Math.atan2(ps[0]!.vy, ps[0]!.vx), 5);
+    }
+    expect(seen).toBe(2);
     expect(firstVolley(withGrants([{ team: Red, x: 0, y: 5 }], ['doubleTap']), 2)).toBeCloseTo(190);
     const burst = withGrants([], ['doubleTap', 'extendedMag'], (c) => {
       c.champions[0]!.weapon.burstCount = 4;

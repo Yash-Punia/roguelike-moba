@@ -1319,3 +1319,15 @@ From TDD §13:
 - Decision: `match.lanes` in `data/match.json` is 2, so a plain page load plays The Bridgehead. `?lanes=3` (or the debug panel's lanes picker) plays The Front. Tests still build The Front from `rawConfig.map` unless they pick `maps[2]`, so their numbers don't move.
 - Why: the user wants the 2-lane map as the everyday match.
 - Alternatives: none considered.
+
+## D-072 — Double Tap fires in a line, not a fan
+- Date: 2026-11-05
+- Source: user feedback (the fanned extra bullets weren't useful; wanted several bullets in the same direction at the enemy); the rest made during development
+- Decision:
+  - Double Tap's extra bullets join the weapon's burst on every bullet weapon, not only on a burst weapon (D-060). Each fires one burst gap (one tick by default) after the last, along the same aim at the same target. Two stacks on Alpha's revolver give three bullets about 0.85 m apart in one line.
+  - The fan is gone: `shotSpread` is removed from the schema, the power mods and `powers.json`.
+  - Beta's SMG and Gamma's flamethrower are unchanged: Beta still gets +1 bullet per burst, Gamma the wider, longer cone.
+  - Attack Drone counts the burst, which now includes Double Tap's bullets, so its damage is unchanged.
+  - The power text and the GDD §8 table say "+1 bullet per shot, fired straight after it at the same target".
+- Why: a fan spreads bullets off a single target, so a stack could miss with most of its shots. In a line every bullet reaches the target.
+- Alternatives: parallel bullets side by side (they would still miss a thin target); a longer gap between bullets (slower damage for no gain).

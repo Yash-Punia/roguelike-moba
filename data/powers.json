@@ -169,12 +169,11 @@
         "damage",
         "projectile"
       ],
-      "text": "+1 projectile per shot or burst (flamethrower: +10° cone, +0.5 m range)",
+      "text": "+1 bullet per shot, fired straight after it at the same target (flamethrower: +10° cone, +0.5 m range)",
       "effects": [
         {
           "type": "weaponMod",
           "shots": 1,
-          "shotSpread": 4,
           "cone": {
             "angle": 10,
             "range": 0.5
