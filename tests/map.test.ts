@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig, rawConfig } from '../src/data/load';
+import { maps, parseConfig, rawConfig } from '../src/data/load';
 import { buildLanes, rasterise, sampleSpline, segmentDistSq } from '../src/data/map-geometry';
-import { buildGrid, type ObstacleGrid } from '../src/sim/grid';
+import { buildGrid, rayBlocked, type ObstacleGrid } from '../src/sim/grid';
 import { fnv1a } from '../src/sim/rng';
 import { reachable } from './helpers';
 
@@ -114,5 +114,76 @@ describe('map v2: The Front', () => {
     expect(ids[at(0, -66)!]).toBe('centre-blue'); // lane over apron
     expect(ids[at(0, 0)!]).toBe('crater');
     expect(ids[at(0, 12)!]).toBe('crater-ramp-n');
+  });
+});
+
+describe('The Bridgehead (D-069)', () => {
+  const bh = parseConfig({ ...rawConfig, map: maps[2] }).map;
+  const grid = buildGrid(bh);
+  const cellAt = (x: number, y: number) => Math.floor((y - grid.minY) / grid.cell) * grid.cols + Math.floor((x - grid.minX) / grid.cell);
+
+  it('has the spec layout: 2 lanes, 4 Sub-bases, 8 rooms, 2 arenas, the island', () => {
+    expect(bh.lanes.map((l) => l.id)).toEqual(['left', 'right']);
+    expect(bh.structures.filter((p) => p.kind === 'subBase')).toHaveLength(4);
+    expect(bh.walkable.filter((w) => w.id.startsWith('room-'))).toHaveLength(8);
+    expect(bh.walkable.filter((w) => w.id.startsWith('arena-'))).toHaveLength(2);
+    expect(grid.cols).toBe(120);
+    expect(grid.rows).toBe(304);
+  });
+
+  it('blocks the river for movement but not for shots or sight', () => {
+    for (const [x, y] of [[-16, -1.5], [16, 1.5], [-26, -2.2]] as const) {
+      expect(blockedAt(grid, x, y), `${x},${y}`).toBe(true);
+      expect(grid.ground[cellAt(x, y)], `${x},${y}`).toBe(0);
+    }
+    expect(rayBlocked(grid, -19, -1.5, -12, -2.5)).toBe(-1); // left bridge to west ford, over the water
+    expect(rayBlocked(grid, -16, -8, -16, 6)).toBeGreaterThanOrEqual(0); // the jungle banks still block
+  });
+
+  it.each([
+    ['left bridge', -21, -1.2],
+    ['right bridge', 21, 1.2],
+    ['island', 0, 0],
+    ['west ford', -11.3, -2.5],
+    ['east ford', 11.3, 2.5],
+    ['Halftrack arena', -8, 28],
+    ['medkit room M1', -6, -40],
+  ])('%s at (%d, %d) is walkable', (_, x, y) => {
+    expect(blockedAt(grid, x, y)).toBe(false);
+  });
+
+  it('marks only ford cells as water', () => {
+    expect(grid.water[cellAt(-11.3, -2.5)]).toBe(1);
+    expect(grid.water[cellAt(11.3, 2.5)]).toBe(1);
+    expect(grid.water[cellAt(-21, -1.2)]).toBe(0);
+    expect(grid.water[cellAt(-9, -22)]).toBe(0);
+  });
+
+  it('reaches Red spawn and every room, arena and the island from the Blue spawn', () => {
+    expect(reachable(grid, bh.spawn.blue, bh.spawn.red)).toBe(true);
+    for (const w of bh.walkable) if (w.shape === 'circle') expect(reachable(grid, bh.spawn.blue, { x: w.x, y: w.y }), w.id).toBe(true);
+  });
+
+  it('crosses each ford on its own: camp to camp, and onto the island', () => {
+    // Only the ford routes, the fords, the island and the camp rooms stay open.
+    const keep = new Set(['trench-ford-c1-c3', 'trench-ford-c4-c2', 'ford-west', 'ford-east', 'ford-west-island', 'ford-east-island', 'island', 'room-c1', 'room-c2', 'room-c3', 'room-c4']);
+    const r = rasterise(bh);
+    const only = { ...grid, blocked: grid.blocked.map((b, i) => (b || r.owner[i]! < 0 || !keep.has(bh.walkable[r.owner[i]!]!.id) ? 1 : 0)) };
+    expect(reachable(only, { x: -9, y: -22 }, { x: -5, y: 14 })).toBe(true); // C1 → C3
+    expect(reachable(only, { x: 9, y: 22 }, { x: 5, y: -14 })).toBe(true); // C4 → C2
+    // Without the island and its trenches, a ford still reaches the island rim.
+    expect(reachable(only, { x: -11.3, y: -2.5 }, { x: -6, y: -2.4 })).toBe(true);
+    expect(reachable(only, { x: 11.3, y: 2.5 }, { x: 6, y: 2.4 })).toBe(true);
+  });
+
+  it('puts every Sub-base on its lane centre line', () => {
+    const lanes = buildLanes(bh);
+    for (const p of bh.structures) {
+      if (p.kind !== 'subBase') continue;
+      const pts = lanes.find((l) => l.id === p.lane)!.branches[0]!;
+      let best = Infinity;
+      for (let k = 0; k + 3 < pts.length; k += 2) best = Math.min(best, segmentDistSq(p.x, p.y, pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!).distSq);
+      expect(Math.sqrt(best), p.id).toBeLessThan(0.5);
+    }
   });
 });

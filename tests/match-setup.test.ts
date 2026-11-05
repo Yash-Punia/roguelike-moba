@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig, rawConfig } from '../src/data/load';
+import { maps, parseConfig, rawConfig } from '../src/data/load';
 import { createBot } from '../src/sim/bots/bot';
 import { LaneTrack } from '../src/sim/bots/lane';
 import { emptyRead, readLane } from '../src/sim/bots/lane-read';
@@ -17,6 +17,7 @@ describe('lane spread (D-048)', () => {
     expect(spreadLanes(LANES, 3)).toEqual(['centre', 'left', 'right']);
     expect(spreadLanes(LANES, 4)).toEqual(['centre', 'left', 'right', 'centre']);
     expect(spreadLanes(LANES, 5)).toEqual(['centre', 'left', 'right', 'centre', 'left']);
+    expect(spreadLanes(['left', 'right'], 3, 'centre')).toEqual(['left', 'right', 'left']); // The Bridgehead: no centre (D-069)
   });
 
   it('gives slot 0 the chosen lane and spreads the rest around it', () => {
@@ -86,9 +87,9 @@ describe('the lane read with several enemies', () => {
   });
 });
 
-/** An all-bot 3v3 on The Front; returns the sim, its slots and the state hash every 300 ticks. */
-function botMatch(seed: number, ticks: number) {
-  const config = parseConfig(rawConfig);
+/** An all-bot 3v3 on The Front (or The Bridgehead with lanes = 2); returns the sim, its slots and the state hash every 300 ticks. */
+function botMatch(seed: number, ticks: number, lanes: 2 | 3 = 3) {
+  const config = parseConfig({ ...rawConfig, map: maps[lanes] });
   const slots = matchSlots(config, { teamSize: 3, localTeam: Team.Blue });
   const sim = createSim(config, seed, slots);
   const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), e: sim.entityOf(pl)! }));
@@ -108,14 +109,14 @@ describe('3v3 bot matches', () => {
     expect(botMatch(5, 600).hashes).toEqual(botMatch(5, 600).hashes);
   }, 30_000);
 
-  it('send every bot to its own lane (at the first clash, 30 s)', () => {
-    const { sim, slots } = botMatch(5, 900);
+  it.each([3, 2] as const)('send every bot to its own lane (at the first clash, 30 s; %d lanes)', (lanes) => {
+    const { sim, slots } = botMatch(5, 900, lanes);
     const tracks = sim.lanes.map((l) => ({ id: l.id, tracks: l.branches.map((b) => new LaneTrack(b)) }));
     slots.forEach((s, pl) => {
       const t = sim.stores.transforms.get(sim.entityOf(pl)!)!;
       const dist = (id: string) =>
         Math.min(...tracks.find((l) => l.id === id)!.tracks.map((tr) => (tr.project(t.x, t.y), tr.lastDistSq)));
-      const nearest = LANES.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+      const nearest = tracks.map((l) => l.id).reduce((a, b) => (dist(b) < dist(a) ? b : a));
       expect([pl, nearest]).toEqual([pl, s.lane]);
     });
   }, 30_000);

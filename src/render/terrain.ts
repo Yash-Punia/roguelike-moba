@@ -10,6 +10,10 @@ const surfaceColour: Record<SurfaceKind, number> = {
   trench: palette.trenchFloor,
   arena: palette.arenaFloor,
   crater: palette.craterFloor,
+  river: palette.river,
+  ford: palette.fordStones,
+  bridge: palette.wood,
+  gravel: palette.gravel,
 };
 
 /** Exposed earth banks between floors and the raised jungle. */

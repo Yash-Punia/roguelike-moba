@@ -7,7 +7,7 @@ import type { Collider, Health, Motion, Transform } from '../sim';
 const RESOLVE_PASSES = 3;
 
 /**
- * Moves every unit by intent × speed × its slow and channel factors, then pushes its circle
+ * Moves every unit by intent × speed × its slow, channel and ford (D-069) factors, then pushes its circle
  * out of blocked cells so it slides along walls, and clamps it inside the map (TDD §6.1).
  * Slows count down here, knocked out or not.
  * ponytail: no swept test; fine while a tick's step (≤0.2 m) is well under a radius.
@@ -18,9 +18,11 @@ export function movementSystem(
   colliders: Store<Collider>,
   healths: Store<Health>,
   grid: ObstacleGrid,
-  bounds: MapConfig['bounds'],
+  map: MapConfig,
   dt: number,
 ) {
+  const { bounds } = map;
+  const wade = 1 - map.fordSlowPct;
   for (let i = 0; i < motions.ids.length; i++) {
     const e = motions.ids[i]!;
     const m = motions.data[i]!;
@@ -42,7 +44,10 @@ export function movementSystem(
       ix /= mag;
       iy /= mag;
     }
-    const speed = m.speed * m.channelMult * (slowed ? m.slowMult : 1);
+    const col = Math.floor((t.x - grid.minX) / grid.cell);
+    const row = Math.floor((t.y - grid.minY) / grid.cell);
+    const wading = col >= 0 && row >= 0 && col < grid.cols && row < grid.rows && grid.water[row * grid.cols + col] === 1;
+    const speed = m.speed * m.channelMult * (slowed ? m.slowMult : 1) * (wading ? wade : 1);
     m.vx = ix * speed;
     m.vy = iy * speed;
     if (m.vx === 0 && m.vy === 0) continue;

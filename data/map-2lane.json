@@ -1,0 +1,724 @@
+{
+  "id": "the-bridgehead",
+  "bounds": {
+    "minX": -30,
+    "maxX": 30,
+    "minY": -76,
+    "maxY": 76
+  },
+  "gridCell": 0.5,
+  "splineSamples": 1,
+  "fordSlowPct": 20,
+  "spawn": {
+    "blue": { "x": 0, "y": -60.5 },
+    "red": { "x": 0, "y": 60.5 }
+  },
+  "structures": [
+    {
+      "id": "blue-hq",
+      "kind": "hq",
+      "team": "blue",
+      "x": 0,
+      "y": -66
+    },
+    {
+      "id": "red-hq",
+      "kind": "hq",
+      "team": "red",
+      "x": 0,
+      "y": 66
+    },
+    {
+      "id": "blue-left",
+      "kind": "subBase",
+      "team": "blue",
+      "lane": "left",
+      "x": -19,
+      "y": -35
+    },
+    {
+      "id": "blue-right",
+      "kind": "subBase",
+      "team": "blue",
+      "lane": "right",
+      "x": 21,
+      "y": -36
+    },
+    {
+      "id": "red-left",
+      "kind": "subBase",
+      "team": "red",
+      "lane": "left",
+      "x": -21,
+      "y": 36
+    },
+    {
+      "id": "red-right",
+      "kind": "subBase",
+      "team": "red",
+      "lane": "right",
+      "x": 19,
+      "y": 35
+    }
+  ],
+  "walkable": [
+    {
+      "id": "blue-base",
+      "shape": "ellipse",
+      "surface": "grass",
+      "x": 0,
+      "y": -65,
+      "w": 44,
+      "h": 24
+    },
+    {
+      "id": "red-base",
+      "shape": "ellipse",
+      "surface": "grass",
+      "x": 0,
+      "y": 65,
+      "w": 44,
+      "h": 24
+    },
+    {
+      "id": "blue-apron",
+      "shape": "ellipse",
+      "surface": "dirt",
+      "x": 0,
+      "y": -62.5,
+      "w": 22,
+      "h": 15
+    },
+    {
+      "id": "red-apron",
+      "shape": "ellipse",
+      "surface": "dirt",
+      "x": 0,
+      "y": 62.5,
+      "w": 22,
+      "h": 15
+    },
+    {
+      "id": "trench-halftrack-left",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4.4,
+      "height": -0.5,
+      "endHeight": 0,
+      "points": [
+        { "x": -12, "y": 29 },
+        { "x": -18.5, "y": 30 }
+      ]
+    },
+    {
+      "id": "trench-fieldgun-right",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4.4,
+      "height": -0.5,
+      "endHeight": 0,
+      "points": [
+        { "x": 12, "y": -29 },
+        { "x": 18.5, "y": -30 }
+      ]
+    },
+    {
+      "id": "trench-halftrack-c4",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": -3, "y": 27 },
+        { "x": 3, "y": 24 },
+        { "x": 9, "y": 22 }
+      ]
+    },
+    {
+      "id": "trench-fieldgun-c1",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": 3, "y": -27 },
+        { "x": -3, "y": -24 },
+        { "x": -9, "y": -22 }
+      ]
+    },
+    {
+      "id": "trench-c4-right",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": 9, "y": 22 },
+        { "x": 14, "y": 22 },
+        { "x": 18.5, "y": 22 }
+      ]
+    },
+    {
+      "id": "trench-c1-right",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": -9, "y": -22 },
+        { "x": -14, "y": -22 },
+        { "x": -18.5, "y": -22 }
+      ]
+    },
+    {
+      "id": "trench-halftrack-c3",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": -8, "y": 24 },
+        { "x": -6, "y": 19 },
+        { "x": -5, "y": 14 }
+      ]
+    },
+    {
+      "id": "trench-fieldgun-c2",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": 8, "y": -24 },
+        { "x": 6, "y": -19 },
+        { "x": 5, "y": -14 }
+      ]
+    },
+    {
+      "id": "trench-c3-behemoth",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": -0.25,
+      "points": [
+        { "x": -5, "y": 14 },
+        { "x": -3, "y": 10.5 },
+        { "x": -1.5, "y": 8 }
+      ]
+    },
+    {
+      "id": "trench-c2-behemoth",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": -0.25,
+      "points": [
+        { "x": 5, "y": -14 },
+        { "x": 3, "y": -10.5 },
+        { "x": 1.5, "y": -8 }
+      ]
+    },
+    {
+      "id": "trench-c4-m2",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": 9, "y": 22 },
+        { "x": 7.5, "y": 31 },
+        { "x": 6, "y": 40 }
+      ]
+    },
+    {
+      "id": "trench-c1-m1",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": -9, "y": -22 },
+        { "x": -7.5, "y": -31 },
+        { "x": -6, "y": -40 }
+      ]
+    },
+    {
+      "id": "trench-m2-s2",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": 6, "y": 40 },
+        { "x": -2, "y": 43 },
+        { "x": -11, "y": 46 }
+      ]
+    },
+    {
+      "id": "trench-m1-s1",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": -6, "y": -40 },
+        { "x": 2, "y": -43 },
+        { "x": 11, "y": -46 }
+      ]
+    },
+    {
+      "id": "trench-s2-left",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": -11, "y": 46 },
+        { "x": -17.5, "y": 46.5 }
+      ]
+    },
+    {
+      "id": "trench-s1-right",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": 11, "y": -46 },
+        { "x": 17.5, "y": -46.5 }
+      ]
+    },
+    {
+      "id": "trench-halftrack-s2",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": -8, "y": 32 },
+        { "x": -10, "y": 39 },
+        { "x": -11, "y": 46 }
+      ]
+    },
+    {
+      "id": "trench-fieldgun-s1",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.5,
+      "endHeight": -0.85,
+      "points": [
+        { "x": 8, "y": -32 },
+        { "x": 10, "y": -39 },
+        { "x": 11, "y": -46 }
+      ]
+    },
+    {
+      "id": "trench-m2-red-apron",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": 6, "y": 40 },
+        { "x": 3, "y": 49 },
+        { "x": 0, "y": 55.5 }
+      ]
+    },
+    {
+      "id": "trench-m1-blue-apron",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "endHeight": 0,
+      "points": [
+        { "x": -6, "y": -40 },
+        { "x": -3, "y": -49 },
+        { "x": 0, "y": -55.5 }
+      ]
+    },
+    {
+      "id": "trench-ford-c1-c3",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": -9, "y": -22 },
+        { "x": -11, "y": -15 },
+        { "x": -11.5, "y": -6 },
+        { "x": -11, "y": 3 },
+        { "x": -8.5, "y": 9.5 },
+        { "x": -5, "y": 14 }
+      ]
+    },
+    {
+      "id": "trench-ford-c4-c2",
+      "shape": "path",
+      "surface": "trench",
+      "width": 4,
+      "height": -0.85,
+      "points": [
+        { "x": 9, "y": 22 },
+        { "x": 11, "y": 15 },
+        { "x": 11.5, "y": 6 },
+        { "x": 11, "y": -3 },
+        { "x": 8.5, "y": -9.5 },
+        { "x": 5, "y": -14 }
+      ]
+    },
+    {
+      "id": "room-c1",
+      "shape": "circle",
+      "surface": "trench",
+      "x": -9,
+      "y": -22,
+      "r": 3.8,
+      "height": -0.85
+    },
+    {
+      "id": "room-c2",
+      "shape": "circle",
+      "surface": "trench",
+      "x": 5,
+      "y": -14,
+      "r": 3,
+      "height": -0.85
+    },
+    {
+      "id": "room-c3",
+      "shape": "circle",
+      "surface": "trench",
+      "x": -5,
+      "y": 14,
+      "r": 3,
+      "height": -0.85
+    },
+    {
+      "id": "room-c4",
+      "shape": "circle",
+      "surface": "trench",
+      "x": 9,
+      "y": 22,
+      "r": 3.8,
+      "height": -0.85
+    },
+    {
+      "id": "room-m1",
+      "shape": "circle",
+      "surface": "trench",
+      "x": -6,
+      "y": -40,
+      "r": 2.4,
+      "height": -0.85
+    },
+    {
+      "id": "room-m2",
+      "shape": "circle",
+      "surface": "trench",
+      "x": 6,
+      "y": 40,
+      "r": 2.4,
+      "height": -0.85
+    },
+    {
+      "id": "room-s1",
+      "shape": "circle",
+      "surface": "trench",
+      "x": 11,
+      "y": -46,
+      "r": 3,
+      "height": -0.85
+    },
+    {
+      "id": "room-s2",
+      "shape": "circle",
+      "surface": "trench",
+      "x": -11,
+      "y": 46,
+      "r": 3,
+      "height": -0.85
+    },
+    {
+      "id": "arena-fieldgun",
+      "shape": "circle",
+      "surface": "arena",
+      "x": 8,
+      "y": -28,
+      "r": 6.5,
+      "height": -0.5
+    },
+    {
+      "id": "arena-halftrack",
+      "shape": "circle",
+      "surface": "arena",
+      "x": -8,
+      "y": 28,
+      "r": 6.5,
+      "height": -0.5
+    },
+    {
+      "id": "river",
+      "shape": "path",
+      "surface": "river",
+      "width": 7,
+      "height": -0.5,
+      "points": [
+        { "x": -31, "y": 1.67 },
+        { "x": -29, "y": 1.16 },
+        { "x": -27, "y": 0.58 },
+        { "x": -25, "y": -0.04 },
+        { "x": -23, "y": -0.66 },
+        { "x": -21, "y": -1.23 },
+        { "x": -19, "y": -1.73 },
+        { "x": -17, "y": -2.13 },
+        { "x": -15, "y": -2.39 },
+        { "x": -13, "y": -2.5 },
+        { "x": -11, "y": -2.45 },
+        { "x": -9, "y": -2.26 },
+        { "x": -7, "y": -1.92 },
+        { "x": -5, "y": -1.46 },
+        { "x": -3, "y": -0.92 },
+        { "x": -1, "y": -0.31 },
+        { "x": 1, "y": 0.31 },
+        { "x": 3, "y": 0.92 },
+        { "x": 5, "y": 1.46 },
+        { "x": 7, "y": 1.92 },
+        { "x": 9, "y": 2.26 },
+        { "x": 11, "y": 2.45 },
+        { "x": 13, "y": 2.5 },
+        { "x": 15, "y": 2.39 },
+        { "x": 17, "y": 2.13 },
+        { "x": 19, "y": 1.73 },
+        { "x": 21, "y": 1.23 },
+        { "x": 23, "y": 0.66 },
+        { "x": 25, "y": 0.04 },
+        { "x": 27, "y": -0.58 },
+        { "x": 29, "y": -1.16 },
+        { "x": 31, "y": -1.67 }
+      ]
+    },
+    {
+      "id": "ford-west",
+      "shape": "path",
+      "surface": "ford",
+      "width": 4,
+      "height": -0.55,
+      "points": [
+        { "x": -11.5, "y": -6 },
+        { "x": -11.2, "y": 1.2 }
+      ]
+    },
+    {
+      "id": "ford-east",
+      "shape": "path",
+      "surface": "ford",
+      "width": 4,
+      "height": -0.55,
+      "points": [
+        { "x": 11.5, "y": 6 },
+        { "x": 11.2, "y": -1.2 }
+      ]
+    },
+    {
+      "id": "ford-west-island",
+      "shape": "path",
+      "surface": "ford",
+      "width": 4,
+      "height": -0.55,
+      "points": [
+        { "x": -11, "y": -2.5 },
+        { "x": -8, "y": -2.3 }
+      ]
+    },
+    {
+      "id": "ford-east-island",
+      "shape": "path",
+      "surface": "ford",
+      "width": 4,
+      "height": -0.55,
+      "points": [
+        { "x": 11, "y": 2.5 },
+        { "x": 8, "y": 2.3 }
+      ]
+    },
+    {
+      "id": "island",
+      "shape": "circle",
+      "surface": "gravel",
+      "x": 0,
+      "y": 0,
+      "r": 9,
+      "height": -0.25
+    },
+    {
+      "id": "blue-cave-left",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 4,
+      "points": [
+        { "x": 0, "y": -75 },
+        { "x": -5.5, "y": -72 },
+        { "x": -6.5, "y": -66 },
+        { "x": -6, "y": -59 }
+      ]
+    },
+    {
+      "id": "blue-cave-right",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 4,
+      "points": [
+        { "x": 0, "y": -75 },
+        { "x": 5.5, "y": -72 },
+        { "x": 6.5, "y": -66 },
+        { "x": 7, "y": -60 }
+      ]
+    },
+    {
+      "id": "red-cave-left",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 4,
+      "points": [
+        { "x": -7, "y": 60 },
+        { "x": -6.5, "y": 66 },
+        { "x": -5.5, "y": 72 },
+        { "x": 0, "y": 75 }
+      ]
+    },
+    {
+      "id": "red-cave-right",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 4,
+      "points": [
+        { "x": 6, "y": 59 },
+        { "x": 6.5, "y": 66 },
+        { "x": 5.5, "y": 72 },
+        { "x": 0, "y": 75 }
+      ]
+    },
+    {
+      "id": "left",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 8,
+      "points": [
+        { "x": -6, "y": -59 },
+        { "x": -14, "y": -56 },
+        { "x": -20, "y": -47 },
+        { "x": -19, "y": -35 },
+        { "x": -23, "y": -23 },
+        { "x": -21, "y": -12 },
+        { "x": -21, "y": -4 },
+        { "x": -21, "y": 4 },
+        { "x": -21, "y": 12 },
+        { "x": -24, "y": 24 },
+        { "x": -21, "y": 36 },
+        { "x": -23, "y": 46 },
+        { "x": -18, "y": 55 },
+        { "x": -7, "y": 60 }
+      ]
+    },
+    {
+      "id": "right",
+      "shape": "path",
+      "surface": "dirt",
+      "width": 8,
+      "points": [
+        { "x": 7, "y": -60 },
+        { "x": 18, "y": -55 },
+        { "x": 23, "y": -46 },
+        { "x": 21, "y": -36 },
+        { "x": 24, "y": -24 },
+        { "x": 21, "y": -12 },
+        { "x": 21, "y": -4 },
+        { "x": 21, "y": 4 },
+        { "x": 21, "y": 12 },
+        { "x": 23, "y": 23 },
+        { "x": 19, "y": 35 },
+        { "x": 20, "y": 47 },
+        { "x": 14, "y": 56 },
+        { "x": 6, "y": 59 }
+      ]
+    },
+    {
+      "id": "bridge-left",
+      "shape": "rect",
+      "surface": "bridge",
+      "x": -21,
+      "y": -1.2,
+      "w": 8,
+      "h": 12
+    },
+    {
+      "id": "bridge-right",
+      "shape": "rect",
+      "surface": "bridge",
+      "x": 21,
+      "y": 1.2,
+      "w": 8,
+      "h": 12
+    }
+  ],
+  "caves": [
+    {
+      "team": "blue",
+      "x": 0,
+      "y": -75
+    },
+    {
+      "team": "red",
+      "x": 0,
+      "y": 75
+    }
+  ],
+  "medkits": [
+    { "x": -6, "y": -40 },
+    { "x": 6, "y": 40 }
+  ],
+  "lanes": [
+    {
+      "id": "left",
+      "route": [
+        [
+          "blue-cave-left"
+        ],
+        [
+          "left"
+        ],
+        [
+          "red-cave-left"
+        ]
+      ]
+    },
+    {
+      "id": "right",
+      "route": [
+        [
+          "blue-cave-right"
+        ],
+        [
+          "right"
+        ],
+        [
+          "red-cave-right"
+        ]
+      ]
+    }
+  ]
+}

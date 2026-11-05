@@ -49,7 +49,7 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
 
   if (localEntity !== undefined) addChampionCheats(gui, sim, localEntity, raw.powers.powers.map((p) => p.id));
   if (seed !== undefined) match.add({ seed }, 'seed').name('seed (?seed=N)').disable();
-  // Team size and champion are fixed once a match starts (D-048, D-049): picking one reloads.
+  // Team size, lane count (map) and champion are fixed once a match starts (D-048, D-049, D-069): picking one reloads.
   const url = new URL(location.href);
   const reloadWith = (key: string) => (v: number | string) => {
     url.searchParams.set(key, String(v));
@@ -57,9 +57,11 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
   };
   const setup = {
     teamSize: Number(url.searchParams.get('size')) || raw.match.teamSize,
+    lanes: raw.map.lanes?.length === 2 ? 2 : 3,
     champion: localEntity === undefined ? '' : (sim.stores.champions.get(localEntity)?.championId ?? ''),
   };
   match.add(setup, 'teamSize', [2, 3, 4, 5]).name('team size (?size=N)').onChange(reloadWith('size'));
+  match.add(setup, 'lanes', [2, 3]).name('lanes: map (?lanes=N)').onChange(reloadWith('lanes'));
   match.add(setup, 'champion', raw.champions.map((c) => c.id)).name('champion (?champ=id)').onChange(reloadWith('champ'));
   if (bot) {
     const botFolder = gui.addFolder('Bot');
@@ -72,15 +74,17 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
     for (const [k, v] of Object.entries(bot.personality)) traits.add({ [k]: Math.round((v as number) * 100) / 100 }, k).disable();
   }
   const structuresFolder = gui.addFolder('Structures').close();
+  // The centre lane's Sub-base, or the first lane's on a map without one (The Bridgehead).
+  const subLane = raw.map.lanes?.some((l) => l.id === 'centre') ? 'centre' : (raw.map.lanes?.[0]?.id ?? '');
   const killEnemySub = () => {
     const local = localEntity === undefined ? undefined : sim.stores.teams.get(localEntity);
     const ids = sim.stores.structures.ids;
     for (let i = 0; i < ids.length; i++) {
       const st = sim.stores.structures.data[i]!;
-      if (st.kind === 'subBase' && st.lane === 'centre' && sim.stores.teams.get(ids[i]!) !== local) sim.debug.kill(ids[i]!);
+      if (st.kind === 'subBase' && st.lane === subLane && sim.stores.teams.get(ids[i]!) !== local) sim.debug.kill(ids[i]!);
     }
   };
-  structuresFolder.add({ killEnemySub }, 'killEnemySub').name('Destroy enemy centre Sub-base');
+  structuresFolder.add({ killEnemySub }, 'killEnemySub').name(`Destroy enemy ${subLane} Sub-base`);
   const localTeam = localEntity === undefined ? Team.Blue : (sim.stores.teams.get(localEntity) ?? Team.Blue);
   const enemyTeam = localTeam === Team.Blue ? Team.Red : Team.Blue;
   structuresFolder.add({ win: () => sim.debug.destroyHq(enemyTeam) }, 'win').name('Win now (destroy enemy HQ)');

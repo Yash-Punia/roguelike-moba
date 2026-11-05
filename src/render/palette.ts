@@ -33,6 +33,10 @@ export const palette = {
   trenchFloor: 0x4e3e2f,
   arenaFloor: 0x5d4a37,
   craterFloor: 0x3e3226,
+  // The Bridgehead (map spec MP-02)
+  river: 0x5e8ca6,
+  fordStones: 0xa9c2c9,
+  gravel: 0x8a7c66,
   // Effects and sky (not in SG-01)
   smoke: 0x8c8c86,
   fire: 0xff8a2a,

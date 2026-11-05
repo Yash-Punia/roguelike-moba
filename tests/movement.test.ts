@@ -76,3 +76,23 @@ describe('movement', () => {
     expect(e.y - base.map.spawn.red.y).toBeCloseTo(-speed, 5);
   });
 });
+
+describe('fords (D-069)', () => {
+  it('slows a unit wading a ford by fordSlowPct', () => {
+    const c = structuredClone(base);
+    const spawn = c.map.spawn.blue;
+    c.map.fordSlowPct = 0.2;
+    // A ford strip over the first 5 m ahead of the spawn.
+    c.map.walkable.push({ id: 'ford', shape: 'rect', surface: 'ford', height: 0, x: spawn.x, y: spawn.y + 2.5, w: 4, h: 6 });
+    const e = run(c, move(0, 127), 30);
+    expect(e.y - spawn.y).toBeCloseTo(speed * 0.8, 5);
+  });
+
+  it('blocks river cells for movement', () => {
+    const c = structuredClone(base);
+    const spawn = c.map.spawn.blue;
+    c.map.walkable.push({ id: 'river', shape: 'rect', surface: 'river', height: 0, x: 0, y: spawn.y + 3, w: 200, h: 1 });
+    const e = run(c, move(0, 127), 60);
+    expect(e.y).toBeLessThan(spawn.y + 2.5);
+  });
+});

@@ -82,7 +82,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | Status | Feature | Hash |
 | --- | --- | --- |
 | `[p]` | The Front complete: left and right lanes, all 6 Sub-bases, full trench network with every room and arena from MP-01; waves in all three lanes; rooms and arenas are empty walkable shells (D-047) | b317a2d |
-| `[ ]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048) | |
+| `[c]` | `map-2lane.json`: The Bridgehead from MP-02: river (blocked), two plank bridges, fords (−20% move speed), Behemoth island, trench lattice; lane count 2/3 via `?lanes=` + debug panel, map chosen by lane count (moved here from match config, D-048); lane waypoints skip structure footprints (D-069) | |
 | `[p]` | Match config: team size 2v2–5v5 via `?size=` + debug panel, default 3v3 (`match.json`), your lane via `?lane=`; duplicate champions allowed (D-009, D-048) | 9cd0505 |
 | `[p]` | Trenches: zones, entries, sandbag walls (`blocksShots`), concealment and reveal-on-fire, medkit rooms; hidden enemies fade out (D-056); sandbag walls later removed (D-061) | 6ed7a33 |
 | `[p]` | Line-of-sight ray march for shots; raised jungle ground blocks sight (D-018); blasts and splash get cover (D-057) | 7c0643c |
@@ -98,7 +98,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Full draft rules: rarity odds, guaranteed Epic at 4/8/12, stack caps, signature slot, queue, reroll, recommendation, Gamma weapon adaptation; offers every level again; Sub-base 3,000 HP (D-064) | 5fd4f4a |
 | `[p]` | All Ultimate charge sources: damage dealt/taken vs enemy champions, takedowns with 8 s assists; camp, mini-boss and Behemoth charge come with them in M4 (D-065) | abfbd4a |
 | `[p]` | Respawn formula, Redeploy sprint, takedown credit (8 s assists): formula and pad heal (D-034), sprint and assist XP (D-067); Sudden Death ×1.5 moved to match phases | 6a9cc12 |
-| `[c]` | Match phases: Deploy, Live, Sudden Death (10:00) with ×1.5 respawn timers (moved here, D-067), time-out rules (13:00), Surrender from 5:00 (D-068) | |
+| `[p]` | Match phases: Deploy, Live, Sudden Death (10:00) with ×1.5 respawn timers (moved here, D-067), time-out rules (13:00), Surrender from 5:00 (D-068) | 7b5a01c |
 | `[p]` | All champion slots filled by basic bots, lane assignment spread for any team size and lane count; bots read the nearest enemy champion (D-048) | 9cd0505 |
 
 **Exit criteria:** full matches run start to finish without errors for every team size (2v2 to 5v5) on both maps.

@@ -449,7 +449,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const clear = (ax: number, ay: number, bx: number, by: number) => rayBlocked(grid, ax, ay, bx, by) < 0;
   /** Tick each medkit is ready from. */
   const medkitReadyAt: number[] = [];
-  let lanes: LanePath[] = buildLanes(config.map);
+  let lanes: LanePath[] = laneRoutes(config);
   /** Waves spawned so far, scheduled or debug: wave n takes branch n mod branches (D-035). */
   let waveCount = 0;
   /** The current wave's next unit to leave the cave (D-051; past its length: all out), and the tick it steps out. */
@@ -760,7 +760,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       spatial.rebuild(healths.ids, transforms);
       minionSystem(minionContext, config.units, tick);
       summonSystem(summonContext, tick);
-      movementSystem(motions, transforms, colliders, healths, grid, config.map.bounds, 1 / TICK_HZ);
+      movementSystem(motions, transforms, colliders, healths, grid, config.map, 1 / TICK_HZ);
       spatial.rebuild(healths.ids, transforms);
       separationSystem(minionContext);
       spatial.rebuild(healths.ids, transforms);
@@ -974,7 +974,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         setMaxHp(healths.get(e)!, def.maxHp);
         Object.assign(weapons.get(e)!, def.weapon);
       }
-      lanes = buildLanes(next.map);
+      lanes = laneRoutes(next);
       rebuildGrid();
       const v = visibilityContext.vision;
       if (v.cell !== next.combat.fog.cellSize || v.minX !== next.map.bounds.minX || v.minY !== next.map.bounds.minY) {
@@ -1098,3 +1098,33 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
 }
 
 export type Sim = ReturnType<typeof createSim>;
+
+/** Waypoints this close to a structure's footprint edge (m) are dropped from the lane routes. */
+const WAYPOINT_CLEARANCE = 1.5;
+
+/**
+ * The map's lane polylines minus waypoints inside or near a structure footprint (D-069): a
+ * minion can't reach one, so a Sub-base on a lane control point (The Bridgehead) would stall
+ * every wave at it. The route then cuts past the structure and minions steer round it as usual.
+ * The ends of a lane are always kept.
+ */
+function laneRoutes(cfg: Config): LanePath[] {
+  return buildLanes(cfg.map).map((l) => ({
+    id: l.id,
+    branches: l.branches.map((pts) => {
+      const out: number[] = [];
+      for (let k = 0; k < pts.length; k += 2) {
+        const x = pts[k]!;
+        const y = pts[k + 1]!;
+        let near = false;
+        for (const s of cfg.map.structures) {
+          const f = cfg.structures[s.kind].footprint;
+          const r = (f.shape === 'circle' ? f.r : Math.max(f.w, f.h) / 2) + WAYPOINT_CLEARANCE;
+          if ((x - s.x) * (x - s.x) + (y - s.y) * (y - s.y) < r * r) near = true;
+        }
+        if (!near || k === 0 || k === pts.length - 2) out.push(x, y);
+      }
+      return Float64Array.from(out);
+    }),
+  }));
+}

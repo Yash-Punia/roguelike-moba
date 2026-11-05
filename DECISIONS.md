@@ -1263,3 +1263,41 @@ From TDD §13:
     - The GDD's cosmetic biplanes wait for the M5 effects work.
   - **Tests:** two older match tests now start in Deploy, since the test fixture's first wave is at 0:15.
 - Why: the match phases row of M3 (D-046). Every match now has a guaranteed end.
+
+## D-069 — The Bridgehead and the lane-count switch
+- Date: 2026-11-05
+- Source: plan approved by the user; the rest made during development
+- Decision:
+  - **Map data** (`data/map-2lane.json`) from the spec's MP-02 tables:
+    - the left and right lanes; the spec lists the right lane Red → Blue, so it is stored reversed (D-047);
+    - four Sub-bases, both HQs, spawn pads, medkit rooms M1 and M2;
+    - the trench lattice: the spec's Red-half trenches plus their twins at (−x, −y), and the C1→C3 ford route with its C4→C2 twin, as ordinary trench paths;
+    - caves at (0, ∓75) behind each HQ, like The Front's (D-051).
+  - **Paint order:** bases, aprons, trenches, rooms, arenas, river, fords, island, caves, lanes, bridges. Bridges paint over the lanes so the planks show.
+  - **New surfaces:** `river`, `ford`, `bridge` and `gravel`.
+    - `river` cells block movement but not shots or sight (they aren't `ground`). This closes the D-057 note: you can shoot and see along the water.
+    - `ford` cells go in a new grid layer, `water`. A unit whose centre is on one moves `map.fordSlowPct` (20%) slower. Fords aren't trench, so wading units aren't concealed.
+    - `bridge` and `gravel` are walkable and change only the colour.
+  - **River:** one 7 m path through y = 2.5 · sin(x / 8), sampled every 2 m, with the points stored as data (no trig in the sim). It is drawn as a flat water-coloured floor at the water line (−0.5 m), with no separate river bed or water plane.
+  - **Island:** a circle (0, 0) r 9 m of `gravel` at −0.25 m. It interrupts the river, as on the MP-02 plan.
+  - **Fords:** each is a 4 m `ford` strip where the ford route crosses the river band, plus a strip to the island rim. Without that strip about 0.5 m of river was left between ford and island, too narrow for a champion. So the island has its four ways in: the C2 and C3 trenches and both fords.
+  - **Lane waypoints:** all four Bridgehead Sub-bases sit on lane control points. A minion advances at 1 m from a waypoint and can't get that close to one inside a footprint, so every wave stalled at its own tower and the map filled up (650 entities by 7:00).
+    - The sim now drops lane waypoints within 1.5 m of a structure footprint when it builds the lanes (`laneRoutes` in `sim.ts`). The ends of a lane are always kept. The route cuts past the tower and minions steer round it as before.
+    - The Front has no waypoint that close, so its routes and determinism hashes are unchanged.
+  - **Lane count:** `match.lanes` (2 or 3, default 3); `?lanes=` overrides it. The debug panel's Match folder has a picker that reloads, like team size. `maps` and `mapFiles` in `load.ts` give the map and its file for each count, so a debug export writes to the right file.
+    - With no centre lane, the lane spread uses file order (3 → L R L) and Gamma's centre preference falls through.
+    - "Destroy enemy Sub-base" in the debug panel uses the first lane when the map has no centre.
+    - `?dummy` stands on the left lane there.
+  - **Pacing** (all-bot, headless, seeds 1–3): every match ended with an HQ down.
+    - 2v2: 11:17, 4:31, 3:59;
+    - 3v3: 3:48, 3:57, 12:26;
+    - 4v4: 6:59, 6:45, 3:35;
+    - 5v5: 3:15, 8:36, 2:38.
+    - That is shorter than the spec's 7–9 minutes, like The Front under the D-051 pacing. The pacing smoke test now runs on both maps.
+  - **Perf:** 60 draw calls and 65k triangles at the river crossing (software GL in the desktop app's browser pane).
+  - **Later:** the Behemoth, camps and bosses (M4), reeds and other dressing (M4), and A\* through the fords (M4 bot AI).
+- Why: the last M3 row (D-046), and the M3 exit needs full matches on both maps.
+- Alternatives:
+  - A river bed at −1.0 m under a translucent water plane: more geometry and a second material for little gain at this camera.
+  - Moving the Sub-bases off the control points: that breaks the spec's coordinates.
+  - Making minions accept a waypoint at the footprint edge: a per-tick check for every minion, and it doesn't fix the route the bots read.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig, rawConfig } from '../src/data/load';
+import { maps, parseConfig, rawConfig } from '../src/data/load';
 import { createBot } from '../src/sim/bots/bot';
 import { matchSlots } from '../src/sim/match-setup';
 import { createSim, Kind, Team, type Command } from '../src/sim/sim';
@@ -108,8 +108,11 @@ describe('draft spacing (D-051)', () => {
 
 describe('match length (D-051)', () => {
   // A smoke test that matches still finish: one seed swings a lot (D-067), and long matches are a known open issue.
-  it('an all-bot 3v3 on The Front ends with an HQ down inside 12 minutes', () => {
-    const config = parseConfig(rawConfig);
+  it.each([
+    ['The Front', 3],
+    ['The Bridgehead', 2],
+  ] as const)('an all-bot 3v3 on %s ends with an HQ down inside 12 minutes', (_, lanes) => {
+    const config = parseConfig({ ...rawConfig, map: maps[lanes] });
     const slots = matchSlots(config, { teamSize: 3, localTeam: Blue });
     const sim = createSim(config, 1, slots);
     const bots = slots.map((s, pl) => ({ bot: createBot(pl, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane), e: sim.entityOf(pl)! }));

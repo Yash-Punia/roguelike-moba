@@ -1,6 +1,7 @@
 {
   "defaultSeed": 1,
   "teamSize": 3,
+  "lanes": 3,
   "respawn": {
     "baseSeconds": 4,
     "perLevelSeconds": 1.2,

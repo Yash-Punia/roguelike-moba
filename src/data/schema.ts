@@ -15,6 +15,8 @@ const Match = z.object({
   defaultSeed: z.number().int().nonnegative(),
   /** Champions per team (D-009); `?size=` overrides it. Every slot but yours is a bot. */
   teamSize: z.number().int().min(2).max(5),
+  /** Lane count, which picks the map: 3 = The Front, 2 = The Bridgehead (D-069); `?lanes=` overrides it. */
+  lanes: z.union([z.literal(2), z.literal(3)]).default(3),
   /** Respawn timer (GDD §9): base + perLevel × level, capped. Stays in seconds: level is runtime. */
   /** Redeploy sprint (GDD §9): `sprintPct` more move speed after respawning, until combat or crossing y = 0 towards the enemy. */
   respawn: z.object({ baseSeconds: z.number().nonnegative(), perLevelSeconds: z.number().nonnegative(), maxSeconds: positive(), sprintPct: pct().default(0) }),
@@ -144,7 +146,7 @@ const Champion = z.object({
 });
 
 /** Ground finish of a walkable shape; render picks the colour (SG-01), the sim ignores it. */
-const Surface = z.enum(['dirt', 'grass', 'trench', 'arena', 'crater']);
+const Surface = z.enum(['dirt', 'grass', 'trench', 'arena', 'crater', 'river', 'ford', 'bridge', 'gravel']);
 
 // Walkable shapes from the concept map spec (D-018). Painted in array order: where shapes
 // overlap, the later one decides the surface and render height. `height` is render-only.
@@ -184,6 +186,8 @@ const MapConfig = z.object({
   caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
+  /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
+  fordSlowPct: pct().default(0),
 });
 
 // Footprint is stamped into the obstacle grid (units walk round it); `radius` is the

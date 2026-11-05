@@ -13,18 +13,23 @@ export interface ObstacleGrid {
   ground: Uint8Array;
   /** Trench zone of each cell (GDD §4): 0 = none, 1–4 = the quadrant of a trench or room floor. */
   zone: Uint8Array;
+  /** Ford cells (D-069): units wading here move `map.fordSlowPct` slower. */
+  water: Uint8Array;
 }
 
-/** Walkable shapes carved out of solid jungle. */
+/** Walkable shapes carved out of solid jungle. River cells block movement but not shots or sight (D-069). */
 export function buildGrid(map: MapConfig): ObstacleGrid {
   const { minX, minY, cell, cols, rows, owner } = rasterise(map);
   const blocked = new Uint8Array(cols * rows);
   const zone = new Uint8Array(cols * rows);
   const ground = new Uint8Array(cols * rows);
+  const water = new Uint8Array(cols * rows);
   for (let i = 0; i < blocked.length; i++) {
     const o = owner[i]!;
-    blocked[i] = o < 0 ? 1 : 0;
+    const surface = o >= 0 ? map.walkable[o]!.surface : undefined;
+    blocked[i] = o < 0 || surface === 'river' ? 1 : 0;
     ground[i] = o < 0 ? 1 : 0;
+    water[i] = surface === 'ford' ? 1 : 0;
     // Trench and room floors conceal; arenas, the Crater and lanes painted over trench mouths don't.
     if (o >= 0 && map.walkable[o]!.surface === 'trench') {
       const x = minX + ((i % cols) + 0.5) * cell;
@@ -32,7 +37,7 @@ export function buildGrid(map: MapConfig): ObstacleGrid {
       zone[i] = 1 + (x > 0 ? 1 : 0) + (y > 0 ? 2 : 0);
     }
   }
-  return { minX, minY, cell, cols, rows, blocked, ground, zone };
+  return { minX, minY, cell, cols, rows, blocked, ground, zone, water };
 }
 
 /** Blocks every cell whose centre lies inside the footprint centred at (x, y). */
