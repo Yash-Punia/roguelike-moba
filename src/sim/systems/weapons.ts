@@ -2,7 +2,7 @@ import { TICK_HZ, type Config } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { HitQueue } from '../hits';
-import { asin, atan2, cos, len, sin, turnTowards, wrapAngle } from '../math';
+import { atan2, cos, inSector, len, sin, turnTowards, wrapAngle } from '../math';
 import { dronePosition, type PowerMods } from '../powers';
 import type { ProjectilePool } from '../projectiles';
 import type { Rng } from '../rng';
@@ -166,11 +166,7 @@ function flame(e: Entity, w: Weapon, t: Transform, ctx: WeaponsContext, critMult
     const h = ctx.healths.get(o);
     if (!h || h.hp <= 0) continue;
     const ot = ctx.transforms.get(o)!;
-    const r = ctx.colliders.get(o)?.radius ?? 0;
-    const d = len(ot.x - t.x, ot.y - t.y);
-    if (d - r > range) continue;
-    // Within the half-angle, widened by the angle the collider covers at its distance.
-    if (d > r && Math.abs(wrapAngle(atan2(ot.y - t.y, ot.x - t.x) - w.aim)) > half + asin(r / d)) continue;
+    if (!inSector(t.x, t.y, w.aim, range, half, ot.x, ot.y, ctx.colliders.get(o)?.radius ?? 0)) continue;
     if (!ctx.clear(t.x, t.y, ot.x, ot.y)) continue;
     ctx.hits.push(e, o, w.damage, critMult, 1, false, true);
   }

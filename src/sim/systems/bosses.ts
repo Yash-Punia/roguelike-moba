@@ -1,22 +1,27 @@
-import type { Config } from '../../data/schema';
+import { TICK_HZ, type Config } from '../../data/schema';
 import type { Entity } from '../ecs';
-import { LobKind, type LobPool } from '../lobs';
+import { LobKind } from '../lobs';
 import { atan2, len } from '../math';
 import { Team } from '../sim';
-import { CampState, type CampContext } from './camps';
+import { BossAttack, CampState, type Camp, type CampContext } from './camps';
+import { enemiesInCone, enemiesInStrip, maxRadius, type UltimateContext } from './ultimate';
 
 const picked: Entity[] = [];
 
 /**
- * Mini-boss attack patterns (GDD §4, TDD §6.8, D-079), after `campSystem`. A mini-boss fights
- * only while its camp is `Engaged`, at the camp's attackers within its pattern's `range` and in
- * sight; every attack is telegraphed.
- * - `shells` (Field Gun): every `intervalSeconds`, one shell at each of up to `targets` attackers,
- *   nearest first (ties by id), landing where they stood `flightSeconds` later. The shell is a lob,
+ * Mini-boss attack patterns (GDD §4, TDD §6.8), after `lobSystem` like casts, so a new shell's
+ * whole flight is telegraphed. A mini-boss fights only while its camp is `Engaged`, at the camp's
+ * attackers in reach and in sight, nearest first (ties by id); every attack is telegraphed.
+ * - `shells` (Field Gun, D-079): every `intervalSeconds`, one shell at each of up to `targets`
+ *   attackers within `range`, landing where they stood `flightSeconds` later. The shell is a lob,
  *   so its landing circle is the telegraph (D-078) and `lobSystem` deals the blast.
+ * - `halftrack` (D-080): every `intervalSeconds`, a windup locked on the nearest attacker: a spray
+ *   cone, or every `chargeEvery`th time a charge strip. `windupSeconds` later everyone inside is
+ *   hit; after a charge the Halftrack drives down the strip (`campSystem`). It holds still in the
+ *   windup, and a leash calls the windup off.
  */
-export function bossSystem(ctx: CampContext, lobs: LobPool, n: Config['neutrals']) {
-  const { camps, neutrals, transforms, colliders } = ctx;
+export function bossSystem(ctx: CampContext, u: UltimateContext, n: Config['neutrals'], tick: number) {
+  const { camps, neutrals, transforms } = ctx;
   for (let i = 0; i < neutrals.ids.length; i++) {
     const camp = camps[neutrals.data[i]!.camp]!;
     const p = n.camps[camp.spot.kind].boss?.pattern;
@@ -25,35 +30,74 @@ export function bossSystem(ctx: CampContext, lobs: LobPool, n: Config['neutrals'
       camp.attackWait = 0;
       continue;
     }
-    if (camp.attackWait > 0 && --camp.attackWait > 0) continue;
+    if (camp.attackWait > 0) camp.attackWait--;
     const e = neutrals.ids[i]!;
     const t = transforms.get(e)!;
-    // Up to `targets` attackers in reach, nearest first: a selection pass per pick, no sort or allocation.
-    picked.length = 0;
-    while (picked.length < p.targets) {
-      let best: Entity = 0;
-      let bestD = Infinity;
-      for (let k = 0; k < camp.attackers.length; k++) {
-        const o = camp.attackers[k]!;
-        if (picked.includes(o)) continue;
-        const ot = transforms.get(o)!;
-        const d = len(ot.x - t.x, ot.y - t.y);
-        if (d - (colliders.get(o)?.radius ?? 0) > p.range || !ctx.clear(t.x, t.y, ot.x, ot.y)) continue;
-        if (d < bestD || (d === bestD && o < best)) {
-          best = o;
-          bestD = d;
-        }
+
+    if (p.kind === 'halftrack') {
+      if (camp.attack !== BossAttack.None) {
+        if (tick - camp.attackStart >= p.windupSeconds) resolve(u, camp, e, p);
+        continue;
       }
-      if (best === 0) break;
-      picked.push(best);
+      if (camp.attackWait > 0 || camp.driveTicks > 0) continue;
+      const charge = (camp.attacks + 1) % p.chargeEvery === 0;
+      if (pick(ctx, camp, t.x, t.y, charge ? p.charge.length : p.range, 1) === 0) continue;
+      const tt = transforms.get(picked[0]!)!;
+      camp.attack = charge ? BossAttack.Charge : BossAttack.Spray;
+      camp.attackX = t.x;
+      camp.attackY = t.y;
+      camp.attackAngle = t.facing = atan2(tt.y - t.y, tt.x - t.x);
+      camp.attackStart = tick;
+      camp.attacks++;
+      camp.attackWait = p.intervalSeconds;
+      continue;
     }
-    if (picked.length === 0) continue; // fires as soon as someone is in reach
+
+    if (camp.attackWait > 0) continue;
+    if (pick(ctx, camp, t.x, t.y, p.range, p.targets) === 0) continue; // fires as soon as someone is in reach
     for (let k = 0; k < picked.length; k++) {
       const ot = transforms.get(picked[k]!)!;
-      lobs.spawn(e, Team.Neutral, t.x, t.y, ot.x, ot.y, p.flightSeconds, LobKind.Shell, p.damage, p.radius, p.arcHeight);
+      u.lobs.spawn(e, Team.Neutral, t.x, t.y, ot.x, ot.y, p.flightSeconds, LobKind.Shell, p.damage, p.radius, p.arcHeight);
     }
     const first = transforms.get(picked[0]!)!;
     t.facing = atan2(first.y - t.y, first.x - t.x); // the barrel follows the first target
     camp.attackWait = p.intervalSeconds;
   }
+}
+
+/** Fills `picked` with up to `count` of the camp's attackers within `reach` of (x, y) and in sight, nearest first (ties by id); a selection pass per pick, no sort or allocation. */
+function pick(ctx: CampContext, camp: Camp, x: number, y: number, reach: number, count: number): number {
+  picked.length = 0;
+  while (picked.length < count) {
+    let best: Entity = 0;
+    let bestD = Infinity;
+    for (let k = 0; k < camp.attackers.length; k++) {
+      const o = camp.attackers[k]!;
+      if (picked.includes(o)) continue;
+      const ot = ctx.transforms.get(o)!;
+      const d = len(ot.x - x, ot.y - y);
+      if (d - (ctx.colliders.get(o)?.radius ?? 0) > reach || !ctx.clear(x, y, ot.x, ot.y)) continue;
+      if (d < bestD || (d === bestD && o < best)) {
+        best = o;
+        bestD = d;
+      }
+    }
+    if (best === 0) break;
+    picked.push(best);
+  }
+  return picked.length;
+}
+
+type HalftrackPattern = Extract<NonNullable<Config['neutrals']['camps']['halftrack']['boss']>['pattern'], { kind: 'halftrack' }>;
+
+/** The Halftrack's windup ends: everyone in the locked shape is hit; a charge then drives down its strip. */
+function resolve(u: UltimateContext, camp: Camp, e: Entity, p: HalftrackPattern) {
+  const spray = camp.attack === BossAttack.Spray;
+  const list = spray
+    ? enemiesInCone(u, camp.attackX, camp.attackY, camp.attackAngle, p.range, p.spray.angle, Team.Neutral)
+    : enemiesInStrip(u, camp.attackX, camp.attackY, camp.attackAngle, p.charge.length, p.charge.width, Team.Neutral, maxRadius(u.colliders));
+  const damage = spray ? p.spray.damage : p.charge.damage;
+  for (let k = 0; k < list.length; k++) u.hits.push(e, list[k]!, damage);
+  if (!spray) camp.driveTicks = Math.ceil(p.charge.length / (p.charge.speed / TICK_HZ));
+  camp.attack = BossAttack.None;
 }

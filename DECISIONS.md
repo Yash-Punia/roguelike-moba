@@ -1556,3 +1556,47 @@ From TDD §13:
   - a separate boss system with its own state machine (it would duplicate camps);
   - telling bots to stop shooting bosses (targeting is automatic and the same for humans);
   - only an idle boss in its arena can be engaged (it would change the rule for humans too).
+
+## D-080 — The Halftrack and Supply Drop
+- Date: 2026-11-06
+- Source: M4 row 3, second commit (plan approved by the user; Supply Drop to the whole team); the numbers made during development
+- Decision:
+  - **Halftrack:** 3,500 HP (BS-01), moves at 2.2 m/s, up at 2:00, back 90 s after a clear; in the arenas at (−14.5, 35) on The Front and (−8, 28) on The Bridgehead.
+  - **Pattern `halftrack`:** every 2.5 s, a windup locked on the nearest attacker in reach and in sight:
+    - **spray:** a 60° cone 7 m long (BS-01), 260 damage;
+    - **charge**, every 3rd attack: a strip 8 m long and 2.4 m wide (BS-01), 320 damage. The Halftrack then drives down it at 16 m/s, stopped by walls through normal movement. The camp chase and its leash wait until the drive ends.
+    - The windup is 0.8 s (BS-01). The Halftrack holds still through it, and the shape stays where it was aimed, so moving out of it works.
+    - A leash or the Halftrack's death calls a windup off.
+  - **Pending attack on the `Camp` record** (`attack`, `attackX/Y`, `attackAngle`, `attackStart`, `attacks`, `driveTicks`): one windup at a time, with no allocation.
+  - **Shared shape tests:** `inSector` in `src/sim/math.ts` is the cone test for Gamma's flame and the spray. `enemiesIn`, `enemiesInStrip`, `enemiesInCone` and `maxRadius` are exported from `ultimate.ts`. `inTelegraph` handles cones.
+  - **Telegraphs:**
+    - a pending windup is the snapshot's third source (camps in map order): a `cone` (new shape; `radius` is its length, plus a new `arc` field) or a `strip`;
+    - render pools cones like the other shapes: a sector geometry cached per arc, a faint cone plus a fill that grows out to its length, two draws.
+  - **Supply Drop** (`boss.supplyDrop`, GDD §4): a Halftrack clear gives every champion of the killing team, alive or not, +15% damage and +10% move speed (stat pcts, the way the Redeploy sprint adds and removes its own) for 60 s.
+    - A second clear while it's on restarts the timer without stacking.
+    - Snapshot `supply` per champion, for a later HUD icon.
+    - On the clear, a "SUPPLY DROP" callout shows over each of the viewer's team's champions, above the LEVEL callouts the XP brings.
+  - **Render:** the Halftrack per BS-01: truck cab with grille and headlights, hazard-striped bumper, road wheels in front and tracks behind, an open troop bay with a striped tailgate, red jerrycans, a pintle MG over the cab. Real shadows and the boss HP bar.
+  - **Measured:**
+    - all-bot 3v3, 30 seeds a map:
+      - median match on The Front 306 s, on The Bridgehead 219 s; none past 12 minutes.
+      - Bots still pull a mini-boss from a lane: the Halftrack in 7 of 30 Front matches, and a boss in 6 of 30 on The Bridgehead.
+      - Every pull came from a bot fighting in a lane by a trench mouth (Front left lane at about (−24, 37); Bridgehead lanes about 6–7 m from each arena).
+      - D-079's camp-path detour can't stop these: champions auto-fire at whatever is in reach.
+      - Left as is in this commit; the choice goes back to the user.
+    - Chrome, The Front: spray cone and charge strip on screen at 94–95 draw calls; no console errors.
+  - **Tests:**
+    - the spray is marked 24 ticks before its 260 hit, and a champion moved out of the cone takes nothing;
+    - a windup dies with the Halftrack;
+    - every 3rd attack is a charge, marked 8 × 2.4 m, after which it drives more than 6 m down the line;
+    - a chase past the leash sends it home to full HP;
+    - Supply Drop: +0.15 damage and +0.10 move-speed pct for the killing team only, restarted (not stacked) by a second clear, and gone after its 60 s;
+    - solo at level 4, for both mini-bosses, against the shipped numbers:
+      - an Alpha that stands still is knocked out;
+      - a scripted dodger clears the boss. It steps out of each marker by its shape, then goes back to its spot at its own range from the boss's home.
+      - Backing off to stay just out of the Halftrack's reach instead pulls it to its leash, and it goes home and heals.
+- Why: the second half of the row; the Halftrack is the GDD's movement check: dodge the cone, sidestep the charge.
+- Alternatives:
+  - the charge hitting units as it drives (the strip marker would lie);
+  - a spray that tracks its target through the windup (no dodge);
+  - Supply Drop on the status buff slot (one slot for one stat; this needs two).

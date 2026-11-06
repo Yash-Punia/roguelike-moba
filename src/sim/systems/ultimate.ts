@@ -4,7 +4,7 @@ import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import type { HitQueue } from '../hits';
 import { LobKind, type LobPool } from '../lobs';
-import { atan2, cos, len, sin, turnTowards } from '../math';
+import { atan2, cos, inSector, len, sin, turnTowards } from '../math';
 import { TargetClass, type Champion, type Collider, type Health, type Motion, type Team, type Transform } from '../sim';
 import type { SpatialIndex } from '../spatial';
 import type { Stats } from '../stats';
@@ -50,7 +50,7 @@ function classOf(name: UltTargetClass): TargetClass {
 const nearby: Entity[] = [];
 const inside: Entity[] = [];
 
-function maxRadius(colliders: Store<Collider>) {
+export function maxRadius(colliders: Store<Collider>) {
   let r = 0;
   for (let i = 0; i < colliders.data.length; i++) r = Math.max(r, colliders.data[i]!.radius);
   return r;
@@ -135,7 +135,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
 }
 
 /** Fills `inside` with living enemies (not on `team`) whose collider overlaps the circle (x, y, r) and that raised ground doesn't shield from its centre, ascending ids. */
-function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: number, reach: number): Entity[] {
+export function enemiesIn(ctx: UltimateContext, x: number, y: number, r: number, team: number, reach: number): Entity[] {
   inside.length = 0;
   ctx.spatial.query(x, y, r + reach, nearby);
   for (let k = 0; k < nearby.length; k++) {
@@ -202,7 +202,7 @@ export function lobSystem(ctx: UltimateContext) {
  * Fills `inside` with living enemies whose collider overlaps the strip starting at (x, y) and
  * running `length` along `angle`, `width` wide, with a clear shot from (x, y); ascending ids.
  */
-function enemiesInStrip(ctx: UltimateContext, x: number, y: number, angle: number, length: number, width: number, team: number, reach: number): Entity[] {
+export function enemiesInStrip(ctx: UltimateContext, x: number, y: number, angle: number, length: number, width: number, team: number, reach: number): Entity[] {
   inside.length = 0;
   const dx = cos(angle);
   const dy = sin(angle);
@@ -369,4 +369,22 @@ export function zoneSystem(ctx: UltimateContext) {
     }
     if (elapsed >= zones.total[i]!) zones.release(i);
   }
+}
+
+/**
+ * Fills `inside` with living enemies whose collider overlaps the sector from (x, y) along `angle`,
+ * `range` long and `arc` wide, with a clear shot from (x, y); ascending ids (the Halftrack's spray, D-080).
+ */
+export function enemiesInCone(ctx: UltimateContext, x: number, y: number, angle: number, range: number, arc: number, team: number): Entity[] {
+  inside.length = 0;
+  ctx.spatial.query(x, y, range + maxRadius(ctx.colliders), nearby);
+  for (let k = 0; k < nearby.length; k++) {
+    const o = nearby[k]!;
+    if (ctx.teams.get(o) === team) continue;
+    const h = ctx.healths.get(o);
+    if (!h || h.hp <= 0) continue;
+    const ot = ctx.transforms.get(o)!;
+    if (inSector(x, y, angle, range, arc / 2, ot.x, ot.y, ctx.colliders.get(o)?.radius ?? 0) && ctx.clear(x, y, ot.x, ot.y)) inside.push(o);
+  }
+  return inside;
 }

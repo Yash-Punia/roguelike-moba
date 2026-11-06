@@ -187,7 +187,7 @@ const MapConfig = z.object({
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
   /** Neutral camps in the Trench rooms (GDD §4, map spec C1–C4 and S1–S4) and the mini-bosses in their arenas: `count` units at the centre (x, y). */
-  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
+  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun', 'halftrack']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
   /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
   fordSlowPct: pct().default(0),
 });
@@ -273,9 +273,26 @@ const CampDef = z.object({
           /** Apex of the shell's arc (render, m). */
           arcHeight: nonneg(),
         }),
+        /**
+         * Halftrack (D-080): every `intervalSeconds`, at the nearest attacker within `range`, a spray
+         * (a cone `range` long, `spray.angle` wide) or, every `chargeEvery`th attack, a charge (a strip
+         * `charge.length` long and `charge.width` wide, then it drives down it at `charge.speed`).
+         * Each is marked `windupSeconds` before it hits, and locked where it was aimed.
+         */
+        z.object({
+          kind: z.literal('halftrack'),
+          range: positive(),
+          intervalSeconds: secs(),
+          windupSeconds: secs(),
+          chargeEvery: z.number().int().min(1),
+          spray: z.object({ angle: deg(), damage: nonneg() }),
+          charge: z.object({ length: positive(), width: positive(), damage: nonneg(), speed: positive() }),
+        }),
       ]),
       /** Artillery Support: the killing team's next this many waves bring an extra Bazooka Tank in every lane. */
       artilleryWaves: z.number().int().min(0).default(0),
+      /** Supply Drop (D-080): every champion of the killing team deals `damagePct` more and moves `speedPct` faster for `seconds`. */
+      supplyDrop: z.object({ damagePct: pct(), speedPct: pct(), seconds: secs() }).optional(),
     })
     .optional(),
 });
@@ -290,7 +307,7 @@ const Neutrals = z.object({
   rewardRadius: positive(),
   /** Squad members stand on a ring this wide round the campfire (m). */
   ringRadius: nonneg(),
-  camps: z.object({ deserter: CampDef, sniper: CampDef, fieldGun: CampDef }),
+  camps: z.object({ deserter: CampDef, sniper: CampDef, fieldGun: CampDef, halftrack: CampDef }),
 });
 
 /** XP and levels (GDD §8). */

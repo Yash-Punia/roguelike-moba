@@ -118,6 +118,43 @@ export function sprintSystem(ctx: LifeContext) {
   }
 }
 
+/**
+ * Supply Drop (GDD §4, D-080), at the end of the tick: a mini-boss with a `supplyDrop` cleared
+ * this tick gives every champion of the killing team, alive or not, its damage and move-speed
+ * pcts for its `seconds`. A second clear while it's on restarts the timer without stacking.
+ */
+export function supplySystem(ctx: LifeContext, n: Config['neutrals'], events: readonly SimEvent[], from: number) {
+  const { champions, teams } = ctx;
+  for (let i = 0; i < champions.ids.length; i++) {
+    const c = champions.data[i]!;
+    if (c.supplyTicks > 0 && --c.supplyTicks === 0) setSupply(ctx, champions.ids[i]!, c, 0, 0);
+  }
+  for (let k = from; k < events.length; k++) {
+    const ev = events[k]!;
+    if (ev.type !== 'campCleared' || ev.team === undefined) continue;
+    const drop = n.camps[ev.kind].boss?.supplyDrop;
+    if (!drop) continue;
+    for (let i = 0; i < champions.ids.length; i++) {
+      const e = champions.ids[i]!;
+      if (teams.get(e) !== ev.team) continue;
+      const c = champions.data[i]!;
+      setSupply(ctx, e, c, drop.damagePct, drop.speedPct);
+      c.supplyTicks = drop.seconds;
+    }
+  }
+}
+
+function setSupply(ctx: LifeContext, e: number, c: Champion, damagePct: number, speedPct: number) {
+  const st = ctx.stats.get(e);
+  if (!st) return;
+  addPct(st, Stat.Damage, damagePct - c.supplyDamagePct);
+  addPct(st, Stat.MoveSpeed, speedPct - c.supplySpeedPct);
+  c.supplyDamagePct = damagePct;
+  c.supplySpeedPct = speedPct;
+  const m = ctx.motions.get(e);
+  if (m) m.speed = stat(st, Stat.MoveSpeed);
+}
+
 /** The HQ spawn pad heals its own team's living champions standing on it (GDD §9), up to max HP. */
 export function padHealSystem(ctx: LifeContext, map: Config['map'], pad: Config['match']['spawnPad']) {
   const { champions, transforms, healths, teams } = ctx;

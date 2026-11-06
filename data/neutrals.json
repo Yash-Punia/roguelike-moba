@@ -67,6 +67,30 @@
         },
         "artilleryWaves": 2
       }
+    },
+    "halftrack": {
+      "name": "Halftrack",
+      "firstSpawnSeconds": 120,
+      "respawnSeconds": 90,
+      "xp": 250,
+      "ultCharge": 15,
+      "unit": {
+        "maxHp": 3500,
+        "radius": 1.4,
+        "moveSpeed": 2.2
+      },
+      "boss": {
+        "pattern": {
+          "kind": "halftrack",
+          "range": 7,
+          "intervalSeconds": 2.5,
+          "windupSeconds": 0.8,
+          "chargeEvery": 3,
+          "spray": { "angle": 60, "damage": 260 },
+          "charge": { "length": 8, "width": 2.4, "damage": 320, "speed": 16 }
+        },
+        "supplyDrop": { "damagePct": 15, "speedPct": 10, "seconds": 60 }
+      }
     }
   }
 }

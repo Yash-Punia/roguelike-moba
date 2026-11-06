@@ -1,4 +1,4 @@
-import { cos, len, sin } from './math';
+import { cos, inSector, len, sin } from './math';
 import type { TelegraphSnapshot } from './sim';
 
 /**
@@ -7,6 +7,7 @@ import type { TelegraphSnapshot } from './sim';
  */
 export function inTelegraph(t: TelegraphSnapshot, x: number, y: number, margin = 0): boolean {
   if (t.shape === 'circle') return len(x - t.x, y - t.y) <= t.radius + margin;
+  if (t.shape === 'cone') return inSector(t.x, t.y, t.angle, t.radius, t.arc / 2, x, y, margin);
   const dx = cos(t.angle);
   const dy = sin(t.angle);
   const along = (x - t.x) * dx + (y - t.y) * dy;

@@ -61,6 +61,7 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId.startsWith('deserter')) deserter(root, Number(modelId.slice(8)) || 0);
   else if (modelId === 'sniper') sniper(root);
   else if (modelId === 'fieldGun') fieldGun(root);
+  else if (modelId === 'halftrack') halftrack(root);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
@@ -629,6 +630,43 @@ function fieldGun(root: THREE.Object3D) {
   }
   crewman(root, 1, -0.7, -0.75, 0.3);
   crewman(root, 2, -0.6, 0.55, -0.4);
+}
+
+/**
+ * Halftrack (BS-01): an armoured truck cab with a grille, headlights and a hazard-striped bumper
+ * in front, road wheels under the cab, tracks under the open troop bay at the back, red
+ * jerrycans on the flanks, a striped tailgate and a pintle machine gun on a ring over the cab.
+ * Faces local +x; about 3.2 m long. It turns to its target as a whole (the sim sets its facing).
+ */
+function halftrack(root: THREE.Object3D) {
+  // Running gear: wheels under the cab, tracks under the bay.
+  for (const z of [-0.78, 0.78]) {
+    part(root, cyl(0.36, 0.36, 0.26, 12), BS_TYRE, 0.95, 0.36, z).rotation.x = Math.PI / 2;
+    part(root, cyl(0.14, 0.14, 0.28, 8), BS_OLIVE, 0.95, 0.36, z * 1.01).rotation.x = Math.PI / 2;
+    part(root, box(1.7, 0.5, 0.34), BS_TYRE, -0.62, 0.3, z);
+    for (const x of [-1.25, -0.82, -0.4, 0.02]) part(root, cyl(0.16, 0.16, 0.36, 8), palette.gunmetal, x, 0.26, z).rotation.x = Math.PI / 2;
+  }
+  // Hull: bay at the back, cab and bonnet in front.
+  part(root, box(2.0, 0.62, 1.5), BS_OLIVE, -0.55, 0.86, 0);
+  part(root, box(1.0, 0.75, 1.4), BS_OLIVE, 0.55, 0.95, 0); // cab
+  part(root, box(0.9, 0.06, 1.42), palette.gunmetal, 0.55, 1.35, 0); // cab roof
+  part(root, box(0.7, 0.5, 1.2), BS_OLIVE, 1.3, 0.78, 0); // bonnet
+  part(root, box(0.06, 0.4, 0.9), palette.gunmetal, 1.66, 0.76, 0); // grille
+  for (const z of [-0.45, 0.45]) part(root, cyl(0.1, 0.1, 0.06, 10), palette.shearling, 1.66, 0.98, z).rotation.z = Math.PI / 2;
+  for (const z of [-0.3, 0.3]) part(root, box(0.04, 0.12, 0.42), palette.gunmetal, 1.0, 1.15, z); // vision slits
+  // Hazard bumper: yellow with dark stripes.
+  part(root, box(0.16, 0.2, 1.6), BS_HAZARD, 1.78, 0.42, 0);
+  for (let k = 0; k < 5; k++) part(root, box(0.17, 0.21, 0.1), BS_TYRE, 1.78, 0.42, -0.64 + k * 0.32).rotation.x = 0.6;
+  // Open bay rim, striped tailgate, red jerrycans on the flanks.
+  for (const z of [-0.72, 0.72]) part(root, box(1.9, 0.18, 0.06), BS_OLIVE, -0.55, 1.26, z);
+  part(root, box(0.06, 0.3, 1.5), BS_HAZARD, -1.56, 1.0, 0);
+  for (let k = 0; k < 4; k++) part(root, box(0.07, 0.31, 0.1), BS_TYRE, -1.56, 1.0, -0.5 + k * 0.33).rotation.x = 0.6;
+  for (const z of [-0.8, 0.8]) part(root, box(0.22, 0.3, 0.1), palette.red, 0.1, 0.95, z);
+  // Pintle MG over the cab.
+  part(root, cyl(0.26, 0.28, 0.12, 10), palette.gunmetal, 0.4, 1.44, 0);
+  part(root, box(0.36, 0.16, 0.14), palette.gunmetal, 0.55, 1.6, 0);
+  part(root, box(0.6, 0.06, 0.06), palette.gunmetal, 0.95, 1.62, 0);
+  part(root, box(0.16, 0.12, 0.14), BS_RUST, 0.42, 1.6, 0.14); // ammo can
 }
 
 /**

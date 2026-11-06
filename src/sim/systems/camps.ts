@@ -21,6 +21,13 @@ export enum CampState {
   Respawning = 3,
 }
 
+/** A mini-boss attack in its windup (D-080). */
+export enum BossAttack {
+  None = 0,
+  Spray = 1,
+  Charge = 2,
+}
+
 /** One neutral camp (a `map.camps` entry) and where it is in its state machine. */
 export interface Camp {
   spot: CampSpot;
@@ -42,6 +49,14 @@ export interface Camp {
   attackerLoad: number[];
   /** A mini-boss: ticks until its next attack (D-079). */
   attackWait: number;
+  /** The Halftrack (D-080): the attack in its windup, locked at (attackX, attackY) along `attackAngle` from `attackStart`; attacks so far (every `chargeEvery`th is a charge); ticks left driving down a charge. */
+  attack: BossAttack;
+  attackX: number;
+  attackY: number;
+  attackAngle: number;
+  attackStart: number;
+  attacks: number;
+  driveTicks: number;
 }
 
 /** A camp unit (TDD §5 `Neutral`): its camp, and its own spot and facing at the camp. */
@@ -91,6 +106,7 @@ export interface CampBundle {
 export function createCamps(map: Config['map'], n: Neutrals): Camp[] {
   return map.camps.map((spot) => ({
     spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [], attackerLoad: [], attackWait: 0,
+    attack: BossAttack.None, attackX: 0, attackY: 0, attackAngle: 0, attackStart: 0, attacks: 0, driveTicks: 0,
   }));
 }
 
@@ -167,6 +183,8 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
   camp.state = CampState.Idle;
   camp.aggro = 0;
   camp.attackWait = 0;
+  camp.attack = BossAttack.None;
+  camp.attacks = camp.driveTicks = 0;
 }
 
 /** A unit the camp can fight: alive, not neutral, not a structure. */
@@ -180,6 +198,8 @@ function fightable(ctx: CampContext, e: Entity): boolean {
 
 function goHome(ctx: CampContext, camp: Camp, index: number, tick: number) {
   camp.state = CampState.Leashing;
+  camp.attack = BossAttack.None; // a windup in progress is called off
+  camp.driveTicks = 0;
   camp.aggro = 0;
   camp.attackers.length = camp.attackerTicks.length = 0;
   camp.leashTick = tick;
@@ -269,6 +289,17 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
     tg.targetId = 0;
     m.intentX = m.intentY = 0;
     m.speed = def.moveSpeed;
+    // A mini-boss holds still through a windup and drives straight down a charge (D-080).
+    if (camp.state === CampState.Engaged && camp.attack !== BossAttack.None) continue;
+    if (camp.state === CampState.Engaged && camp.driveTicks > 0) {
+      const p = n.camps[camp.spot.kind].boss?.pattern;
+      m.speed = p?.kind === 'halftrack' ? p.charge.speed : def.moveSpeed;
+      m.intentX = cos(camp.attackAngle);
+      m.intentY = sin(camp.attackAngle);
+      t.facing = camp.attackAngle;
+      camp.driveTicks--;
+      continue;
+    }
     if (camp.state === CampState.Engaged) {
       // The attacker fewest members are on, then one it can shoot, then the nearest: the camp spreads its fire,
       // walking to an attacker it can't reach or see.
@@ -376,6 +407,8 @@ export function campDeathSystem(ctx: CampContext, n: Neutrals, tick: number) {
       camp.state = CampState.Respawning;
       camp.aggro = 0;
       camp.attackers.length = camp.attackerTicks.length = 0;
+      camp.attack = BossAttack.None; // a windup dies with the boss
+      camp.driveTicks = 0;
       camp.respawnAt = tick + n.camps[kind].respawnSeconds;
     }
     if (n.camps[kind].boss) {

@@ -171,46 +171,71 @@ describe('mini-boss rewards (D-079)', () => {
   });
 });
 
-/** Is the champion entity `me` inside any telegraph, and if so which way out (unit vector)? */
-function wayOut(snap: ReturnType<ReturnType<typeof createSim>['snapshot']>, x: number, y: number, r: number, from: { x: number; y: number }) {
+/**
+ * Which way out of the first telegraph covering a unit of radius `r` at (x, y), by shape: a circle
+ * away from its centre (across the line to the boss when at the centre); a strip sideways out of
+ * the nearer edge; a cone out of range or sideways to the nearer edge, whichever is shorter.
+ */
+function wayOut(snap: ReturnType<ReturnType<typeof createSim>['snapshot']>, x: number, y: number, r: number, boss: { x: number; y: number }) {
   for (const t of snap.telegraphs) {
     if (!inTelegraph(t, x, y, r)) continue;
-    let dx = x - t.x;
-    let dy = y - t.y;
-    const d = Math.hypot(dx, dy);
-    if (d < 0.3) {
-      // At the centre: strafe across the line to the boss.
-      dx = -(from.y - y);
-      dy = from.x - x;
+    const dx = Math.cos(t.angle);
+    const dy = Math.sin(t.angle);
+    let ox: number;
+    let oy: number;
+    if (t.shape === 'circle') {
+      ox = x - t.x;
+      oy = y - t.y;
+      if (Math.hypot(ox, oy) < 0.3) [ox, oy] = [-(boss.y - y), boss.x - x];
+    } else if (t.shape === 'strip') {
+      const across = (y - t.y) * dx - (x - t.x) * dy;
+      [ox, oy] = across >= 0 ? [-dy, dx] : [dy, -dx];
+    } else {
+      const d = Math.hypot(x - t.x, y - t.y) || 1;
+      const off = Math.atan2(y - t.y, x - t.x) - t.angle;
+      const w = Math.atan2(Math.sin(off), Math.cos(off));
+      const out = t.radius + r - d;
+      const side = d * Math.sin(Math.max(0, t.arc / 2 - Math.abs(w))) + r;
+      const rx = (x - t.x) / d;
+      const ry = (y - t.y) / d;
+      [ox, oy] = out < side ? [rx, ry] : w >= 0 ? [-ry, rx] : [ry, -rx];
     }
-    const n = Math.hypot(dx, dy) || 1;
-    return { x: dx / n, y: dy / n };
+    const n = Math.hypot(ox, oy) || 1;
+    return { x: ox / n, y: oy / n };
   }
   return undefined;
 }
 
-describe('a mini-boss is soloable with dodging (D-079, user)', () => {
-  /** A level 4 Alpha alone against the shipped Field Gun on the open map; `dodge` steps out of every marker. */
-  function duel(dodge: boolean) {
+describe('a mini-boss is soloable with dodging (D-079, D-080, user)', () => {
+  /**
+   * A level 4 Alpha alone against a shipped mini-boss on the open map; `dodge` steps out of every
+   * marker, then back to its spot at its own range from the boss's home. (Backing off to just
+   * outside the Halftrack's reach instead pulls it to its leash, and it goes home and heals.)
+   */
+  function duel(kind: 'fieldGun' | 'halftrack', dodge: boolean) {
     const config = fixtureConfig();
     config.waves.enabled = false;
     config.powers.powers = []; // no drafts on level-up
-    config.neutrals.camps.fieldGun.firstSpawnSeconds = 0;
-    config.map.camps = [GUN];
+    config.neutrals.camps[kind].firstSpawnSeconds = 0;
+    config.map.camps = [{ ...GUN, kind }];
     const alpha = config.champions.find((c) => c.id === 'alpha')!;
-    const hold = { x: 0, y: GUN.y - (alpha.weapon.range + config.neutrals.camps.fieldGun.unit.radius - 0.3) };
-    const sim = createSim(config, 1, [{ team: Blue, championId: 'alpha', spawnAt: hold }]);
+    const keep = alpha.weapon.range + config.neutrals.camps[kind].unit.radius - 0.3;
+    const spot = { x: 0, y: GUN.y - keep };
+    const sim = createSim(config, 1, [{ team: Blue, championId: 'alpha', spawnAt: spot }]);
     const me = sim.entityOf(0)!;
     for (let k = 0; k < 3; k++) sim.debug.levelUp(me);
     let cleared = false;
     for (let i = 0; i < 120 * 30 && !cleared && sim.stores.healths.get(me)!.hp > 0; i++) {
       const t = sim.stores.transforms.get(me)!;
+      const bossId = sim.stores.neutrals.ids[0];
+      const b = bossId ? sim.stores.transforms.get(bossId)! : GUN;
       let mx = 0;
       let my = 0;
       if (dodge) {
-        const out = wayOut(sim.snapshot(), t.x, t.y, alpha.radius + 0.2, GUN);
+        const out = wayOut(sim.snapshot(), t.x, t.y, alpha.radius + 0.2, b);
+        const d = Math.hypot(spot.x - t.x, spot.y - t.y);
         if (out) [mx, my] = [out.x, out.y];
-        else if (Math.hypot(hold.x - t.x, hold.y - t.y) > 0.3) [mx, my] = [(hold.x - t.x) / Math.hypot(hold.x - t.x, hold.y - t.y), (hold.y - t.y) / Math.hypot(hold.x - t.x, hold.y - t.y)];
+        else if (d > 0.3) [mx, my] = [(spot.x - t.x) / d, (spot.y - t.y) / d];
       }
       const cmd: Command = { tick: sim.tick, player: 0, moveX: Math.round(mx * 127), moveY: Math.round(my * 127), ult: false, draftPick: -1, reroll: false };
       for (const ev of sim.step([cmd]).events) if (ev.type === 'campCleared') cleared = true;
@@ -218,12 +243,131 @@ describe('a mini-boss is soloable with dodging (D-079, user)', () => {
     return { cleared, alive: sim.stores.healths.get(me)!.hp > 0, level: sim.stores.champions.get(me)!.level };
   }
 
-  it('a level 4 Alpha standing still is knocked out by the Field Gun', () => {
-    expect(duel(false)).toMatchObject({ cleared: false, alive: false, level: 4 });
+  it.each(['fieldGun', 'halftrack'] as const)('a level 4 Alpha standing still is knocked out by the %s', (kind) => {
+    expect(duel(kind, false)).toMatchObject({ cleared: false, alive: false, level: 4 });
   });
 
-  it('a level 4 Alpha that steps out of every shell clears it alone', () => {
-    expect(duel(true)).toMatchObject({ cleared: true, alive: true });
+  it.each(['fieldGun', 'halftrack'] as const)('a level 4 Alpha that steps out of every marker clears the %s alone', (kind) => {
+    expect(duel(kind, true)).toMatchObject({ cleared: true, alive: true });
+  });
+});
+
+const HT = { id: 'HT', kind: 'halftrack' as const, x: 0, y: 20, count: 1 };
+
+/** The Halftrack pinned to its D-080 numbers in ticks and radians, up from the first tick. */
+function htField(units: Unit[] = []) {
+  return gunField(units, (c) => {
+    c.neutrals.camps.halftrack = {
+      name: 'Halftrack', firstSpawnSeconds: 0, respawnSeconds: 100, xp: 250, ultCharge: 15,
+      unit: { maxHp: 3500, radius: 1.4, moveSpeed: 2.2 },
+      boss: {
+        pattern: { kind: 'halftrack', range: 7, intervalSeconds: 75, windupSeconds: 24, chargeEvery: 3, spray: { angle: Math.PI / 3, damage: 260 }, charge: { length: 8, width: 2.4, damage: 320, speed: 16 } },
+        artilleryWaves: 0,
+        supplyDrop: { damagePct: 0.15, speedPct: 0.1, seconds: 1800 },
+      },
+    };
+    c.map.camps = [HT];
+  });
+}
+
+describe('Halftrack (D-080)', () => {
+  /** Alpha 7 m south of the Halftrack, in both ranges; runs until its first windup shows. */
+  function firstWindup(a: ReturnType<typeof htField>) {
+    a.move(a.shooter, 0, 13);
+    for (let i = 0; i < 120 && a.sim.snapshot().telegraphs.length === 0; i++) a.run();
+    return { start: a.sim.tick - 1, tel: a.sim.snapshot().telegraphs[0]! };
+  }
+
+  it('sprays a 60° cone marked windupSeconds ahead; a champion that steps out takes nothing, one that stays is hit', () => {
+    const stay = htField();
+    const s = firstWindup(stay);
+    expect(s.tel).toMatchObject({ shape: 'cone', radius: 7, elapsed: 0, total: 24 });
+    expect(s.tel.arc).toBeCloseTo(Math.PI / 3);
+    expect(s.tel.angle).toBeCloseTo(-Math.PI / 2, 1);
+    stay.run(30);
+    expect(stay.fromGun(stay.shooter).map((e) => e.type === 'damage' && [e.amount, e.tick - s.start])).toEqual([[260, 24]]);
+
+    const dodge = htField();
+    firstWindup(dodge);
+    dodge.move(dodge.shooter, 6.5, 13); // out of the cone's side
+    dodge.run(30);
+    expect(dodge.fromGun(dodge.shooter)).toHaveLength(0);
+  });
+
+  it('a windup dies with the Halftrack: no marker left behind', () => {
+    const a = htField();
+    firstWindup(a);
+    a.sim.debug.kill(a.gun());
+    a.run(2);
+    expect(a.sim.camps[0]!.state).toBe(CampState.Respawning);
+    expect(a.sim.snapshot().telegraphs).toHaveLength(0);
+  });
+
+  it('every third attack is a charge: a marked strip, then it drives down it', () => {
+    const a = htField();
+    a.move(a.shooter, 0, 13);
+    let strip;
+    for (let i = 0; i < 400 && !strip; i++) {
+      a.run();
+      strip = a.sim.snapshot().telegraphs.find((t) => t.shape === 'strip');
+    }
+    expect(strip).toMatchObject({ team: Team.Neutral, length: 8, width: 2.4, total: 24, elapsed: 0 });
+    const from = { ...a.sim.stores.transforms.get(a.gun())! };
+    const hitsBefore = a.fromGun(a.shooter).length;
+    a.move(a.shooter, 8, 13); // out of the strip
+    a.run(24 + 20);
+    const to = a.sim.stores.transforms.get(a.gun())!;
+    const along = (to.x - from.x) * Math.cos(strip!.angle) + (to.y - from.y) * Math.sin(strip!.angle);
+    expect(along).toBeGreaterThan(6);
+    expect(a.fromGun(a.shooter)).toHaveLength(hitsBefore);
+  });
+
+  it('a chase past 10 m sends it home, and it heals to full', () => {
+    const a = htField();
+    a.run();
+    a.hp(a.gun(), 2000);
+    a.move(a.shooter, 0, 12);
+    a.run(10);
+    a.move(a.shooter, 0, -5); // runs off; the Halftrack follows to its leash
+    a.run(400);
+    expect(a.sim.camps[0]!.state).toBe(CampState.Idle);
+    expect(a.hp(a.gun())).toBe(3500);
+    const t = a.sim.stores.transforms.get(a.gun())!;
+    expect([t.x, t.y]).toEqual([HT.x, HT.y]);
+  });
+
+  it('Supply Drop: the killing team deals 15% more and moves 10% faster for 60 s; a second clear restarts it without stacking', async () => {
+    const { Stat } = await import('../src/sim/stats');
+    const a = htField([{ team: Blue, x: 30, y: -30 }, { team: Red, x: 30, y: 30 }]);
+    const [mate, red] = [1, 2].map((p) => a.sim.entityOf(p)!);
+    const pct = (e: number, s: number) => a.sim.stores.stats.get(e)!.pct[s]!;
+    const base = [a.shooter, mate!, red!].map((e) => [pct(e, Stat.Damage), pct(e, Stat.MoveSpeed)]);
+    const clear = () => {
+      a.hp(a.gun(), 1);
+      a.move(a.shooter, 0, 13);
+      const before = a.events.filter((e) => e.type === 'campCleared').length;
+      for (let i = 0; i < 120 && a.events.filter((e) => e.type === 'campCleared').length === before; i++) a.run();
+    };
+    a.run();
+    clear();
+    const on = a.sim.tick;
+    for (const [i, e] of [a.shooter, mate!].entries()) {
+      expect(pct(e, Stat.Damage)).toBeCloseTo(base[i]![0]! + 0.15);
+      expect(pct(e, Stat.MoveSpeed)).toBeCloseTo(base[i]![1]! + 0.1);
+    }
+    expect([pct(red!, Stat.Damage), pct(red!, Stat.MoveSpeed)]).toEqual(base[2]);
+    expect(a.sim.snapshot().entities.find((e) => e.id === mate)!.supply).toBe(true);
+    // It respawns after 100 ticks: a second clear while the buff is on.
+    a.run(110);
+    clear();
+    const again = a.sim.tick;
+    expect(pct(a.shooter, Stat.Damage)).toBeCloseTo(base[0]![0]! + 0.15);
+    a.run(1800 - 3);
+    expect(a.sim.tick - on).toBeGreaterThan(1800);
+    expect(pct(mate!, Stat.Damage)).toBeCloseTo(base[1]![0]! + 0.15); // restarted, so still on past the first 60 s
+    a.run(again + 1800 + 2 - a.sim.tick);
+    expect(pct(mate!, Stat.Damage)).toBeCloseTo(base[1]![0]!);
+    expect(pct(mate!, Stat.MoveSpeed)).toBeCloseTo(base[1]![1]!);
   });
 });
 

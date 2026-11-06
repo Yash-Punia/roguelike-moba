@@ -18,6 +18,13 @@ export const ringGeo = new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2)
 /** A unit strip lying along local +x from the origin, 1 wide. */
 const stripGeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
 const LIFT = 0.05;
+/** Unit sectors along local +x, `arc` wide, one per arc (the Halftrack's spray, D-080). */
+const sectors = new Map<number, THREE.BufferGeometry>();
+const sectorGeo = (arc: number) => {
+  let g = sectors.get(arc);
+  if (!g) sectors.set(arc, (g = new THREE.CircleGeometry(1, 24, -arc / 2, arc).rotateX(-Math.PI / 2)));
+  return g;
+};
 
 interface Slot {
   group: THREE.Group;
@@ -28,27 +35,35 @@ interface Slot {
 }
 
 /**
- * Ground telegraphs (TDD §9, D-078): a bright ring (circles) or a faint strip, and a fill that
- * grows with the time to impact; a live damage area (Lead Storm firing) shows the faint strip
+ * Ground telegraphs (TDD §9, D-078): a bright ring (circles) or a faint strip or cone, and a fill
+ * that grows with the time to impact; a live damage area (Lead Storm firing) shows the faint strip
  * only. Two draws a marker, pooled by index per shape. Reads `snap.telegraphs`; never writes sim state.
  */
 export class Telegraphs {
   readonly group = new THREE.Group();
   private readonly circles: Slot[] = [];
   private readonly strips: Slot[] = [];
+  private readonly cones: Slot[] = [];
   private shownCircles = 0;
   private shownStrips = 0;
+  private shownCones = 0;
 
   constructor(private readonly heightAt: HeightAt) {}
 
-  /** `shown`: fog of war. A circle shows if its centre is seen, a strip if its start or far end is. */
+  /** `shown`: fog of war. A circle shows if its centre is seen, a strip or cone if its start or far end is. */
   capture(telegraphs: readonly TelegraphSnapshot[], shown: (x: number, y: number) => boolean) {
     let c = 0;
     let s = 0;
+    let n = 0;
     for (const t of telegraphs) {
       if (t.shape === 'circle') {
         if (!shown(t.x, t.y)) continue;
         Object.assign(this.slot(this.circles, c++, ringGeo, edgeMat, discGeo).t, t);
+      } else if (t.shape === 'cone') {
+        if (!shown(t.x, t.y) && !shown(t.x + Math.cos(t.angle) * t.radius, t.y + Math.sin(t.angle) * t.radius)) continue;
+        const slot = this.slot(this.cones, n++, sectorGeo(t.arc), baseMat, sectorGeo(t.arc));
+        slot.base.geometry = slot.fill.geometry = sectorGeo(t.arc);
+        Object.assign(slot.t, t);
       } else {
         if (!shown(t.x, t.y) && !shown(t.x + Math.cos(t.angle) * t.length, t.y + Math.sin(t.angle) * t.length)) continue;
         Object.assign(this.slot(this.strips, s++, stripGeo, baseMat, stripGeo).t, t);
@@ -56,8 +71,10 @@ export class Telegraphs {
     }
     for (let i = c; i < this.shownCircles; i++) this.circles[i]!.group.visible = false;
     for (let i = s; i < this.shownStrips; i++) this.strips[i]!.group.visible = false;
+    for (let i = n; i < this.shownCones; i++) this.cones[i]!.group.visible = false;
     this.shownCircles = c;
     this.shownStrips = s;
+    this.shownCones = n;
   }
 
   update(alpha: number, at: At) {
@@ -84,11 +101,21 @@ export class Telegraphs {
       fill.scale.x = k;
       base.material = k < 1 ? baseMat : liveMat;
     }
+    for (let i = 0; i < this.shownCones; i++) {
+      const { group, fill, t } = this.cones[i]!;
+      group.visible = true;
+      group.position.set(t.x, this.heightAt(t.x, t.y) + LIFT, -t.y);
+      group.rotation.y = t.angle;
+      group.scale.set(t.radius, 1, t.radius);
+      const k = progress(t, alpha);
+      fill.visible = k < 1;
+      fill.scale.set(k, 1, k);
+    }
   }
 
   private slot(pool: Slot[], i: number, baseGeo: THREE.BufferGeometry, baseMaterial: THREE.Material, fillGeo: THREE.BufferGeometry): Slot {
-    let slot = pool[i];
-    if (slot) return slot;
+    const existing = pool[i];
+    if (existing) return existing;
     const group = new THREE.Group();
     const base = new THREE.Mesh(baseGeo, baseMaterial);
     const fill = new THREE.Mesh(fillGeo, fillMat);
@@ -97,7 +124,7 @@ export class Telegraphs {
     group.add(base, fill);
     group.visible = false;
     this.group.add(group);
-    slot = { group, base, fill, t: { team: 0, shape: 'circle', x: 0, y: 0, angle: 0, radius: 0, length: 0, width: 0, anchor: 0, elapsed: 0, total: 1 } };
+    const slot: Slot = { group, base, fill, t: { team: 0, shape: 'circle', x: 0, y: 0, angle: 0, radius: 0, arc: 0, length: 0, width: 0, anchor: 0, elapsed: 0, total: 1 } };
     pool.push(slot);
     return slot;
   }

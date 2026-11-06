@@ -15,7 +15,7 @@ import { DamageLog } from './damage-log';
 import { LobPool } from './lobs';
 import { ZonePool } from './zones';
 import { traitSystem, type TraitContext } from './systems/traits';
-import { deathSystem, medkitSystem, padHealSystem, respawnSystem, sprintSystem, type LifeContext } from './systems/life';
+import { deathSystem, medkitSystem, padHealSystem, respawnSystem, sprintSystem, supplySystem, type LifeContext } from './systems/life';
 import { emptyMods, foldMods, type PowerMods } from './powers';
 import { MinePool } from './mines';
 import { epicSystem, type EpicContext } from './systems/epics';
@@ -34,7 +34,7 @@ import {
 } from './systems/structures';
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
-import { campAggroSystem, campDeathSystem, campSystem, CampState, createCamps, type CampContext, type Neutral } from './systems/camps';
+import { BossAttack, campAggroSystem, campDeathSystem, campSystem, CampState, createCamps, type CampContext, type Neutral } from './systems/camps';
 import { bossSystem } from './systems/bosses';
 
 export type PlayerId = number;
@@ -153,6 +153,10 @@ export interface Champion {
   /** Redeploy sprint: the move speed pct it has applied right now (0 = none), and the tick it last respawned. */
   sprintPct: number;
   respawnTick: number;
+  /** Supply Drop (D-080): ticks left, and the damage and move speed pcts it has applied (0 = none). */
+  supplyTicks: number;
+  supplyDamagePct: number;
+  supplySpeedPct: number;
   /** Debug/test spawn point to respawn at instead of the team's HQ pad. */
   spawnAt: { x: number; y: number } | undefined;
   /** Tick it last cast its Ultimate (reveals it in a Trench); −1 before the first. */
@@ -315,6 +319,8 @@ export interface EntitySnapshot {
   /** Champions: takedowns assisted, and whether the Redeploy sprint is on. */
   assists: number;
   sprinting: boolean;
+  /** Champions: Supply Drop is on (D-080). */
+  supply: boolean;
   /** Champions: Ultimate charge 0–100, whether it has a target now, and its trait active (Steady Hand, Light Feet). */
   ultCharge: number;
   ultTargetable: boolean;
@@ -380,18 +386,21 @@ export interface LobSnapshot {
 
 /**
  * A red ground marker before a big hit (GDD §10, D-078): a circle (grenade, shell and bomb
- * landings) or a strip (Lead Storm). Derived from sim state every tick, so render and bots
- * always read the current shape.
+ * landings), a strip (Lead Storm, the Halftrack's charge) or a cone (its spray, D-080). Derived
+ * from sim state every tick, so render and bots always read the current shape.
  */
 export interface TelegraphSnapshot {
   team: Team;
-  shape: 'circle' | 'strip';
-  /** The circle's centre, or where the strip starts. */
+  shape: 'circle' | 'strip' | 'cone';
+  /** The circle's centre, or where the strip or cone starts. */
   x: number;
   y: number;
-  /** The strip's direction (radians). */
+  /** The strip's or cone's direction (radians). */
   angle: number;
+  /** The circle's radius, or the cone's length. */
   radius: number;
+  /** The cone's full width (radians). */
+  arc: number;
   length: number;
   width: number;
   /** The entity the shape moves with (the Lead Storm caster), 0 if fixed. */
@@ -449,7 +458,7 @@ export interface Snapshot {
   entities: EntitySnapshot[];
   projectiles: ProjectileSnapshot[];
   lobs: LobSnapshot[];
-  /** Ground telegraphs: lob landings in slot order, then Lead Storm strips in champion order. */
+  /** Ground telegraphs: lob landings in slot order, Lead Storm strips in champion order, then mini-boss windups in map order. */
   telegraphs: TelegraphSnapshot[];
   zones: ZoneSnapshot[];
   medkits: MedkitSnapshot[];
@@ -582,7 +591,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, sprintPct: 0, respawnTick: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, sprintPct: 0, respawnTick: 0, supplyTicks: 0, supplyDamagePct: 0, supplySpeedPct: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -754,12 +763,12 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], telegraphs: [], zones: [], medkits: [], camps: [], mines: [], vision: visibilityContext.vision };
   /** The pooled telegraph entry `i`, reset to a fixed shape with no size. */
   function telegraph(i: number, team: Team, shape: TelegraphSnapshot['shape'], x: number, y: number, elapsed: number, total: number): TelegraphSnapshot {
-    const t = (snap.telegraphs[i] ??= { team, shape, x, y, angle: 0, radius: 0, length: 0, width: 0, anchor: 0, elapsed, total });
+    const t = (snap.telegraphs[i] ??= { team, shape, x, y, angle: 0, radius: 0, arc: 0, length: 0, width: 0, anchor: 0, elapsed, total });
     t.team = team;
     t.shape = shape;
     t.x = x;
     t.y = y;
-    t.angle = t.radius = t.length = t.width = t.anchor = 0;
+    t.angle = t.radius = t.arc = t.length = t.width = t.anchor = 0;
     t.elapsed = elapsed;
     t.total = total;
     return t;
@@ -848,7 +857,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       // exactly its flight time later and a new fire pool first burns a full period after landing.
       zoneSystem(ultimateContext);
       lobSystem(ultimateContext);
-      bossSystem(campContext, lobs, config.neutrals); // after lobs advance, like casts: a shell's full flight is telegraphed
+      bossSystem(campContext, ultimateContext, config.neutrals, tick); // after lobs advance, like casts: a shell's full flight is telegraphed
       leadStormSystem(ultimateContext);
       heatWaveSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
@@ -885,6 +894,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
       sprintSystem(lifeContext);
+      supplySystem(lifeContext, config.neutrals, events, progressionFrom);
       structureRegenSystem(structureContext, config.structures);
       if (hqFell) events.push({ type: 'matchOver', winner: match.winner, reason: 'hq', tick });
       tick++;
@@ -902,7 +912,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, assists: 0, sprinting: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -941,6 +951,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.deaths = c?.deaths ?? 0;
         s.assists = c?.assists ?? 0;
         s.sprinting = (c?.sprintPct ?? 0) > 0;
+        s.supply = (c?.supplyTicks ?? 0) > 0;
         s.killer = h && h.hp <= 0 ? h.killer : 0;
         s.ultCharge = c?.ultCharge ?? 0;
         s.ultTargetable = (c?.ultTargetId ?? 0) !== 0;
@@ -1038,6 +1049,21 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         t.length = ult.length;
         t.width = ult.width;
         t.anchor = e;
+      }
+      for (let c = 0; c < campContext.camps.length; c++) {
+        const camp = campContext.camps[c]!;
+        const p = config.neutrals.camps[camp.spot.kind].boss?.pattern;
+        if (camp.attack === BossAttack.None || p?.kind !== 'halftrack') continue;
+        const spray = camp.attack === BossAttack.Spray;
+        const t = telegraph(tn++, Team.Neutral, spray ? 'cone' : 'strip', camp.attackX, camp.attackY, tick - 1 - camp.attackStart, p.windupSeconds);
+        t.angle = camp.attackAngle;
+        if (spray) {
+          t.radius = p.range;
+          t.arc = p.spray.angle;
+        } else {
+          t.length = p.charge.length;
+          t.width = p.charge.width;
+        }
       }
       snap.telegraphs.length = tn;
       n = 0;

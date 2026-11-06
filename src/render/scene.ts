@@ -290,6 +290,14 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
           damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, `+ ${name}`, damageColours.level, false, now);
         }
       }
+      // Supply Drop (D-080): a callout over each of the viewer's team champions when their team gets it.
+      if (ev.type === 'campCleared' && ev.team === localTeam && config.neutrals.camps[ev.kind].boss?.supplyDrop) {
+        for (const [id, s] of interp) {
+          if (s.kind !== Kind.Champion || teams.get(id) !== localTeam) continue;
+          const lift = (bars.get(id)?.lift ?? 2) + 1.8; // above the LEVEL callouts its XP brings
+          damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, 'SUPPLY DROP', damageColours.level, true, now);
+        }
+      }
       if (ev.type === 'levelUp') {
         const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         if (s) {
