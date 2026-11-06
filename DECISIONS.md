@@ -1471,3 +1471,32 @@ From TDD §13:
   - **So camps are no longer a two-champion job**, except the 4-deserter squads (C1, C4). D-074's "takes two champions" and D-075's "a lone bot loses" no longer hold for the others. Bots still only farm in pairs (D-075); not changed here.
   - **Tests:** the duel test is re-pinned per camp (solo clear: squad of 3 and nest yes, squad of 4 no) and renamed to match.
 - Why: the user's tuning; camps were too slow to clear.
+
+## D-078 — Ground telegraphs
+- Date: 2026-11-06
+- Source: M4 row 2; plan approved by the user (unify the existing markers, the sniper keeps its aim line, a snapshot list rather than an event); the rest made during development
+- Decision:
+  - **Sim:** `snap.telegraphs` (`TelegraphSnapshot`), built in the snapshot from state the sim already has. No new system or pool.
+    - Every lob in flight gives a circle at its landing spot: Frag Grenade, Mortar Support shells, Airstrike Beacon bombs. `elapsed`/`total` are its flight ticks.
+    - Every Lead Storm channel gives a strip from Beta along `channelAngle`, anchored to her. It fills over the windup (`total` = windup ticks) and is full on the first tick of fire. While firing it stays as a live damage area (`elapsed = total`).
+    - Order: lob slots, then champions by id.
+    - `LobSnapshot.radius` is gone; the landing disc was its only reader.
+  - **A snapshot list, not an event** (TDD §6.8 and §7 say a `Telegraph` event). Render and bots need the current shape every tick, which the list gives. A one-off event adds nothing they use. Audio reads only events, so a warning sound will need one; add it then.
+  - **Render** (`src/render/telegraphs.ts`, danger red only):
+    - each marker is a faint shape, a bright edge (ring, or strip outline), and a fill that grows with the time to impact (disc radius, strip length), interpolated between ticks;
+    - a live area shows the faint shape only, with Lead Storm's tracer streaks (still in `UltFx`);
+    - draw order 6–8, above the Heat Wave and fire pools;
+    - meshes are pooled by index per shape.
+    - **Fog:** a circle shows if its centre is seen (the same test as the grenade mesh, so the two always show together). A strip shows if its start or far end is seen, so a hidden Beta's strip reaching into your vision can be dodged.
+    - **Smooth turning:** an anchored strip uses its caster's interpolated position and upper-body angle, so it turns smoothly between ticks.
+  - **Not here:** the sniper's shot (it keeps the D-073 aim line, user's choice); a cone shape and boss attack patterns (Halftrack and Field Gun, next row: a third source in the same builder); bots dodging (its own row, reading `snap.telegraphs`).
+  - **Measured** (Chrome, The Front, 1v1 dummy, Beta with Mortar Support and Airstrike Beacon): Lead Storm plus three bombs at once peaks at 118 draw calls, 78k triangles, 160 fps, no console errors. Each marker costs 3 draws (was 2). Instance them with the M5 particle pool if boss fights push past the 120 budget.
+  - **Tests** (`tests/telegraphs.test.ts`):
+    - a grenade's circle sits at the landing spot and counts its flight;
+    - Lead Storm's strip fills a tick at a time over the windup, stays live while firing, and is gone after the channel;
+    - every telegraph lead time in config (grenade and shell flights, Lead Storm windup) is at least 0.5 s (GDD §10).
+    - The real-map bot push test gets a 30 s timeout. It takes about 2 s alone but went past 5 s in the full parallel run once a 36th test file shifted the scheduling.
+- Why: one marker contract for every big hit, showing time to impact (TDD §9). The mini-bosses and bot dodging build on it.
+- Alternatives:
+  - a pooled sim `Telegraph` record that also applies the damage when it resolves (that belongs with the boss patterns that need it);
+  - one-off events with render keeping its own timers (bots would have to rebuild the state).

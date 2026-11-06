@@ -12,6 +12,7 @@ import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
 import { Knockouts } from './knockout';
 import { TargetLine } from './target-line';
+import { Telegraphs } from './telegraphs';
 import { Tracers } from './tracers';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
@@ -153,6 +154,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   scene.add(tracers.mesh);
   const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
   scene.add(ultFx.group);
+  const telegraphs = new Telegraphs((x, y) => arena.terrain.heightAt(x, y));
+  scene.add(telegraphs.group);
   const knockouts = new Knockouts(scene, (x, z) => arena.terrain.heightAt(x, -z));
   let lastUpdate = performance.now();
   /**
@@ -257,6 +260,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     }
     tracers.capture(snap.projectiles, viewer, sees);
     ultFx.capture(snap.lobs, snap.zones, sees);
+    telegraphs.capture(snap.telegraphs, sees);
     epicFx.capture(snap);
     for (const [id, mesh] of meshes) {
       if (seen.has(id)) continue;
@@ -353,6 +357,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
 
   /** Interpolated position and velocity of the followed entity (sim space). */
   const focus = { x: 0, y: 0, vx: 0, vy: 0 };
+  const atOut = { x: 0, y: 0, angle: 0 };
 
   /**
    * Interpolates every entity by alpha. `localId` is the player's champion (team colours,
@@ -456,10 +461,18 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     fog.update(dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
-    epicFx.update(alpha, now, (id) => {
+    // An entity's interpolated position and upper-body angle (Lead Storm's strip while channelling).
+    // One reused result: callers read it at once.
+    const at = (id: number) => {
       const s = interp.get(id);
-      return s && { x: s.ix, y: s.iy };
-    });
+      if (!s) return undefined;
+      atOut.x = s.ix;
+      atOut.y = s.iy;
+      atOut.angle = lerpAngle(s.pf, s.f, alpha);
+      return atOut;
+    };
+    epicFx.update(alpha, now, at);
+    telegraphs.update(alpha, at);
     const me = localId === undefined ? undefined : interp.get(localId);
     const target = me && me.targetId ? interp.get(me.targetId) : undefined;
     if (me) localTeam = teams.get(localId!);

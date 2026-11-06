@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { LobSnapshot, ZoneSnapshot } from '../sim/sim';
 import { palette } from './palette';
+import { discGeo, ringGeo } from './telegraphs';
 
 // Presentation only: timings and sizes of the effects (not gameplay numbers).
 const FLASH_MS = 280;
@@ -15,11 +16,6 @@ type HeightAt = (x: number, y: number) => number;
 const basic = (color: number, opacity: number) =>
   new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
 
-// Danger red is for telegraphs only (SG-01, GDD §11).
-const telegraphFillMat = basic(palette.danger, 0.22);
-const telegraphRingMat = basic(palette.danger, 0.85);
-const discGeo = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
-const ringGeo = new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2);
 const grenadeGeo = new THREE.SphereGeometry(0.13, 8, 6).scale(1, 1.3, 1);
 const grenadeMat = new THREE.MeshLambertMaterial({ color: palette.olive, flatShading: true });
 const scorchMat = basic(palette.scorched, 0.85);
@@ -30,10 +26,7 @@ const flashGeo = new THREE.IcosahedronGeometry(1, 1);
 const smokeGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
 const pillarGeo = new THREE.CylinderGeometry(0.55, 0.7, 2.4, 16, 1, true).translate(0, 1.2, 0);
 const LEVEL_FLASH_MS = 600;
-// Lead Storm: a strip lying along local +x from the caster, and bright streaks flying down it.
-const stripGeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
-const stripWindupMat = basic(palette.danger, 0.32);
-const stripFireMat = basic(palette.danger, 0.14);
+// Lead Storm: bright streaks flying down the strip (the strip itself is a telegraph, D-078).
 const streakGeo = new THREE.BoxGeometry(0.8, 0.04, 0.04);
 const streakMat = new THREE.MeshBasicMaterial({ color: palette.muzzle, toneMapped: false });
 const STREAKS = 12;
@@ -59,14 +52,12 @@ interface Flames {
 
 interface Storm {
   group: THREE.Group;
-  strip: THREE.Mesh;
   streaks: THREE.Mesh[];
   length: number;
   width: number;
 }
 
 interface Lob {
-  telegraph: THREE.Group;
   grenade: THREE.Mesh;
   snap: Omit<LobSnapshot, 'id' | 'team'>;
 }
@@ -85,8 +76,8 @@ interface Blast {
 }
 
 /**
- * Frag Grenade effects (GDD §11 "Alpha's Frag Grenade"): a red landing telegraph for the
- * whole flight, the grenade on its arc, an explosion flash with smoke, and the fire pool
+ * Frag Grenade effects (GDD §11 "Alpha's Frag Grenade"): the grenade on its arc (its
+ * landing telegraph is drawn by `Telegraphs`, D-078), an explosion flash with smoke, and the fire pool
  * as scorched ground with flickering flame cones. Reads lob and zone snapshots and
  * explosion events; never writes sim state.
  */
@@ -111,22 +102,17 @@ export class UltFx {
       this.seen.add(l.id);
       let fx = this.lobs.get(l.id);
       if (!fx) {
-        const telegraph = new THREE.Group();
-        telegraph.add(new THREE.Mesh(discGeo, telegraphFillMat), new THREE.Mesh(ringGeo, telegraphRingMat));
-        telegraph.scale.set(l.radius, 1, l.radius);
-        telegraph.position.set(l.x1, this.heightAt(l.x1, l.y1) + 0.05, -l.y1);
-        telegraph.renderOrder = 5;
         const grenade = new THREE.Mesh(grenadeGeo, grenadeMat);
         grenade.castShadow = true;
-        this.group.add(telegraph, grenade);
-        fx = { telegraph, grenade, snap: { ...l } };
+        this.group.add(grenade);
+        fx = { grenade, snap: { ...l } };
         this.lobs.set(l.id, fx);
       }
       Object.assign(fx.snap, l);
     }
     for (const [id, fx] of this.lobs) {
       if (this.seen.has(id)) continue;
-      this.group.remove(fx.telegraph, fx.grenade);
+      this.group.remove(fx.grenade);
       this.lobs.delete(id);
     }
 
@@ -147,8 +133,8 @@ export class UltFx {
   }
 
   /**
-   * Beta's Lead Storm for champion `id` (GDD §11): a red strip on the ground during the windup
-   * (`channel` 1), fainter with a tracer stream while firing (2); removed at 0.
+   * Beta's Lead Storm for champion `id` (GDD §11): a tracer stream down the strip while firing
+   * (`channel` 2); removed at 0. The strip itself is a telegraph (D-078).
    */
   storm(id: number, channel: 0 | 1 | 2, length: number, width: number) {
     let st = this.storms.get(id);
@@ -159,16 +145,12 @@ export class UltFx {
     }
     if (!st) {
       const group = new THREE.Group();
-      const strip = new THREE.Mesh(stripGeo, stripWindupMat);
-      strip.scale.set(length, 1, width);
-      strip.renderOrder = 5;
       const streaks: THREE.Mesh[] = [];
       for (let k = 0; k < STREAKS; k++) streaks.push(new THREE.Mesh(streakGeo, streakMat));
-      group.add(strip, ...streaks);
+      group.add(...streaks);
       this.group.add(group);
-      this.storms.set(id, (st = { group, strip, streaks, length, width }));
+      this.storms.set(id, (st = { group, streaks, length, width }));
     }
-    st.strip.material = channel === 1 ? stripWindupMat : stripFireMat;
     for (const s of st.streaks) s.visible = channel === 2;
   }
 
@@ -311,9 +293,6 @@ export class UltFx {
       const ground = this.heightAt(x0, y0) + (this.heightAt(x1, y1) - this.heightAt(x0, y0)) * t;
       fx.grenade.position.set(x, ground + 1.2 * (1 - t) + 4 * arcHeight * t * (1 - t), -y);
       fx.grenade.rotation.z = -t * Math.PI * 3;
-      // The ring tightens as the grenade comes down.
-      const ring = fx.telegraph.children[1]!;
-      ring.scale.setScalar(1 + (1 - t) * 0.25);
     }
 
     for (const pool of this.pools.values()) {

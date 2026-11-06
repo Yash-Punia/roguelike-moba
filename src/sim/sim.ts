@@ -373,10 +373,31 @@ export interface LobSnapshot {
   y1: number;
   elapsed: number;
   total: number;
-  /** Blast radius, for the landing telegraph. */
-  radius: number;
   /** Apex height of the arc (render). */
   arcHeight: number;
+}
+
+/**
+ * A red ground marker before a big hit (GDD §10, D-078): a circle (grenade, shell and bomb
+ * landings) or a strip (Lead Storm). Derived from sim state every tick, so render and bots
+ * always read the current shape.
+ */
+export interface TelegraphSnapshot {
+  team: Team;
+  shape: 'circle' | 'strip';
+  /** The circle's centre, or where the strip starts. */
+  x: number;
+  y: number;
+  /** The strip's direction (radians). */
+  angle: number;
+  radius: number;
+  length: number;
+  width: number;
+  /** The entity the shape moves with (the Lead Storm caster), 0 if fixed. */
+  anchor: number;
+  /** Ticks since it appeared, out of `total` to impact; `elapsed >= total` is a live damage area. */
+  elapsed: number;
+  total: number;
 }
 
 /** A ground zone (fire pool). */
@@ -427,6 +448,8 @@ export interface Snapshot {
   entities: EntitySnapshot[];
   projectiles: ProjectileSnapshot[];
   lobs: LobSnapshot[];
+  /** Ground telegraphs: lob landings in slot order, then Lead Storm strips in champion order. */
+  telegraphs: TelegraphSnapshot[];
   zones: ZoneSnapshot[];
   medkits: MedkitSnapshot[];
   camps: CampSnapshot[];
@@ -725,7 +748,19 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     }
     return undefined;
   }
-  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], zones: [], medkits: [], camps: [], mines: [], vision: visibilityContext.vision };
+  const snap: Snapshot = { tick: 0, match, entities: [], projectiles: [], lobs: [], telegraphs: [], zones: [], medkits: [], camps: [], mines: [], vision: visibilityContext.vision };
+  /** The pooled telegraph entry `i`, reset to a fixed shape with no size. */
+  function telegraph(i: number, team: Team, shape: TelegraphSnapshot['shape'], x: number, y: number, elapsed: number, total: number): TelegraphSnapshot {
+    const t = (snap.telegraphs[i] ??= { team, shape, x, y, angle: 0, radius: 0, length: 0, width: 0, anchor: 0, elapsed, total });
+    t.team = team;
+    t.shape = shape;
+    t.x = x;
+    t.y = y;
+    t.angle = t.radius = t.length = t.width = t.anchor = 0;
+    t.elapsed = elapsed;
+    t.total = total;
+    return t;
+  }
 
   return {
     world,
@@ -958,9 +993,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       }
       snap.projectiles.length = n;
       n = 0;
+      let tn = 0;
       for (let i = 0; i < lobs.capacity; i++) {
         if (!lobs.active[i]) continue;
-        const l = (snap.lobs[n++] ??= { id: 0, team: Team.Neutral, x0: 0, y0: 0, x1: 0, y1: 0, elapsed: 0, total: 1, radius: 0, arcHeight: 0 });
+        const l = (snap.lobs[n++] ??= { id: 0, team: Team.Neutral, x0: 0, y0: 0, x1: 0, y1: 0, elapsed: 0, total: 1, arcHeight: 0 });
         l.id = lobs.id[i]!;
         l.team = lobs.team[i]! as Team;
         l.x0 = lobs.x0[i]!;
@@ -969,10 +1005,25 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         l.y1 = lobs.y1[i]!;
         l.elapsed = lobs.elapsed[i]!;
         l.total = lobs.total[i]!;
-        l.radius = lobs.radius[i]!;
         l.arcHeight = lobs.arcHeight[i]!;
+        const t = telegraph(tn++, l.team, 'circle', l.x1, l.y1, l.elapsed, l.total);
+        t.radius = lobs.radius[i]!;
       }
       snap.lobs.length = n;
+      for (let i = 0; i < champions.ids.length; i++) {
+        const c = champions.data[i]!;
+        const ult = c.def.ultimate;
+        if (c.channelTicks === 0 || ult.id !== 'leadStorm') continue;
+        const e = champions.ids[i]!;
+        const tr = transforms.get(e)!;
+        const total = ult.windupSeconds;
+        const t = telegraph(tn++, teams.get(e)! as Team, 'strip', tr.x, tr.y, Math.min(total, total - (c.channelTicks - ult.seconds)), total);
+        t.angle = c.channelAngle;
+        t.length = ult.length;
+        t.width = ult.width;
+        t.anchor = e;
+      }
+      snap.telegraphs.length = tn;
       n = 0;
       for (let i = 0; i < zones.capacity; i++) {
         if (!zones.active[i]) continue;

@@ -97,7 +97,7 @@ describe('pushing (the playtest complaint)', () => {
     expect(inEnemyHalf / counted).toBeGreaterThan(0.5);
     const sub = m.structure(Blue);
     expect(m.events.some((e) => e.type === 'damage' && e.source === m.red && e.target === sub)).toBe(true);
-  });
+  }, 30_000); // 4 real-map minutes: about 2 s alone, past 5 s under a full parallel run
 
   it('sieges only while the tower shoots its minions, and steps out when the tower turns on it', () => {
     const m = match({ bots: [1], waves: true, blueAt: { x: 16, y: -50 }, structures: [redSub, blueSub] });
