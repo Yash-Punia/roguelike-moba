@@ -13,30 +13,24 @@ const baseMat = basic(0.16);
 const liveMat = basic(0.14);
 const fillMat = basic(0.3);
 const edgeMat = basic(0.85);
-const lineMat = new THREE.LineBasicMaterial({ color: palette.danger, transparent: true, opacity: 0.85, depthWrite: false });
 export const discGeo = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
 export const ringGeo = new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2);
 /** A unit strip lying along local +x from the origin, 1 wide. */
 const stripGeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
-const outlineGeo = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0, 0, -0.5),
-  new THREE.Vector3(1, 0, -0.5),
-  new THREE.Vector3(1, 0, 0.5),
-  new THREE.Vector3(0, 0, 0.5),
-]);
 const LIFT = 0.05;
 
 interface Slot {
   group: THREE.Group;
+  /** A circle's ring, or the strip's faint shape. */
   base: THREE.Mesh;
   fill: THREE.Mesh;
   t: TelegraphSnapshot;
 }
 
 /**
- * Ground telegraphs (TDD §9, D-078): a faint red shape with a bright edge and a fill that grows
- * with the time to impact; a live damage area (Lead Storm firing) shows the faint shape only.
- * Meshes are pooled by index per shape. Reads `snap.telegraphs`; never writes sim state.
+ * Ground telegraphs (TDD §9, D-078): a bright ring (circles) or a faint strip, and a fill that
+ * grows with the time to impact; a live damage area (Lead Storm firing) shows the faint strip
+ * only. Two draws a marker, pooled by index per shape. Reads `snap.telegraphs`; never writes sim state.
  */
 export class Telegraphs {
   readonly group = new THREE.Group();
@@ -54,10 +48,10 @@ export class Telegraphs {
     for (const t of telegraphs) {
       if (t.shape === 'circle') {
         if (!shown(t.x, t.y)) continue;
-        Object.assign(this.slot(this.circles, c++, discGeo, ringGeo).t, t);
+        Object.assign(this.slot(this.circles, c++, ringGeo, edgeMat, discGeo).t, t);
       } else {
         if (!shown(t.x, t.y) && !shown(t.x + Math.cos(t.angle) * t.length, t.y + Math.sin(t.angle) * t.length)) continue;
-        Object.assign(this.slot(this.strips, s++, stripGeo, undefined).t, t);
+        Object.assign(this.slot(this.strips, s++, stripGeo, baseMat, stripGeo).t, t);
       }
     }
     for (let i = c; i < this.shownCircles; i++) this.circles[i]!.group.visible = false;
@@ -68,14 +62,13 @@ export class Telegraphs {
 
   update(alpha: number, at: At) {
     for (let i = 0; i < this.shownCircles; i++) {
-      const { group, base, fill, t } = this.circles[i]!;
+      const { group, fill, t } = this.circles[i]!;
       group.visible = true;
       group.position.set(t.x, this.heightAt(t.x, t.y) + LIFT, -t.y);
       group.scale.set(t.radius, 1, t.radius);
       const k = progress(t, alpha);
       fill.visible = k < 1;
       fill.scale.set(k, 1, k);
-      base.material = k < 1 ? baseMat : liveMat;
     }
     for (let i = 0; i < this.shownStrips; i++) {
       const { group, base, fill, t } = this.strips[i]!;
@@ -90,21 +83,18 @@ export class Telegraphs {
       fill.visible = k < 1;
       fill.scale.x = k;
       base.material = k < 1 ? baseMat : liveMat;
-      group.children[2]!.visible = k < 1; // the outline marks the windup only
     }
   }
 
-  private slot(pool: Slot[], i: number, geo: THREE.BufferGeometry, ring: THREE.BufferGeometry | undefined): Slot {
+  private slot(pool: Slot[], i: number, baseGeo: THREE.BufferGeometry, baseMaterial: THREE.Material, fillGeo: THREE.BufferGeometry): Slot {
     let slot = pool[i];
     if (slot) return slot;
     const group = new THREE.Group();
-    const base = new THREE.Mesh(geo, baseMat);
-    const fill = new THREE.Mesh(geo, fillMat);
-    const edge = ring ? new THREE.Mesh(ring, edgeMat) : new THREE.LineLoop(outlineGeo, lineMat);
+    const base = new THREE.Mesh(baseGeo, baseMaterial);
+    const fill = new THREE.Mesh(fillGeo, fillMat);
     base.renderOrder = 6;
     fill.renderOrder = 7;
-    edge.renderOrder = 8;
-    group.add(base, fill, edge);
+    group.add(base, fill);
     group.visible = false;
     this.group.add(group);
     slot = { group, base, fill, t: { team: 0, shape: 'circle', x: 0, y: 0, angle: 0, radius: 0, length: 0, width: 0, anchor: 0, elapsed: 0, total: 1 } };

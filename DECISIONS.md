@@ -1470,7 +1470,7 @@ From TDD §13:
     - two Alphas clear all three with both standing.
   - **So camps are no longer a two-champion job**, except the 4-deserter squads (C1, C4). D-074's "takes two champions" and D-075's "a lone bot loses" no longer hold for the others. Bots still only farm in pairs (D-075); not changed here.
   - **Tests:** the duel test is re-pinned per camp (solo clear: squad of 3 and nest yes, squad of 4 no) and renamed to match.
-- Why: the user's tuning; camps were too slow to clear.
+- Why: the user's own tuning, committed on request; no reason was given.
 
 ## D-078 — Ground telegraphs
 - Date: 2026-11-06
@@ -1483,14 +1483,18 @@ From TDD §13:
     - `LobSnapshot.radius` is gone; the landing disc was its only reader.
   - **A snapshot list, not an event** (TDD §6.8 and §7 say a `Telegraph` event). Render and bots need the current shape every tick, which the list gives. A one-off event adds nothing they use. Audio reads only events, so a warning sound will need one; add it then.
   - **Render** (`src/render/telegraphs.ts`, danger red only):
-    - each marker is a faint shape, a bright edge (ring, or strip outline), and a fill that grows with the time to impact (disc radius, strip length), interpolated between ticks;
-    - a live area shows the faint shape only, with Lead Storm's tracer streaks (still in `UltFx`);
-    - draw order 6–8, above the Heat Wave and fire pools;
+    - two draws a marker: a circle is a bright ring plus a fill disc; a strip is a faint strip plus a fill strip. The fill grows with the time to impact (disc radius, strip length), interpolated between ticks;
+    - a live area shows the faint strip only, with Lead Storm's tracer streaks (still in `UltFx`);
+    - draw order 6–7, above the Heat Wave and fire pools;
     - meshes are pooled by index per shape.
+    - The first version also had a faint base disc under each circle and a 1 px line outline round each strip (3 draws a marker). Both were cut: the ring already marks the area, and WebGL draws lines 1 px wide, which hardly shows on a phone.
     - **Fog:** a circle shows if its centre is seen (the same test as the grenade mesh, so the two always show together). A strip shows if its start or far end is seen, so a hidden Beta's strip reaching into your vision can be dodged.
     - **Smooth turning:** an anchored strip uses its caster's interpolated position and upper-body angle, so it turns smoothly between ticks.
   - **Not here:** the sniper's shot (it keeps the D-073 aim line, user's choice); a cone shape and boss attack patterns (Halftrack and Field Gun, next row: a third source in the same builder); bots dodging (its own row, reading `snap.telegraphs`).
-  - **Measured** (Chrome, The Front, 1v1 dummy, Beta with Mortar Support and Airstrike Beacon): Lead Storm plus three bombs at once peaks at 118 draw calls, 78k triangles, 160 fps, no console errors. Each marker costs 3 draws (was 2). Instance them with the M5 particle pool if boss fights push past the 120 budget.
+  - **Measured** (Chrome, The Front, 160 fps, no console errors):
+    - an all-bot 3v3 lane fight: 91 draw calls, 63k triangles;
+    - a stress test (every champion with Mortar Support and Airstrike Beacon, every Ultimate cast at once, up to 13 markers): peaks at 122. Most of the jump is explosion smoke, one draw a puff (existing), not markers.
+    - Instance markers and puffs with the M5 particle pool if boss fights push past the 120 budget.
   - **Tests** (`tests/telegraphs.test.ts`):
     - a grenade's circle sits at the landing spot and counts its flight;
     - Lead Storm's strip fills a tick at a time over the windup, stays live while firing, and is gone after the channel;
