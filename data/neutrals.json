@@ -12,7 +12,7 @@
       "xp": 200,
       "ultCharge": 5,
       "unit": {
-        "maxHp": 900,
+        "maxHp": 450,
         "radius": 0.35,
         "moveSpeed": 2.6,
         "weapon": {
@@ -31,7 +31,7 @@
       "xp": 160,
       "ultCharge": 8,
       "unit": {
-        "maxHp": 2000,
+        "maxHp": 1000,
         "radius": 0.35,
         "moveSpeed": 0,
         "weapon": {

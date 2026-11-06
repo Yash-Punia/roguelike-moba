@@ -1458,3 +1458,16 @@ From TDD §13:
   - **Dev hook:** `window.warfront` (dev builds and `?debug`) now also has `bots` and `squads`, so a check can read bot modes and farm plans. Checks teleport champions through `sim.stores.transforms` instead of steering with key events.
 - Why: these steps were redone by hand for every feature; the live check failed whenever the pane wasn't on screen.
 - Alternatives: keep using the built-in pane and ask for it to be shown each time (it blocks every check on the user); a committed `scripts/` stats runner (the probes change per question, so a template fits better).
+
+## D-077 — Camp HP halved
+- Date: 2026-11-06
+- Source: user change to `data/neutrals.json`, committed on request
+- Decision:
+  - **Numbers:** deserter 450 HP (was 900), sniper 1,000 HP (was 2,000). Damage, rewards (200 / 160 XP) and Ultimate charge are unchanged. Amends D-074's tuning.
+  - **Measured** (the D-074 duel: level 1 Alphas that stand and shoot, one minute):
+    - one Alpha alone now clears a squad of 3 and a sniper nest, and survives;
+    - one Alpha still loses to a squad of 4;
+    - two Alphas clear all three with both standing.
+  - **So camps are no longer a two-champion job**, except the 4-deserter squads (C1, C4). D-074's "takes two champions" and D-075's "a lone bot loses" no longer hold for the others. Bots still only farm in pairs (D-075); not changed here.
+  - **Tests:** the duel test is re-pinned per camp (solo clear: squad of 3 and nest yes, squad of 4 no) and renamed to match.
+- Why: the user's tuning; camps were too slow to clear.

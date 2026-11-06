@@ -109,12 +109,12 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[p]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads (3 or 4 per camp), Sniper Nests, in the spec's dugout rooms; models per the neutrals sheet; camp Ultimate charge +5–8% (moved here, D-065); `neutrals.json`, `map.camps`, reward on clear, sniper aim line (D-073); always visible, spawn at 0:00, retuned so it takes two champions (D-074) | b26e4d1, 3c83e66 |
+| `[p]` | Neutral camp state machine (Idle/Engaged/Leashing/Dead/Respawning): Deserter Squads (3 or 4 per camp), Sniper Nests, in the spec's dugout rooms; models per the neutrals sheet; camp Ultimate charge +5–8% (moved here, D-065); `neutrals.json`, `map.camps`, reward on clear, sniper aim line (D-073); always visible, spawn at 0:00, retuned so it takes two champions (D-074); HP halved, so only a squad of 4 still takes two (D-077) | b26e4d1, 3c83e66 |
 | `[ ]` | Telegraph events and ground markers (danger red #FF3B30 only) | |
 | `[ ]` | Halftrack (Supply Drop) and Field Gun (Artillery Support) in their 13 m sunken arenas; models per the bosses sheet | |
 | `[ ]` | Behemoth: spawn at 6:00, capture, pushes centre lane; in The Crater (Front) and on the river island (Bridgehead); model per the bosses sheet | |
 | `[ ]` | Environment dressing per the props and environment sheets: base tents, flags, searchlights, telegraph poles, sandbag revetments, barbed wire, tank traps, craters, wrecked biplanes, edge ruins, river reeds; within SG-01 tri budgets | |
-| `[~]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid; done so far: "take camp" in pairs from 0:00 and when the lane is quiet, trench navigation by flow fields on the obstacle grid (D-075) | |
+| `[~]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid; done so far: "take camp" in pairs from 0:00 and when the lane is quiet, trench navigation by flow fields on the obstacle grid (D-075) | aec2e81 |
 | `[ ]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard) | |
 | `[ ]` | Bounties, level catch-up, underdog charge, HQ last line | |
 | `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |

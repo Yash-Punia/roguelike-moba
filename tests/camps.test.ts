@@ -176,7 +176,7 @@ describe('camp placement (map spec)', () => {
   });
 });
 
-describe('camps are always seen, and need two champions (D-074)', () => {
+describe('camps are always seen (D-074); only a squad of 4 needs two champions (D-077)', () => {
   it('stay visible to both teams in a Trench and in the fog', () => {
     const a = arena([], (c) => {
       c.combat.fog.enabled = true;
@@ -209,11 +209,11 @@ describe('camps are always seen, and need two champions (D-074)', () => {
   }
 
   it.each([
-    ['a deserter squad of 3', SQUAD],
-    ['a deserter squad of 4', { ...SQUAD, count: 4 }],
-    ['a sniper nest', NEST],
-  ])('one champion loses to %s, two clear it', (_, spot) => {
-    expect(duel(spot, 1)).toEqual({ cleared: false, alive: 0 });
+    ['a deserter squad of 3', SQUAD, true],
+    ['a deserter squad of 4', { ...SQUAD, count: 4 }, false],
+    ['a sniper nest', NEST, true],
+  ])('%s: one champion clears it alone: %s; two clear it with both standing', (_, spot, solo) => {
+    expect(duel(spot, 1)).toEqual(solo ? { cleared: true, alive: 1 } : { cleared: false, alive: 0 });
     expect(duel(spot, 2)).toEqual({ cleared: true, alive: 2 });
   });
 });
