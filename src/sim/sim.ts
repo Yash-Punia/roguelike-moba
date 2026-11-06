@@ -1,4 +1,4 @@
-import { TICK_HZ, type ChampionConfig, type Config, type StructureKind, type WeaponConfig } from '../data/schema';
+import { TICK_HZ, type CampKind, type ChampionConfig, type Config, type StructureKind, type WeaponConfig } from '../data/schema';
 import { World, type Entity } from './ecs';
 import type { SimEvent } from './events';
 import { buildGrid, rayBlocked, stampFootprint } from './grid';
@@ -35,6 +35,7 @@ import {
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
 import { ProjectilePool } from './projectiles';
 import { campAggroSystem, campDeathSystem, campSystem, CampState, createCamps, type CampContext, type Neutral } from './systems/camps';
+import { bossSystem } from './systems/bosses';
 
 export type PlayerId = number;
 export enum Team {
@@ -353,7 +354,7 @@ export interface MedkitSnapshot {
 export interface CampSnapshot {
   x: number;
   y: number;
-  kind: 'deserter' | 'sniper';
+  kind: CampKind;
   /** Living units; 0 while it waits to respawn. */
   members: number;
   hp: number;
@@ -643,6 +644,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       return false;
     },
     pool: [],
+    artilleryLeft: [0, 0],
+    artilleryWave: [false, false],
     structureIds: () => structures.ids,
     footprintRadius: (e) => {
       const f = config.structures[structures.get(e)!.kind].footprint;
@@ -811,6 +814,10 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       if (waveDue(config.waves, tick)) {
         events.push({ type: 'waveSpawned', wave: waveCount++ });
         waveSlot = 0;
+        for (const team of [Team.Blue, Team.Red]) {
+          minionContext.artilleryWave[team] = minionContext.artilleryLeft[team]! > 0;
+          if (minionContext.artilleryWave[team]) minionContext.artilleryLeft[team]!--;
+        }
         nextSoldierTick = tick;
       }
       if (waveSlot < waveLength(config.waves, waveCount - 1) && tick >= nextSoldierTick) {
@@ -841,6 +848,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       // exactly its flight time later and a new fire pool first burns a full period after landing.
       zoneSystem(ultimateContext);
       lobSystem(ultimateContext);
+      bossSystem(campContext, lobs, config.neutrals); // after lobs advance, like casts: a shell's full flight is telegraphed
       leadStormSystem(ultimateContext);
       heatWaveSystem(ultimateContext);
       ultimateSystem(ultimateContext, tick);
@@ -849,6 +857,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn, match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.respawnPct : 1);
       campDeathSystem(campContext, config.neutrals, tick); // before minions go, so a minion's killing blow still has a team
+      for (let i = progressionFrom; i < events.length; i++) {
+        const ev = events[i]!;
+        // Artillery Support (D-079): the Field Gun's killers get extra tanks in their next waves.
+        if (ev.type === 'campCleared' && ev.team !== undefined) {
+          const waves = config.neutrals.camps[ev.kind].boss?.artilleryWaves ?? 0;
+          if (waves > 0) minionContext.artilleryLeft[ev.team] = waves;
+        }
+      }
       minionDeathSystem(minionContext);
       summonDeathSystem(summonContext, tick);
       callForHelpSystem(minionContext, damageLog, config.units, tick);
@@ -1079,7 +1095,8 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         motions.get(e)!.speed = def.moveSpeed;
         colliders.get(e)!.radius = def.radius;
         setMaxHp(healths.get(e)!, def.maxHp);
-        Object.assign(weapons.get(e)!, def.weapon);
+        const w = weapons.get(e);
+        if (w) Object.assign(w, def.weapon);
       }
       lanes = laneRoutes(next);
       rebuildGrid();

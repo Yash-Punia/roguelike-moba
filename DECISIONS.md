@@ -1504,3 +1504,55 @@ From TDD §13:
 - Alternatives:
   - a pooled sim `Telegraph` record that also applies the damage when it resolves (that belongs with the boss patterns that need it);
   - one-off events with render keeping its own timers (bots would have to rebuild the state).
+
+## D-079 — Mini-bosses as camps; the Field Gun and Artillery Support
+- Date: 2026-11-06
+- Source: M4 row 3, plan approved by the user (bots ignore bosses; a boss can be soloed by dodging; Supply Drop goes to the whole team); the numbers made during development
+- Decision:
+  - **Mini-bosses are one-unit camps.** `neutrals.camps` gets a `fieldGun` kind (the Halftrack follows), and each map's `camps` an `FG` entry at its arena centre: The Front (14.5, −35), The Bridgehead (8, −28). The existing camp code handles the rest, unchanged:
+    - Idle, Engaged, Leashing and the respawn timer;
+    - the attacker list;
+    - the 10 m leash with a full heal;
+    - the killing blow's team taking the reward, so steals work.
+  - **Patterns, not guns.** A camp kind with a `boss` block has no `Weapon` and fires `boss.pattern` (a zod union; `shells` now, the Halftrack's in the next commit) from `bossSystem` (`src/sim/systems/bosses.ts`).
+    - It keeps a `Targeting` entry, since the camp code reads one for every member.
+    - Its bundle is never pooled, so a deserter respawn can't pick up a bundle with no weapon.
+    - It chases with its pattern's range.
+  - **Field Gun:** 3,000 HP (BS-01), up at 2:00, back 90 s after a clear (GDD §4).
+    - Every 2.5 s it fires one shell at each of up to 2 attackers in range (12 m) and in sight, nearest first. A shell does 240 damage in a 2 m blast and lands 0.8 s later where its target stood. The gun turns to the first target.
+    - Shells are `LobPool` shells. The landing circle is the D-078 telegraph, and `lobSystem` deals the blast, with line of sight.
+    - `bossSystem` runs right after `lobSystem`, like Ultimate casts, so a shell's whole 0.8 s flight shows. Before that move the marker lost a tick.
+  - **Reward:** a mini-boss pays 250 XP and +15 Ultimate charge to every champion of the killing team, anywhere, alive or not (GDD §4, §8).
+    - Camp deaths are now told apart from minions by "any camp kind", not by name, so new kinds never reach the minion XP table.
+  - **Artillery Support** (`boss.artilleryWaves` 2): the killing team's next 2 waves bring one more Bazooka Tank, at the back, in every lane.
+    - Each team's boost is read once when a wave is due. A clear in mid-wave doesn't change a wave that's already leaving.
+    - `waveLength` has one more slot for it.
+  - **Bots leave mini-bosses alone** (user):
+    - a farm plan never picks a camp with a `boss` block;
+    - camp flow fields cost `bossAvoidCost` (3) more per step within `bossAvoidRadius` (9 m) of a mini-boss, so farming pairs path round the arenas.
+    - Without that, bots walking to C2 and S2 through the Field Gun's arena pulled it in 6 of 12 all-bot matches, and cleared it in 3. With it: 0 of 12. A cost of 20 routed the same.
+    - Lane and pad fields keep no penalty.
+    - Still possible: a bot fighting in The Bridgehead's left lane, 6 m from the arena, can shoot the gun from the lane (1 of 12 matches, in an earlier run). Bot boss contesting and dodging are their own rows.
+  - **Render:**
+    - the Field Gun per BS-01: spoked rust wheels, gun shield with a yellow strip, long barrel and recoil cylinder, splayed trail legs, ammo box, a sandbag bed, two deserter crew;
+    - real shadows and a wide boss HP bar (`bossBar`);
+    - the arena gets yellow-black hazard posts round the 6.3 m rim, with gaps where trenches end within 9 m, and two sandbag horseshoes at the rim angles furthest from any mouth. One baked mesh per arena.
+  - **Measured:**
+    - all-bot 3v3, 30 seeds a map: median match length on The Front 294 s (281 s without the bot detours; 255 s over 10 seeds before bosses); on The Bridgehead 219 s (205 s). Within seed noise.
+    - Seed 1 on The Front became the one match in 30 past 12 minutes (12:10), so the match-length smoke test now uses seed 2.
+    - Chrome, The Front: 87–94 draw calls at the arena with a shell in flight; no console errors besides the missing favicon.
+  - **Tests** (`tests/bosses.test.ts`):
+    - placement on both maps and the 2:00 / 90 s timers; no weapon;
+    - the marker shows 24 ticks before the blast; a champion moved out takes nothing, one left in takes 240;
+    - two attackers are shelled in one volley;
+    - a leash heals it to full;
+    - the team reward reaches a far and a knocked-out champion, and a steal pays the stealer;
+    - Artillery Support adds exactly 1 tank to the killers' next 2 waves, none after, and none for the other team;
+    - solo at level 4: an Alpha that stands still is knocked out, and a scripted dodger clears it and stands (user: soloable with dodging);
+    - all-bot on both maps: no farm plan targets a boss and none is pulled in 4 minutes.
+    - `inTelegraph` (`src/sim/telegraph-shape.ts`) is the shape test the dodger uses; bot dodging will reuse it. The D-078 lead-time test also walks `neutrals`.
+- Why: the GDD's mini-bosses reuse the camp state machine. The camp rules (leash, steals, respawn) were already the boss rules, so only the attack and the reward are new.
+- Alternatives:
+  - a separate boss system with its own state machine (it would duplicate camps);
+  - telling bots to stop shooting bosses (targeting is automatic and the same for humans);
+  - only an idle boss in its arena can be engaged (it would change the rule for humans too).

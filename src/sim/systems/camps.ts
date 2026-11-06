@@ -40,6 +40,8 @@ export interface Camp {
   attackerTicks: number[];
   /** Members shooting each attacker this tick, so the camp spreads its fire (D-074). */
   attackerLoad: number[];
+  /** A mini-boss: ticks until its next attack (D-079). */
+  attackWait: number;
 }
 
 /** A camp unit (TDD §5 `Neutral`): its camp, and its own spot and facing at the camp. */
@@ -78,7 +80,8 @@ export interface CampBundle {
   motion: Motion;
   collider: Collider;
   health: Health;
-  weapon: Weapon;
+  /** None for a mini-boss (it fires a pattern, D-079). */
+  weapon: Weapon | undefined;
   targeting: Targeting;
   neutral: Neutral;
   status: Status;
@@ -87,7 +90,7 @@ export interface CampBundle {
 /** Every camp of the map, waiting for its first spawn. */
 export function createCamps(map: Config['map'], n: Neutrals): Camp[] {
   return map.camps.map((spot) => ({
-    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [], attackerLoad: [],
+    spot, state: CampState.Respawning, aggro: 0, members: 0, lastCombatTick: 0, leashTick: 0, respawnAt: n.camps[spot.kind].firstSpawnSeconds, attackers: [], attackerTicks: [], attackerLoad: [], attackWait: 0,
   }));
 }
 
@@ -112,13 +115,15 @@ function towardsLane(lanes: readonly LanePath[], x: number, y: number): number {
 }
 
 /**
- * The camp's units: a squad on a ring round the campfire, facing it; a lone unit (the sniper)
- * at the centre, facing the nearest lane. Deserter variants go by place in the ring (no RNG).
+ * The camp's units: a squad on a ring round the campfire, facing it; a lone unit (the sniper, a
+ * mini-boss) at the centre, facing the nearest lane. Deserter variants go by place in the ring
+ * (no RNG). A mini-boss has no weapon and never reuses a pooled bundle, which carries one (D-079).
  */
 function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
   const camp = ctx.camps[index]!;
   const { spot } = camp;
   const def = n.camps[spot.kind].unit;
+  const boss = !!n.camps[spot.kind].boss;
   const lone = spot.count === 1;
   const laneFacing = lone ? towardsLane(ctx.lanes(), spot.x, spot.y) : 0;
   for (let k = 0; k < spot.count; k++) {
@@ -127,12 +132,12 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     const y = lone ? spot.y : spot.y + sin(a) * n.ringRadius;
     const facing = lone ? laneFacing : atan2(spot.y - y, spot.x - x);
     const e = ctx.world.create();
-    const b: CampBundle = ctx.pool.pop() ?? {
+    const b: CampBundle = (boss ? undefined : ctx.pool.pop()) ?? {
       transform: { x: 0, y: 0, facing: 0 },
       motion: { vx: 0, vy: 0, speed: 0, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 },
       collider: { radius: 0 },
       health: { hp: 0, maxHp: 0, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 },
-      weapon: { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 },
+      weapon: def.weapon && { ...def.weapon, cooldown: 0, aim: 0, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 },
       targeting: { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 },
       neutral: { camp: 0, homeX: 0, homeY: 0, homeFacing: 0 },
       status: { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffStat: 0, buffPct: 0, buffTicks: 0 },
@@ -141,7 +146,7 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
     b.collider.radius = def.radius;
     Object.assign(b.health, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
-    Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
+    if (b.weapon) Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
     Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
     Object.assign(b.neutral, { camp: index, homeX: x, homeY: y, homeFacing: facing });
     Object.assign(b.status, { burnDps: 0, burnTicks: 0, burnSource: 0, markPct: 0, markTicks: 0, shieldLeft: 0, shieldTicks: 0, buffPct: 0, buffTicks: 0 });
@@ -150,17 +155,18 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     ctx.colliders.add(e, b.collider);
     ctx.teams.add(e, Team.Neutral);
     ctx.healths.add(e, b.health);
-    ctx.weapons.add(e, b.weapon);
+    if (b.weapon) ctx.weapons.add(e, b.weapon);
     ctx.targetings.add(e, b.targeting);
     ctx.targetClasses.add(e, TargetClass.Neutral);
     ctx.kinds.add(e, Kind.Neutral);
-    ctx.models.add(e, spot.kind === 'sniper' ? 'sniper' : `deserter${k % 4}`);
+    ctx.models.add(e, spot.kind === 'deserter' ? `deserter${k % 4}` : spot.kind);
     ctx.neutrals.add(e, b.neutral);
     ctx.statuses.add(e, b.status);
   }
   camp.members = spot.count;
   camp.state = CampState.Idle;
   camp.aggro = 0;
+  camp.attackWait = 0;
 }
 
 /** A unit the camp can fight: alive, not neutral, not a structure. */
@@ -266,7 +272,7 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
     if (camp.state === CampState.Engaged) {
       // The attacker fewest members are on, then one it can shoot, then the nearest: the camp spreads its fire,
       // walking to an attacker it can't reach or see.
-      const range = weapons.get(e)!.range;
+      const range = weapons.get(e)?.range ?? n.camps[camp.spot.kind].boss?.pattern.range ?? 0;
       let target: Entity = 0;
       let best = Infinity;
       let inReach = false;
@@ -372,12 +378,16 @@ export function campDeathSystem(ctx: CampContext, n: Neutrals, tick: number) {
       camp.attackers.length = camp.attackerTicks.length = 0;
       camp.respawnAt = tick + n.camps[kind].respawnSeconds;
     }
+    if (n.camps[kind].boss) {
+      ctx.world.destroy(e);
+      continue;
+    }
     ctx.pool.push({
       transform: t,
       motion: ctx.motions.get(e)!,
       collider: ctx.colliders.get(e)!,
       health: h,
-      weapon: ctx.weapons.get(e)!,
+      weapon: ctx.weapons.get(e),
       targeting: ctx.targetings.get(e)!,
       neutral: u,
       status: ctx.statuses.get(e)!,

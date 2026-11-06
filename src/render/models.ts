@@ -60,6 +60,7 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'warDog') warDog(root, team);
   else if (modelId.startsWith('deserter')) deserter(root, Number(modelId.slice(8)) || 0);
   else if (modelId === 'sniper') sniper(root);
+  else if (modelId === 'fieldGun') fieldGun(root);
   else championPlaceholder(root, team);
   if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
   const parts = partsOf(root);
@@ -98,8 +99,8 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
     traitRing: find(names.traitRing),
     tracked: modelId === 'bazookaTank',
   } satisfies ModelParts);
-  // Real shadows for champions and structures; soldiers and camp units get a cheap ground blob instead (D-044).
-  const casts = kind !== Kind.Minion && kind !== Kind.Neutral;
+  // Real shadows for champions, structures and mini-bosses; soldiers and camp units get a cheap ground blob instead (D-044).
+  const casts = (kind !== Kind.Minion && kind !== Kind.Neutral) || BOSS_MODELS.has(modelId);
   root.traverse((o) => {
     o.castShadow = casts;
     o.receiveShadow = true;
@@ -574,6 +575,95 @@ function bazookaTank(root: THREE.Object3D, team: Team) {
   partsOf(root).cap = helmet;
   part(helmet, new THREE.SphereGeometry(0.19, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), teamColour(team), 0, 0, 0);
   part(helmet, cyl(0.22, 0.22, 0.03, 12), teamShade(team), 0, 0.01, 0);
+}
+
+/** Mini-boss model ids: real shadows and a big HP bar (D-079). */
+export const BOSS_MODELS: ReadonlySet<string> = new Set(['fieldGun', 'halftrack']);
+
+// Bosses sheet BS-01 palette.
+const BS_OLIVE = 0x6d7a3c;
+const BS_HAZARD = 0xd9a628;
+const BS_TYRE = 0x3d3e43;
+const BS_RUST = 0x7a5236;
+
+/** A deserter standing in a model at (x, z), facing local +x turned by `turn`. */
+function crewman(root: THREE.Object3D, variant: number, x: number, z: number, turn: number) {
+  const g = new THREE.Group();
+  deserter(g, variant);
+  g.userData = {}; // its part slots belong to a lone deserter, not to this model
+  g.position.set(x, 0, z);
+  g.rotation.y = turn;
+  root.add(g);
+}
+
+/**
+ * Field Gun (BS-01): a wheeled howitzer behind a gun shield with a yellow top strip, long barrel
+ * and recoil cylinder, spoked rust wheels, two splayed trail legs, an ammo box, a sandbag bed in
+ * front, and a crew of two deserters. Faces local +x; about 3 m long. The whole gun turns to its
+ * target (the sim sets its facing).
+ */
+function fieldGun(root: THREE.Object3D) {
+  for (const z of [-0.78, 0.78]) {
+    part(root, cyl(0.58, 0.58, 0.12, 16), BS_RUST, 0, 0.58, z).rotation.x = Math.PI / 2;
+    part(root, cyl(0.16, 0.16, 0.16, 8), BS_TYRE, 0, 0.58, z).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 4; k++) part(root, box(0.06, 1.0, 0.05), BS_TYRE, 0, 0.58, z * 1.02).rotation.z = (k * Math.PI) / 4;
+  }
+  part(root, box(0.3, 0.16, 1.5), palette.gunmetal, 0, 0.58, 0); // axle
+  part(root, box(0.1, 0.95, 1.5), BS_OLIVE, 0.32, 0.95, 0); // gun shield
+  part(root, box(0.12, 0.12, 1.52), BS_HAZARD, 0.32, 1.46, 0);
+  part(root, box(0.6, 0.34, 0.34), BS_OLIVE, 0.1, 0.98, 0); // breech
+  part(root, cyl(0.12, 0.15, 2.0, 10), BS_OLIVE, 1.25, 1.02, 0).rotation.z = Math.PI / 2;
+  part(root, cyl(0.17, 0.17, 0.14, 10), palette.gunmetal, 2.24, 1.02, 0).rotation.z = Math.PI / 2; // muzzle
+  part(root, cyl(0.08, 0.08, 1.0, 8), palette.gunmetal, 0.75, 0.84, 0).rotation.z = Math.PI / 2; // recoil cylinder
+  for (const z of [-1, 1]) {
+    const leg = part(root, box(1.9, 0.12, 0.14), BS_OLIVE, -1.0, 0.36, z * 0.32);
+    leg.rotation.set(0, z * 0.22, 0.24);
+    part(root, box(0.2, 0.08, 0.3), palette.gunmetal, -1.9, 0.06, z * 0.52); // spade
+  }
+  part(root, box(0.42, 0.26, 0.3), BS_OLIVE, -0.5, 0.13, 1.15); // ammo box
+  part(root, box(0.44, 0.05, 0.32), BS_HAZARD, -0.5, 0.28, 1.15);
+  for (let i = 0; i < 7; i++) {
+    const a = -0.9 + (1.8 * i) / 6;
+    const bag = part(root, box(0.26, 0.16, 0.5), i % 2 ? palette.sandbagShadow : palette.sandbag, 1.2 + Math.cos(a) * 1.3, 0.08, -Math.sin(a) * 1.3);
+    bag.rotation.y = a;
+  }
+  crewman(root, 1, -0.7, -0.75, 0.3);
+  crewman(root, 2, -0.6, 0.55, -0.4);
+}
+
+/**
+ * A mini-boss arena's dressing (map spec): yellow-black hazard posts round the 6.5 m rim, with a
+ * gap at each trench mouth (`gaps`: centre angle and half-width, sim radians), and two sandbag
+ * horseshoes at the two rim angles furthest from any mouth. One baked mesh; decoration only.
+ */
+export function createArena(gaps: readonly (readonly [number, number])[], radius = 6.3): THREE.Object3D {
+  const root = new THREE.Group();
+  const off = (a: number) => gaps.reduce((m, [c, h]) => Math.min(m, Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) - h), Infinity);
+  const posts = Math.round((2 * Math.PI * radius) / 1.1);
+  for (let i = 0; i < posts; i++) {
+    const a = (i / posts) * 2 * Math.PI;
+    if (off(a) < 0) continue;
+    const x = Math.cos(a) * radius;
+    const z = -Math.sin(a) * radius;
+    part(root, box(0.16, 0.42, 0.16), BS_HAZARD, x, 0.21, z);
+    part(root, box(0.17, 0.14, 0.17), palette.gunmetal, x, 0.5, z);
+    part(root, box(0.17, 0.1, 0.17), BS_HAZARD, x, 0.62, z);
+  }
+  let best = 0;
+  for (let k = 1; k < 36; k++) if (off((k * Math.PI) / 18) > off(best)) best = (k * Math.PI) / 18;
+  for (const a of [best, best + Math.PI]) {
+    const cx = Math.cos(a) * 3.8;
+    const cz = -Math.sin(a) * 3.8;
+    for (let i = 0; i < 6; i++) {
+      const t = a + Math.PI - 1.2 + (2.4 * i) / 5; // the open side faces out to the rim
+      const bag = part(root, box(0.24, 0.16, 0.46), i % 2 ? palette.sandbagShadow : palette.sandbag, cx + Math.cos(t) * 0.8, 0.08, cz - Math.sin(t) * 0.8);
+      bag.rotation.y = t;
+      part(root, box(0.24, 0.16, 0.46), palette.sandbag, cx + Math.cos(t) * 0.8, 0.24, cz - Math.sin(t) * 0.8).rotation.y = t;
+    }
+  }
+  bake(root, [root]);
+  root.traverse((o) => (o.castShadow = o.receiveShadow = true));
+  return root;
 }
 
 /** Until each champion gets its sheet model (Beta and Gamma: M3). */

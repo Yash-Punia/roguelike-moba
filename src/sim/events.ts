@@ -1,3 +1,4 @@
+import type { CampKind } from '../data/schema';
 import type { Entity } from './ecs';
 
 /**
@@ -29,9 +30,9 @@ export type SimEvent =
   /** A grenade went off (for the flash, smoke and sound). */
   | { type: 'explosion'; owner: Entity; team: number; x: number; y: number; radius: number }
   /** A unit was knocked out at (x, y); `killer` landed the lethal hit (0 = none). Minions and camp units are removed the same tick, so they carry their `unit` (a camp unit: its camp kind). */
-  | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number; unit?: 'mgSoldier' | 'shockTrooper' | 'bazookaTank' | 'deserter' | 'sniper' }
+  | { type: 'death'; id: Entity; team: number; killer: Entity; x: number; y: number; unit?: 'mgSoldier' | 'shockTrooper' | 'bazookaTank' | CampKind }
   /** A neutral camp's last unit fell at (x, y); `team` landed the killing blow and takes the reward (undefined: nobody, e.g. a debug kill). */
-  | { type: 'campCleared'; camp: string; kind: 'deserter' | 'sniper'; team: number | undefined; x: number; y: number }
+  | { type: 'campCleared'; camp: string; kind: CampKind; team: number | undefined; x: number; y: number }
   /** The match is over and the sim stops advancing (TDD §6.12 `Ended`): an HQ fell, the time-out decided it, or a team surrendered. No winner: a draw. */
   | { type: 'matchOver'; winner: number | undefined; reason: 'hq' | 'timeout' | 'surrender'; tick: number }
   /** The match moved to a new phase (Deploy → Live → Sudden Death). */

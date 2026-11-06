@@ -16,6 +16,9 @@ const sizes: Record<Kind, { width: number; height: number; lift: number }> = {
   [Kind.Summon]: { width: 0.7, height: 0.1, lift: 1.1 },
   [Kind.Neutral]: { width: 0.8, height: 0.12, lift: 1.45 },
 };
+type BarSize = (typeof sizes)[Kind];
+/** A mini-boss's bar: wide and high over the war machine (D-079). */
+export const bossBar: BarSize = { width: 2.4, height: 0.18, lift: 2.9 };
 
 const DARK = 0x1b1a17;
 const fillColour: Record<Team, THREE.Color> = {
@@ -69,8 +72,8 @@ export class HpBar {
   private maxHp = -1;
   private level = 0;
 
-  constructor(kind: Kind, team: Team, private readonly layer: HpBars) {
-    const { width, height, lift } = sizes[kind];
+  constructor(kind: Kind, team: Team, private readonly layer: HpBars, size: BarSize = sizes[kind]) {
+    const { width, height, lift } = size;
     this.width = width;
     this.height = height;
     this.lift = lift;
@@ -131,8 +134,9 @@ export class HpBars {
     this.build();
   }
 
-  create(kind: Kind, team: Team): HpBar {
-    const bar = new HpBar(kind, team, this);
+  /** `size`: overrides the kind's bar (a mini-boss). */
+  create(kind: Kind, team: Team, size?: BarSize): HpBar {
+    const bar = new HpBar(kind, team, this, size);
     this.bars.push(bar);
     if (this.bars.length > this.capacity) {
       this.capacity *= 2;

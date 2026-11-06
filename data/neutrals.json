@@ -42,6 +42,31 @@
           "projectileSpeed": 40
         }
       }
+    },
+    "fieldGun": {
+      "name": "Field Gun",
+      "firstSpawnSeconds": 120,
+      "respawnSeconds": 90,
+      "xp": 250,
+      "ultCharge": 15,
+      "unit": {
+        "maxHp": 3000,
+        "radius": 1.2,
+        "moveSpeed": 0
+      },
+      "boss": {
+        "pattern": {
+          "kind": "shells",
+          "range": 12,
+          "intervalSeconds": 2.5,
+          "targets": 2,
+          "flightSeconds": 0.8,
+          "damage": 240,
+          "radius": 2,
+          "arcHeight": 6
+        },
+        "artilleryWaves": 2
+      }
     }
   }
 }

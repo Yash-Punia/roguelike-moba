@@ -44,6 +44,12 @@ export interface MinionContext {
   footprintRadius: (e: Entity) => number;
   /** True once the enemy Sub-base in this lane has fallen: this team's waves there are Shock Troops (GDD §5; D-051). */
   laneBroken: (team: Team, laneId: string) => boolean;
+  /**
+   * Artillery Support (GDD §4, D-079), per team: waves still owed an extra Bazooka Tank, and
+   * whether the wave leaving now has one (read once when the wave is due).
+   */
+  artilleryLeft: number[];
+  artilleryWave: boolean[];
 }
 
 /** Component objects of a removed minion, reused by the next spawn (no per-wave allocation). */
@@ -98,18 +104,21 @@ export const waveScale = (cfg: Config, tick: number) => 1 + (cfg.waves.scalePctP
 /** Every `tankEveryNthWave`th wave (counting from 1, so the opener is soldiers only) brings a Bazooka Tank (D-053). */
 export const tankWave = (w: Config['waves'], wave: number) => w.tankEveryNthWave > 0 && (wave + 1) % w.tankEveryNthWave === 0;
 
-/** The longest any lane's wave can be: a Shock Troops wave (its extra troopers and a tank). */
-export const waveLength = (w: Config['waves'], wave: number) => w.soldiers + Math.max(tankWave(w, wave) ? 1 : 0, w.shockExtraSoldiers + 1);
+/** The longest any lane's wave can be: a Shock Troops wave (its extra troopers and a tank), plus an Artillery Support tank. */
+export const waveLength = (w: Config['waves'], wave: number) => w.soldiers + Math.max(tankWave(w, wave) ? 1 : 0, w.shockExtraSoldiers + 1) + 1;
 
 /**
  * The unit at place `slot` in one lane's wave, or undefined past its end. Soldiers first and the
  * tank last, so it marches behind them. In a Shock Troops lane (GDD §5) the soldiers are Shock
- * Troopers, `shockExtraSoldiers` more of them, and the tank comes every wave.
+ * Troopers, `shockExtraSoldiers` more of them, and the tank comes every wave. Artillery Support
+ * (`artillery`) adds one more tank at the very back (D-079).
  */
-function waveUnit(w: Config['waves'], wave: number, slot: number, shock: boolean): UnitId | undefined {
+function waveUnit(w: Config['waves'], wave: number, slot: number, shock: boolean, artillery: boolean): UnitId | undefined {
   const soldiers = w.soldiers + (shock ? w.shockExtraSoldiers : 0);
   if (slot < soldiers) return shock ? 'shockTrooper' : 'mgSoldier';
-  return slot === soldiers && (shock || tankWave(w, wave)) ? 'bazookaTank' : undefined;
+  const tank = shock || tankWave(w, wave);
+  if (tank && slot === soldiers) return 'bazookaTank';
+  return artillery && slot === soldiers + (tank ? 1 : 0) ? 'bazookaTank' : undefined;
 }
 
 /**
@@ -127,7 +136,7 @@ export function spawnFromCaves(ctx: MinionContext, cfg: Config, wave: number, ti
     const pts = lanes[lane]!.branches[branch]!;
     for (const team of [Team.Blue, Team.Red]) {
       const broken = ctx.laneBroken(team, laneId);
-      const unit = waveUnit(cfg.waves, wave, slot, broken);
+      const unit = waveUnit(cfg.waves, wave, slot, broken, ctx.artilleryWave[team]!);
       if (!unit) continue;
       waypoint(pts, team, 0, wa);
       spawnMinion(ctx, cfg, unit, team, lane, branch, 0, wa.x, wa.y, scale * (broken ? cfg.waves.shockTroopsMult : 1));

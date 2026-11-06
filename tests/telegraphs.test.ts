@@ -63,16 +63,17 @@ describe('ground telegraphs (D-078)', () => {
       if (c.ultimate.id === 'fragGrenade') leads.push(c.ultimate.flightSeconds);
       if (c.ultimate.id === 'leadStorm') leads.push(c.ultimate.windupSeconds);
     }
-    // Mortar shells and airstrike bombs: every `flightSeconds` in the power effects.
+    // Mortar shells, airstrike bombs and mini-boss attacks: every `flightSeconds` and `windupSeconds` in the powers and neutrals.
     const walk = (o: unknown) => {
       if (!o || typeof o !== 'object') return;
       for (const [k, v] of Object.entries(o)) {
-        if (k === 'flightSeconds' && typeof v === 'number') leads.push(v);
+        if ((k === 'flightSeconds' || k === 'windupSeconds') && typeof v === 'number') leads.push(v);
         else walk(v);
       }
     };
     walk(config.powers);
-    expect(leads.length).toBeGreaterThanOrEqual(4);
+    walk(config.neutrals);
+    expect(leads.length).toBeGreaterThanOrEqual(5);
     for (const lead of leads) expect(lead).toBeGreaterThanOrEqual(min);
   });
 });

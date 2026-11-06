@@ -186,8 +186,8 @@ const MapConfig = z.object({
   caves: z.array(z.object({ team: TeamName, x: z.number(), y: z.number() })).default([]),
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
-  /** Neutral camps in the Trench rooms (GDD §4, map spec C1–C4 and S1–S4): `count` units at the room centre (x, y). */
-  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
+  /** Neutral camps in the Trench rooms (GDD §4, map spec C1–C4 and S1–S4) and the mini-bosses in their arenas: `count` units at the centre (x, y). */
+  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
   /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
   fordSlowPct: pct().default(0),
 });
@@ -255,7 +255,29 @@ const CampDef = z.object({
   xp: nonneg(),
   /** Ultimate charge points each of those champions gains (not split). */
   ultCharge: nonneg(),
-  unit: z.object({ maxHp: positive(), radius: positive(), /** 0: holds its spot (the sniper). */ moveSpeed: nonneg(), weapon: Weapon }),
+  /** `weapon`: camp units auto-fire it; a mini-boss has none and fires its `boss.pattern` instead. */
+  unit: z.object({ maxHp: positive(), radius: positive(), /** 0: holds its spot (the sniper). */ moveSpeed: nonneg(), weapon: Weapon.optional() }),
+  /** A mini-boss (GDD §4, D-079): its XP and charge go to the whole killing team, anywhere. */
+  boss: z
+    .object({
+      pattern: z.discriminatedUnion('kind', [
+        /** Field Gun: every `intervalSeconds`, a shell at each of up to `targets` attackers within `range`, landing `flightSeconds` later. */
+        z.object({
+          kind: z.literal('shells'),
+          range: positive(),
+          intervalSeconds: secs(),
+          targets: z.number().int().min(1),
+          flightSeconds: secs(),
+          damage: nonneg(),
+          radius: positive(),
+          /** Apex of the shell's arc (render, m). */
+          arcHeight: nonneg(),
+        }),
+      ]),
+      /** Artillery Support: the killing team's next this many waves bring an extra Bazooka Tank in every lane. */
+      artilleryWaves: z.number().int().min(0).default(0),
+    })
+    .optional(),
 });
 /** Neutral camps (GDD §4, TDD §6.8, D-073). */
 const Neutrals = z.object({
@@ -268,7 +290,7 @@ const Neutrals = z.object({
   rewardRadius: positive(),
   /** Squad members stand on a ring this wide round the campfire (m). */
   ringRadius: nonneg(),
-  camps: z.object({ deserter: CampDef, sniper: CampDef }),
+  camps: z.object({ deserter: CampDef, sniper: CampDef, fieldGun: CampDef }),
 });
 
 /** XP and levels (GDD §8). */
@@ -517,6 +539,9 @@ const Bots = z.object({
     offLane: positive(),
     /** Champion clearance from walls on the navigation grid (m). */
     clearance: positive(),
+    /** Bots path round each mini-boss (D-079): every step within this distance of one costs `bossAvoidCost` more (straight step = 2). */
+    bossAvoidRadius: nonneg().default(0),
+    bossAvoidCost: nonneg().default(0),
   }),
 });
 

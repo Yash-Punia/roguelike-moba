@@ -206,7 +206,8 @@ export function createBot(
   }
 
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
-  const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
+  /** Camp paths go round the mini-bosses, so a farming pair doesn't pull one on the way (D-079). */
+  const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5), true);
   const laneField = (nav: Nav) =>
     nav.field(`lane:${laneId}`, () => {
       const cells: number[] = [];
@@ -267,7 +268,8 @@ export function createBot(
       if (!partner || partner.hp <= 0) continue;
       for (let i = 0; i < snap.camps.length; i++) {
         const camp = snap.camps[i]!;
-        if (camp.members === 0 || camp.engaged || camp.leashing || squad!.campTaken(i) || enemyNear(snap, camp.x, camp.y, f.contestRadius)) continue;
+        // Mini-bosses are left alone until bots can dodge their telegraphs (D-079).
+        if (camp.members === 0 || camp.engaged || camp.leashing || cfg.neutrals.camps[camp.kind].boss || squad!.campTaken(i) || enemyNear(snap, camp.x, camp.y, f.contestRadius)) continue;
         const field = campField(nav, cfg, i);
         const dMe = metres(nav, field, me.x, me.y);
         const dPartner = metres(nav, field, partner.x, partner.y);
@@ -356,7 +358,7 @@ export function createBot(
         return cmd;
       }
       const hpMe = me.hp / me.maxHp;
-      const nav = squad && getGrid ? navFor(getGrid(), b.farm.clearance) : undefined;
+      const nav = squad && getGrid ? navFor(getGrid(), b.farm.clearance, () => cfg.map.camps.filter((c) => cfg.neutrals.camps[c.kind].boss), b.farm.bossAvoidRadius, b.farm.bossAvoidCost) : undefined;
       let plan = squad?.planOf(self);
       if (plan && planOver(cfg, snap, plan, self, tick)) {
         squad!.end(plan, tick, b.farm.cooldownSeconds);

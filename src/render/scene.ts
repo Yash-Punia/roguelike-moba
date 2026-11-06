@@ -6,8 +6,8 @@ import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { EpicFx } from './epic-fx';
 import { Fog } from './fog';
-import { HpBars, type HpBar } from './hp-bars';
-import { createCampfire, createCave, createMedkit, createModel, createSniperNest, createSpawnPad, partsOf } from './models';
+import { bossBar, HpBars, type HpBar } from './hp-bars';
+import { BOSS_MODELS, createArena, createCampfire, createCave, createMedkit, createModel, createSniperNest, createSpawnPad, partsOf } from './models';
 import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
 import { Knockouts } from './knockout';
@@ -200,7 +200,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       let bar = bars.get(e.id);
       if (!bar && e.maxHp > 0) {
-        bar = barLayer.create(e.kind, side(e.team));
+        bar = barLayer.create(e.kind, side(e.team), BOSS_MODELS.has(e.modelId) ? bossBar : undefined);
         bars.set(e.id, bar);
       }
       // An enemy structure in the fog keeps its last known HP (D-010).
@@ -561,7 +561,7 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
   // Camp props (NT-01): a campfire at each deserter camp, a sandbag horseshoe facing the nearest lane at each sniper nest.
   const lanePts = buildLanes(map).flatMap((l) => l.branches);
   for (const c of map.camps) {
-    const prop = c.kind === 'sniper' ? createSniperNest() : createCampfire();
+    const prop = c.kind === 'sniper' ? createSniperNest() : c.kind === 'deserter' ? createCampfire() : createArena(entrances(map, c.x, c.y));
     prop.position.set(c.x, terrain.heightAt(c.x, c.y), -c.y);
     if (c.kind === 'sniper') {
       let best = Infinity;
@@ -578,4 +578,17 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
     group.add(prop);
   }
   return { group, terrain, medkits };
+}
+
+/** Trench mouths on a mini-boss arena at (x, y): each path ending within 9 m, as (angle, half-width angle) round the centre. */
+function entrances(map: MapConfig, x: number, y: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (const s of map.walkable) {
+    if (s.shape !== 'path') continue;
+    for (const p of [s.points[0]!, s.points[s.points.length - 1]!]) {
+      if (Math.hypot(p.x - x, p.y - y) > 9) continue;
+      out.push([Math.atan2(p.y - y, p.x - x), Math.asin(Math.min(1, (s.width / 2 + 0.4) / 6.3))]);
+    }
+  }
+  return out;
 }

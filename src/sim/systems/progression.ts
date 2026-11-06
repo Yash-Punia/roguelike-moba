@@ -1,4 +1,4 @@
-import type { Config } from '../../data/schema';
+import type { CampKind, Config } from '../../data/schema';
 import type { Entity, Store } from '../ecs';
 import type { SimEvent } from '../events';
 import { len } from '../math';
@@ -97,6 +97,7 @@ function takedownCredit(ctx: ProgressionContext, victim: Entity, killer: Entity,
  * Ultimate charge follows the same deaths: each living enemy champion near a dying minion, and
  * every enemy champion in on a takedown (D-040, D-065).
  * - a cleared neutral camp pays the clearing team's living champions near its last unit (D-073);
+ *   a mini-boss pays every champion of that team, anywhere, alive or not (GDD §4, D-079);
  * - a destroyed Sub-base pays every champion of the other team, alive or not.
  * Events are read in the order they happened, so grants are deterministic.
  */
@@ -124,7 +125,7 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, neutr
       // A minion: shared by presence, worth what its unit is worth. Camp units pay on `campCleared`.
       const team = ev.team;
       const unit = ev.unit ?? 'mgSoldier';
-      if (unit === 'deserter' || unit === 'sniper') continue;
+      if (isCamp(neutrals, unit)) continue;
       spatial.query(ev.x, ev.y, Math.max(p.shareRadius, p.ultCharge.minionRadius) + 1, nearby);
       sharers.length = 0;
       for (let k = 0; k < nearby.length; k++) {
@@ -142,6 +143,15 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, neutr
       // A camp (GDD §4, D-073): its XP split between the clearing team's living champions near the
       // last unit, and its Ultimate charge to each of them.
       const camp = neutrals.camps[ev.kind];
+      if (camp.boss) {
+        for (let k = 0; k < champions.ids.length; k++) {
+          const c = champions.ids[k]!;
+          if (teams.get(c) !== ev.team) continue;
+          grantXp(ctx, p, c, camp.xp);
+          addUltCharge(champions.data[k]!, ctx.stats.get(c), camp.ultCharge);
+        }
+        continue;
+      }
       spatial.query(ev.x, ev.y, neutrals.rewardRadius + 1, nearby);
       sharers.length = 0;
       for (let k = 0; k < nearby.length; k++) {
@@ -160,4 +170,9 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, neutr
       }
     }
   }
+}
+
+/** A camp unit's death (its kind in `neutrals.camps`): it pays on `campCleared`, not as a minion. */
+function isCamp(neutrals: Config['neutrals'], unit: string): unit is CampKind {
+  return unit in neutrals.camps;
 }

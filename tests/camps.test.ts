@@ -17,6 +17,7 @@ function pinNeutrals(c: Config, camps: Config['map']['camps']) {
     camps: {
       deserter: { name: 'Deserter Squad', firstSpawnSeconds: 900, respawnSeconds: 1200, xp: 60, ultCharge: 5, unit: { maxHp: 350, radius: 0.35, moveSpeed: 2.6, weapon: { ...bullet, damage: 20, interval: 30, range: 5, projectileSpeed: 25 } } },
       sniper: { name: 'Sniper Nest', firstSpawnSeconds: 900, respawnSeconds: 1800, xp: 80, ultCharge: 8, unit: { maxHp: 300, radius: 0.35, moveSpeed: 0, weapon: { ...bullet, damage: 60, interval: 75, range: 9, projectileSpeed: 40 } } },
+      fieldGun: c.neutrals.camps.fieldGun,
     },
   };
   c.map.camps = camps;
