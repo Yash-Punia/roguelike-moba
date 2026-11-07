@@ -14,8 +14,8 @@ const DR = [0, 0, 1, -1, 1, -1, 1, -1];
  * for every open cell, the walking cost to the nearest goal cell; a bot anywhere follows it
  * downhill. Fields are built once per goal (a camp, a lane, a spawn pad) and shared by every
  * bot, so a bot never searches a path per tick. Walls are inflated by `clearance` so the
- * paths keep a champion's body off them. In a field built with `avoid`, steps through an avoid
- * disc (round a mini-boss, D-079) cost `avoidCost` more, so paths go round where another way exists.
+ * paths keep a champion's body off them. Steps through an avoid disc (round a boss, D-079, D-081)
+ * cost `avoidCost` more, so every path goes round an arena where another way exists.
  */
 export class Nav {
   /** Cells a champion's centre should keep out of (walls grown by the clearance). */
@@ -55,9 +55,8 @@ export class Nav {
   /**
    * The field towards `key`'s goal, built on first use by Dijkstra from `goals` (cell indices,
    * called only then). Open goal cells only; a goal with none falls back to the raw grid.
-   * `avoid`: paths go round the avoid discs.
    */
-  field(key: string, goals: () => readonly number[], avoid = false): Uint16Array {
+  field(key: string, goals: () => readonly number[]): Uint16Array {
     let f = this.fields.get(key);
     if (f) return f;
     const { cols, rows } = this.grid;
@@ -88,7 +87,7 @@ export class Nav {
         if (shut[n]) continue;
         // No corner cutting: a diagonal step needs both straight neighbours open.
         if (k >= 4 && (shut[row * cols + c] || shut[r * cols + col])) continue;
-        const nd = d + (k < 4 ? STRAIGHT : DIAGONAL) + (avoid ? this.penalty[n]! : 0);
+        const nd = d + (k < 4 ? STRAIGHT : DIAGONAL) + this.penalty[n]!;
         if (nd < f[n]! && nd < FAR) {
           f[n] = nd;
           push(heap, nd * 0x100000 + n);

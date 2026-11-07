@@ -1600,3 +1600,33 @@ From TDD §13:
   - the charge hitting units as it drives (the strip marker would lie);
   - a spray that tracks its target through the windup (no dodge);
   - Supply Drop on the status buff slot (one slot for one stat; this needs two).
+
+## D-081 — A boss wakes only when a champion steps onto its arena floor
+- Date: 2026-11-07
+- Source: user choice ("arena-only start", for all bosses); the floor rule and numbers made during development. Amends D-079 and D-080.
+- Decision:
+  - **The problem:** champions auto-fire at anything in reach.
+    - On The Front the lanes pass 8 m from each mini-boss arena, just inside an Alpha's reach through the trench mouth, so bots fighting in the lane pulled the Halftrack (7 matches in 30).
+    - On The Bridgehead, bots walking through the arenas on lane, retreat and farm routes woke them (8 in 30).
+    - The Behemoth sits in The Crater, which the centre lane runs round.
+  - **The rule:** an idle boss is invulnerable, so targeting skips it and damage, splash and flames are dropped.
+    - It wakes when a living enemy champion stands on its **arena floor**: the `map.walkable` shape that owns the cell under its spot (`arena-fieldgun`, `arena-halftrack`; later `crater` and `island`).
+    - The lowest-id such champion becomes the first attacker, and from then on the normal camp rules run. Going home makes it invulnerable again.
+    - Applies to humans too: step into the pit to start the fight.
+  - **Floor, not radius:** lanes are painted after arenas (D-047, D-069), so lane cells are never arena floor. A radius would have reached the Bridgehead Field Gun's surroundings and the lane edges. `ObstacleGrid.owner` keeps `rasterise`'s owner per cell, and `ownerAt` reads it.
+  - **Bots route round arenas on every path:**
+    - D-079's detour applied only to camp paths. It now applies to lane and pad paths too, since walking through an arena wakes its boss.
+    - `bossAvoidCost` goes 3 → 40 per step, so a camp reachable only through an arena (on The Bridgehead, behind the Halftrack) falls past `maxTravel` and isn't farmed.
+  - **Measured** (all-bot 3v3, 30 seeds a map):
+    - bot boss wakes 0 on both maps (were 7 on The Front, 8 on The Bridgehead with D-080; 2 and 5 with the floor rule before the routing changes);
+    - median match on The Front 306 s, on The Bridgehead 204.5 s; none past 12 minutes.
+  - **Correction to D-080:** its Bridgehead "lane pulls" from about (2, −28) were bots standing inside the Field Gun's arena, not in the lane.
+  - **Tests:**
+    - every boss on both maps stands on its own arena floor;
+    - on The Front a champion in the centre lane 8 m from the Field Gun leaves it idle at full HP, and stepping onto the floor wakes it with that champion as attacker;
+    - the boss tests get an 8 m test arena under their boss spot, and the solo dodgers start on the floor.
+- Why: a boss fight should be a choice made by walking in, not a side effect of fighting in a lane nearby. The Behemoth would otherwise be woken constantly.
+- Alternatives:
+  - a pull radius (overlaps lanes);
+  - only champions inside the arena may target an idle boss (still lets splash and flames chip at it);
+  - leaving bots able to wake bosses until the bot AI row.

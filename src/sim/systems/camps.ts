@@ -3,6 +3,7 @@ import type { LanePath } from '../../data/map-geometry';
 import type { DamageLog } from '../damage-log';
 import type { Entity, Store, World } from '../ecs';
 import type { SimEvent } from '../events';
+import { ownerAt, type ObstacleGrid } from '../grid';
 import { atan2, cos, len, sin } from '../math';
 import {
   Kind, TargetClass, Team,
@@ -84,6 +85,7 @@ export interface CampContext {
   events: SimEvent[];
   camps: Camp[];
   lanes: () => readonly LanePath[];
+  grid: () => ObstacleGrid;
   /** Is the line from a to b clear of raised ground (line of sight, D-018)? */
   clear(ax: number, ay: number, bx: number, by: number): boolean;
   /** Component objects of removed camp units, reused by the next spawns. */
@@ -161,7 +163,8 @@ function spawnCamp(ctx: CampContext, n: Neutrals, index: number) {
     Object.assign(b.transform, { x, y, facing });
     Object.assign(b.motion, { vx: 0, vy: 0, speed: def.moveSpeed, intentX: 0, intentY: 0, slowTicks: 0, slowMult: 1, channelMult: 1 });
     b.collider.radius = def.radius;
-    Object.assign(b.health, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: false, invulnUntil: 0, lethalSaves: 0, killer: 0 });
+    // An idle mini-boss can't be hurt or targeted until a champion walks onto its arena floor (D-081).
+    Object.assign(b.health, { hp: def.maxHp, maxHp: def.maxHp, shield: 0, invulnerable: boss, invulnUntil: 0, lethalSaves: 0, killer: 0 });
     if (b.weapon) Object.assign(b.weapon, def.weapon, { cooldown: 0, aim: facing, critChance: 0, burstLeft: 0, burstWait: 0, burstTarget: 0, lastShotTick: -1, shotCount: 0, groundWait: 0 });
     Object.assign(b.targeting, { targetId: 0, pendingSwitchId: 0, pendingTicks: 0, holdTicks: 0 });
     Object.assign(b.neutral, { camp: index, homeX: x, homeY: y, homeFacing: facing });
@@ -194,6 +197,36 @@ function fightable(ctx: CampContext, e: Entity): boolean {
   if (kind === Kind.SubBase || kind === Kind.HQ) return false;
   const h = ctx.healths.get(e);
   return !!h && h.hp > 0;
+}
+
+/**
+ * An idle mini-boss wakes when a living enemy champion stands on its arena floor: the walkable
+ * shape that owns the cell under its spot (D-081). Lanes are painted over arena edges, so a
+ * champion in a lane never counts. The lowest-id such champion starts the fight; from then on
+ * the camp rules run as for any camp.
+ */
+function wake(ctx: CampContext, camp: Camp, index: number, tick: number) {
+  const g = ctx.grid();
+  const floor = ownerAt(g, camp.spot.x, camp.spot.y);
+  if (floor < 0) return;
+  let first: Entity = 0;
+  const { kinds } = ctx;
+  for (let i = 0; i < kinds.ids.length; i++) {
+    const e = kinds.ids[i]!;
+    if (kinds.data[i] !== Kind.Champion || (first !== 0 && e > first) || !fightable(ctx, e)) continue;
+    const t = ctx.transforms.get(e)!;
+    if (ownerAt(g, t.x, t.y) === floor) first = e;
+  }
+  if (first === 0) return;
+  camp.state = CampState.Engaged;
+  camp.aggro = first;
+  camp.attackers.push(first);
+  camp.attackerTicks.push(tick);
+  camp.lastCombatTick = tick;
+  const { neutrals } = ctx;
+  for (let i = 0; i < neutrals.ids.length; i++) {
+    if (neutrals.data[i]!.camp === index) ctx.healths.get(neutrals.ids[i]!)!.invulnerable = false;
+  }
 }
 
 function goHome(ctx: CampContext, camp: Camp, index: number, tick: number) {
@@ -263,6 +296,7 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
       if (tick >= camp.respawnAt) spawnCamp(ctx, n, c);
       continue;
     }
+    if (camp.state === CampState.Idle && n.camps[camp.spot.kind].boss) wake(ctx, camp, c, tick);
     if (camp.state !== CampState.Engaged) continue;
     // Forget attackers that are down, gone or quiet for `resetSeconds` (in place, keeping order).
     let kept = 0;
@@ -377,7 +411,7 @@ export function campSystem(ctx: CampContext, n: Neutrals, tick: number) {
       Object.assign(t, { x: u.homeX, y: u.homeY, facing: u.homeFacing });
       const h = ctx.healths.get(e)!;
       h.hp = h.maxHp;
-      h.invulnerable = false;
+      h.invulnerable = !!n.camps[camp.spot.kind].boss; // a mini-boss sleeps again (D-081)
       ctx.statuses.get(e)!.burnTicks = 0;
       motions.get(e)!.intentX = motions.get(e)!.intentY = 0;
     }

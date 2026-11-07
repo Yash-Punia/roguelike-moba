@@ -15,6 +15,8 @@ export interface ObstacleGrid {
   zone: Uint8Array;
   /** Ford cells (D-069): units wading here move `map.fordSlowPct` slower. */
   water: Uint8Array;
+  /** The `map.walkable` shape that owns each cell (the last painted over it), −1 for jungle: a boss's arena floor (D-081). */
+  owner: Int16Array;
 }
 
 /** Walkable shapes carved out of solid jungle. River cells block movement but not shots or sight (D-069). */
@@ -37,7 +39,14 @@ export function buildGrid(map: MapConfig): ObstacleGrid {
       zone[i] = 1 + (x > 0 ? 1 : 0) + (y > 0 ? 2 : 0);
     }
   }
-  return { minX, minY, cell, cols, rows, blocked, ground, zone, water };
+  return { minX, minY, cell, cols, rows, blocked, ground, zone, water, owner };
+}
+
+/** The walkable shape owning the cell under (x, y), −1 for jungle or off the map. */
+export function ownerAt(g: ObstacleGrid, x: number, y: number): number {
+  const c = Math.floor((x - g.minX) / g.cell);
+  const r = Math.floor((y - g.minY) / g.cell);
+  return c < 0 || r < 0 || c >= g.cols || r >= g.rows ? -1 : g.owner[r * g.cols + c]!;
 }
 
 /** Blocks every cell whose centre lies inside the footprint centred at (x, y). */

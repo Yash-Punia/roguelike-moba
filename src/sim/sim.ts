@@ -665,6 +665,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     world, neutrals, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, statuses, events, clear,
     camps: createCamps(config.map, config.neutrals),
     lanes: () => lanes,
+    grid: () => grid,
     pool: [],
   };
   const damageLog = new DamageLog(config.combat.damage.logSeconds);

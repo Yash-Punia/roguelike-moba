@@ -206,8 +206,7 @@ export function createBot(
   }
 
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
-  /** Camp paths go round the mini-bosses, so a farming pair doesn't pull one on the way (D-079). */
-  const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5), true);
+  const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
   const laneField = (nav: Nav) =>
     nav.field(`lane:${laneId}`, () => {
       const cells: number[] = [];

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { maps, parseConfig, rawConfig } from '../src/data/load';
 import type { Config } from '../src/data/schema';
 import type { SimEvent } from '../src/sim/events';
-import { buildGrid, isBlocked } from '../src/sim/grid';
+import { buildGrid, isBlocked, ownerAt } from '../src/sim/grid';
 import { CampState } from '../src/sim/systems/camps';
 import { inTelegraph } from '../src/sim/telegraph-shape';
 import { createSim, Kind, Team, type Command } from '../src/sim/sim';
@@ -10,6 +10,11 @@ import { arena, fixtureConfig, type Unit } from './helpers';
 
 const { Blue, Red } = Team;
 const GUN = { id: 'FG', kind: 'fieldGun' as const, x: 0, y: 20, count: 1 };
+
+/** An 8 m arena floor under the test boss spot (painted last, so it owns its cells): a boss wakes when a champion stands on it (D-081). */
+function addArena(c: Config) {
+  c.map.walkable.push({ id: 'arena-test', shape: 'circle', surface: 'arena', x: GUN.x, y: GUN.y, r: 8, height: 0 });
+}
 
 /** The Field Gun pinned to its D-079 numbers in ticks, up from the first tick, so retuning data/ doesn't move these tests. */
 function pinGun(c: Config) {
@@ -21,6 +26,7 @@ function pinGun(c: Config) {
   };
   c.map.camps = [GUN];
   c.progression.xpPerLevel = [1e9]; // no level-ups: XP reads back exactly
+  addArena(c);
 }
 
 function gunField(units: Unit[] = [], tweak?: (c: Config) => void) {
@@ -47,6 +53,38 @@ describe('mini-bosses as camps (D-079)', () => {
     expect(isBlocked(g, Math.floor((spot.x - g.minX) / g.cell), Math.floor((spot.y - g.minY) / g.cell))).toBe(false);
     expect(config.neutrals.camps.fieldGun.firstSpawnSeconds).toBe(120 * 30);
     expect(config.neutrals.camps.fieldGun.respawnSeconds).toBe(90 * 30);
+  });
+
+  it.each([3, 2] as const)('every boss stands on its own arena floor, which no lane owns (%d lanes, D-081)', (lanes) => {
+    const config = parseConfig({ ...rawConfig, map: maps[lanes] });
+    const g = buildGrid(config.map);
+    const bosses = config.map.camps.filter((c) => config.neutrals.camps[c.kind].boss);
+    expect(bosses.length).toBeGreaterThan(0);
+    for (const b of bosses) {
+      const floor = config.map.walkable[ownerAt(g, b.x, b.y)]!;
+      expect(floor.surface, b.id).not.toBe('dirt');
+      expect(['arena', 'crater', 'gravel'], b.id).toContain(floor.surface);
+    }
+  });
+
+  it('sleeps through fire from the lane 8 m away on The Front, and wakes when a champion steps onto its arena (D-081)', () => {
+    const config = parseConfig({ ...rawConfig, map: maps[3] });
+    config.waves.enabled = false;
+    config.neutrals.camps.fieldGun.firstSpawnSeconds = 0;
+    const fg = config.map.camps.find((c) => c.kind === 'fieldGun')!;
+    const lane = { x: fg.x - 8, y: fg.y }; // centre lane, in an Alpha's reach through the trench mouth
+    const sim = createSim(config, 1, [{ team: Blue, championId: 'alpha', spawnAt: lane }]);
+    const me = sim.entityOf(0)!;
+    expect(config.map.walkable[ownerAt(sim.grid, lane.x, lane.y)]!.surface).toBe('dirt');
+    for (let i = 0; i < 90; i++) sim.step([]);
+    const gun = sim.stores.neutrals.ids.find((e) => sim.snapshot().entities.find((s) => s.id === e)?.modelId === 'fieldGun')!;
+    const ci = config.map.camps.indexOf(fg);
+    expect(sim.camps[ci]!.state).toBe(CampState.Idle);
+    expect(sim.stores.healths.get(gun)!.hp).toBe(3000);
+    Object.assign(sim.stores.transforms.get(me)!, { x: fg.x, y: fg.y + 3 });
+    sim.step([]);
+    expect(sim.camps[ci]!.state).toBe(CampState.Engaged);
+    expect(sim.camps[ci]!.attackers).toEqual([me]);
   });
 
   it('has no weapon, and is never recycled into a deserter', () => {
@@ -218,10 +256,12 @@ describe('a mini-boss is soloable with dodging (D-079, D-080, user)', () => {
     config.powers.powers = []; // no drafts on level-up
     config.neutrals.camps[kind].firstSpawnSeconds = 0;
     config.map.camps = [{ ...GUN, kind }];
+    addArena(config);
     const alpha = config.champions.find((c) => c.id === 'alpha')!;
     const keep = alpha.weapon.range + config.neutrals.camps[kind].unit.radius - 0.3;
     const spot = { x: 0, y: GUN.y - keep };
-    const sim = createSim(config, 1, [{ team: Blue, championId: 'alpha', spawnAt: spot }]);
+    // It starts on the arena floor (5 m in) to wake the boss, then holds at its spot.
+    const sim = createSim(config, 1, [{ team: Blue, championId: 'alpha', spawnAt: { x: 0, y: GUN.y - 5 } }]);
     const me = sim.entityOf(0)!;
     for (let k = 0; k < 3; k++) sim.debug.levelUp(me);
     let cleared = false;
