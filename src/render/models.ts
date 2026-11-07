@@ -62,8 +62,16 @@ function buildTemplate(kind: Kind, modelId: string, team: Team) {
   else if (modelId === 'sniper') sniper(root);
   else if (modelId === 'fieldGun') fieldGun(root);
   else if (modelId === 'halftrack') halftrack(root);
+  else if (modelId === 'behemoth') behemoth(root);
   else championPlaceholder(root, team);
-  if (kind === Kind.Champion) addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
+  if (kind === Kind.Champion) {
+    addTraitRing(root, modelId === 'beta' ? lightFeetRingMat : modelId === 'gamma' ? chargeRingMat : steadyRingMat);
+    // Invincible (the Behemoth's reward, a lethal save): a faint brass dome, shown while invulnerable (D-082).
+    const dome = new THREE.Mesh(championDomeGeo, championDomeMat);
+    dome.visible = false;
+    root.add(dome);
+    partsOf(root).shield = dome;
+  }
   const parts = partsOf(root);
   // Name every part object (once, even when it fills two slots: a Sub-base's turret both aims and falls).
   let next = 0;
@@ -579,7 +587,9 @@ function bazookaTank(root: THREE.Object3D, team: Team) {
 }
 
 /** Mini-boss model ids: real shadows and a big HP bar (D-079). */
-export const BOSS_MODELS: ReadonlySet<string> = new Set(['fieldGun', 'halftrack']);
+export const BOSS_MODELS: ReadonlySet<string> = new Set(['fieldGun', 'halftrack', 'behemoth']);
+const championDomeGeo = new THREE.SphereGeometry(1.05, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+const championDomeMat = new THREE.MeshBasicMaterial({ color: palette.brass, transparent: true, opacity: 0.4, depthWrite: false });
 
 // Bosses sheet BS-01 palette.
 const BS_OLIVE = 0x6d7a3c;
@@ -670,14 +680,65 @@ function halftrack(root: THREE.Object3D) {
 }
 
 /**
- * A mini-boss arena's dressing (map spec): yellow-black hazard posts round the 6.5 m rim, with a
- * gap at each trench mouth (`gaps`: centre angle and half-width, sim radians), and two sandbag
- * horseshoes at the two rim angles furthest from any mouth. One baked mesh; decoration only.
+ * The Behemoth (BS-01): a land ironclad about 5 m long. A stepped, riveted gunmetal hull with rust
+ * patches over tracks and road wheels, a bow plough and headlamps in front (+x), four turrets with
+ * twin barrels (fore, aft and one each side), two smokestacks with rust caps. It turns as a whole
+ * to its first target (the sim sets its facing).
  */
-export function createArena(gaps: readonly (readonly [number, number])[], radius = 6.3): THREE.Object3D {
+function behemoth(root: THREE.Object3D) {
+  const RUST = BS_RUST;
+  for (const z of [-1.55, 1.55]) {
+    part(root, box(4.6, 0.8, 0.6), BS_TYRE, 0, 0.42, z);
+    for (let k = 0; k < 6; k++) part(root, cyl(0.28, 0.28, 0.64, 10), palette.gunmetal, -1.9 + k * 0.76, 0.36, z).rotation.x = Math.PI / 2;
+  }
+  part(root, box(4.4, 0.9, 2.9), palette.iron, 0, 1.15, 0); // lower hull
+  part(root, box(3.4, 0.7, 2.4), palette.gunmetal, -0.2, 1.9, 0); // upper deck
+  part(root, box(1.6, 0.6, 1.6), palette.iron, -0.5, 2.55, 0); // bridge
+  for (const [x, z, w, d] of [[1.2, 1.0, 0.7, 0.5], [-1.4, -1.2, 0.9, 0.4], [0.3, -1.46, 0.6, 0.06], [-0.6, 1.46, 0.8, 0.06]] as const) {
+    part(root, box(w, 0.32, d), RUST, x, 1.35, z); // rust streaks and patches
+  }
+  for (let k = 0; k < 7; k++) {
+    for (const z of [-1.47, 1.47]) part(root, box(0.08, 0.08, 0.04), palette.gunmetal, -1.8 + k * 0.6, 1.5, z); // rivets
+  }
+  // Bow plough and headlamps.
+  const plough = part(root, box(0.3, 0.7, 3.2), RUST, 2.45, 0.55, 0);
+  plough.rotation.z = -0.35;
+  for (const z of [-0.9, 0.9]) part(root, cyl(0.16, 0.16, 0.1, 10), palette.shearling, 2.22, 1.3, z).rotation.z = Math.PI / 2;
+  // Four turrets with twin barrels.
+  for (const [x, z, a] of [[1.25, 0, 0], [-1.7, 0, Math.PI], [-0.2, 1.05, Math.PI / 2], [-0.2, -1.05, -Math.PI / 2]] as const) {
+    const turret = new THREE.Group();
+    turret.position.set(x, 2.25, z);
+    turret.rotation.y = a;
+    root.add(turret);
+    part(turret, cyl(0.42, 0.48, 0.38, 10), palette.gunmetal, 0, 0, 0);
+    for (const dz of [-0.12, 0.12]) part(turret, cyl(0.06, 0.07, 1.0, 6), palette.iron, 0.75, 0.04, dz).rotation.z = Math.PI / 2;
+  }
+  // Twin smokestacks with rust caps.
+  for (const z of [-0.45, 0.45]) {
+    part(root, cyl(0.2, 0.24, 1.3, 10), palette.iron, -0.9, 3.4, z);
+    part(root, cyl(0.25, 0.25, 0.14, 10), RUST, -0.9, 4.1, z);
+  }
+}
+
+/** Crossed girders: a tank trap (Czech hedgehog), cover dressing in the Behemoth's arena. */
+function tankTrap(root: THREE.Object3D, x: number, z: number, turn: number) {
+  for (const [rx, ry, rz] of [[0.6, 0, 0.6], [-0.6, 0, 0.6], [0, Math.PI / 2, 0.9]] as const) {
+    const g = part(root, box(1.1, 0.1, 0.1), palette.iron, x, 0.4, z);
+    g.rotation.set(rx, ry + turn, rz);
+  }
+}
+
+/**
+ * A boss arena's dressing (map spec), one baked mesh, decoration only:
+ * - a mini-boss arena: yellow-black hazard posts round the 6.5 m rim with a gap at each trench
+ *   mouth (`gaps`: centre angle and half-width, sim radians) and two sandbag horseshoes at the rim
+ *   angles furthest from any mouth;
+ * - the Behemoth's (`behemoth`): no posts, four horseshoes and four tank traps between its ways in.
+ */
+export function createArena(gaps: readonly (readonly [number, number])[], radius = 6.3, behemoth = false): THREE.Object3D {
   const root = new THREE.Group();
   const off = (a: number) => gaps.reduce((m, [c, h]) => Math.min(m, Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) - h), Infinity);
-  const posts = Math.round((2 * Math.PI * radius) / 1.1);
+  const posts = behemoth ? 0 : Math.round((2 * Math.PI * radius) / 1.1);
   for (let i = 0; i < posts; i++) {
     const a = (i / posts) * 2 * Math.PI;
     if (off(a) < 0) continue;
@@ -689,9 +750,11 @@ export function createArena(gaps: readonly (readonly [number, number])[], radius
   }
   let best = 0;
   for (let k = 1; k < 36; k++) if (off((k * Math.PI) / 18) > off(best)) best = (k * Math.PI) / 18;
-  for (const a of [best, best + Math.PI]) {
-    const cx = Math.cos(a) * 3.8;
-    const cz = -Math.sin(a) * 3.8;
+  const spots = behemoth ? [0, 1, 2, 3].map((k) => best + (k * Math.PI) / 2) : [best, best + Math.PI];
+  if (behemoth) for (const a of spots) tankTrap(root, Math.cos(a + 0.45) * 6.8, -Math.sin(a + 0.45) * 6.8, a);
+  for (const a of spots) {
+    const cx = Math.cos(a) * (behemoth ? 5 : 3.8);
+    const cz = -Math.sin(a) * (behemoth ? 5 : 3.8);
     for (let i = 0; i < 6; i++) {
       const t = a + Math.PI - 1.2 + (2.4 * i) / 5; // the open side faces out to the rim
       const bag = part(root, box(0.24, 0.16, 0.46), i % 2 ? palette.sandbagShadow : palette.sandbag, cx + Math.cos(t) * 0.8, 0.08, cz - Math.sin(t) * 0.8);

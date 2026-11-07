@@ -19,6 +19,7 @@ function pinNeutrals(c: Config, camps: Config['map']['camps']) {
       sniper: { name: 'Sniper Nest', firstSpawnSeconds: 900, respawnSeconds: 1800, xp: 80, ultCharge: 8, unit: { maxHp: 300, radius: 0.35, moveSpeed: 0, weapon: { ...bullet, damage: 60, interval: 75, range: 9, projectileSpeed: 40 } } },
       fieldGun: c.neutrals.camps.fieldGun,
       halftrack: c.neutrals.camps.halftrack,
+      behemoth: c.neutrals.camps.behemoth,
     },
   };
   c.map.camps = camps;

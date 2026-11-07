@@ -412,11 +412,12 @@ describe('Halftrack (D-080)', () => {
 });
 
 describe('bots leave the mini-bosses alone (D-079, user)', () => {
-  it.each([3, 2] as const)('no farm plan targets a boss, and no bot pulls one walking past (%d lanes)', async (lanes) => {
+  it.each([3, 2] as const)('no farm plan targets a boss, and no bot wakes one walking past, the Behemoth brought in at 1:00 (%d lanes)', async (lanes) => {
     const { createBot } = await import('../src/sim/bots/bot');
     const { Squad } = await import('../src/sim/bots/squad');
     const { matchSlots } = await import('../src/sim/match-setup');
     const config = parseConfig({ ...rawConfig, map: maps[lanes] });
+    config.neutrals.camps.behemoth.firstSpawnSeconds = 60 * 30; // most all-bot matches end before 6:00
     const slots = matchSlots(config, { teamSize: 3, localTeam: Blue });
     const sim = createSim(config, 1, slots);
     const squads = [new Squad(), new Squad()];
@@ -434,5 +435,140 @@ describe('bots leave the mini-bosses alone (D-079, user)', () => {
     expect(planned).toBe(0);
     expect(pulled).toBe(0);
     expect(snap.entities.some((e) => e.kind === Kind.Neutral && e.modelId === 'fieldGun')).toBe(true);
+    expect(snap.entities.some((e) => e.kind === Kind.Neutral && e.modelId === 'behemoth')).toBe(true);
   }, 60_000);
+});
+
+const BH = { id: 'BH', kind: 'behemoth' as const, x: 0, y: 20, count: 1 };
+
+/** The Behemoth pinned to its D-082 numbers in ticks, up from the first tick. */
+function bhField(units: Unit[] = []) {
+  return gunField(units, (c) => {
+    c.neutrals.camps.behemoth = {
+      name: 'Behemoth', firstSpawnSeconds: 0, respawnSeconds: 3600, xp: 400, ultCharge: 25,
+      unit: { maxHp: 9000, radius: 2.2, moveSpeed: 0 },
+      boss: {
+        pattern: { kind: 'shells', range: 14, intervalSeconds: 90, targets: 4, flightSeconds: 24, damage: 300, radius: 2.2, arcHeight: 8, blast: { every: 3, radius: 6, damage: 450, windupSeconds: 24 } },
+        artilleryWaves: 0,
+        invincibleSeconds: 450,
+      },
+    };
+    c.map.camps = [BH];
+  });
+}
+
+describe('Behemoth (D-082)', () => {
+  it.each([3, 2] as const)('waits at the map centre, up at 6:00, back 120 s after a clear (%d lanes)', (lanes) => {
+    const config = parseConfig({ ...rawConfig, map: maps[lanes] });
+    const spot = config.map.camps.find((c) => c.kind === 'behemoth')!;
+    expect([spot.x, spot.y]).toEqual([0, 0]);
+    expect(config.neutrals.camps.behemoth.firstSpawnSeconds).toBe(360 * 30);
+    expect(config.neutrals.camps.behemoth.respawnSeconds).toBe(120 * 30);
+  });
+
+  it('shells all four attackers in one volley', () => {
+    const spots = [[-5, 14], [5, 14], [-6, 20], [6, 20]] as const;
+    const a = bhField(spots.slice(1).map(([x, y]) => ({ team: Blue, x, y, armed: true })));
+    a.move(a.shooter, spots[0][0], spots[0][1]);
+    let most = 0;
+    const seen = new Set<number>();
+    for (let i = 0; i < 120; i++) {
+      a.run();
+      const fresh = a.sim.snapshot().lobs.filter((l) => !seen.has(l.id));
+      for (const l of fresh) seen.add(l.id);
+      most = Math.max(most, fresh.length);
+    }
+    expect(most).toBe(4);
+  });
+
+  it('every 3rd attack with someone close is a steam blast: a 6 m circle marked 24 ticks ahead; a champion that steps out takes nothing', () => {
+    const blastOf = (dodge: boolean) => {
+      const a = bhField();
+      a.move(a.shooter, 0, 16); // 4 m from it
+      let tel;
+      for (let i = 0; i < 400 && !tel; i++) {
+        a.run();
+        tel = a.sim.snapshot().telegraphs.find((t) => t.radius === 6);
+      }
+      if (dodge) a.move(a.shooter, 0, 11); // 9 m out
+      const start = a.sim.tick - 1;
+      a.run(30);
+      // Any hit after the windup starts is the blast (the shells landed long before); its amount is capped by the HP left.
+      return { tel, hits: a.fromGun(a.shooter).filter((e) => e.tick > start).map((e) => e.tick - start) };
+    };
+    const stay = blastOf(false);
+    expect(stay.tel).toMatchObject({ shape: 'circle', x: 0, y: 20, radius: 6, elapsed: 0, total: 24 });
+    expect(stay.hits).toEqual([24]);
+    expect(blastOf(true).hits).toEqual([]);
+  });
+
+  it('pays 400 XP and +25 charge to the whole team, and makes its living champions invincible for 15 s', async () => {
+    const { isInvulnerable } = await import('../src/sim/damage');
+    const a = bhField([{ team: Blue, x: 30, y: -30 }, { team: Blue, x: -30, y: -30 }, { team: Red, x: 30, y: 30 }]);
+    const [far, down, red] = [1, 2, 3].map((p) => a.sim.entityOf(p)!);
+    a.sim.debug.kill(down!);
+    a.move(a.shooter, 0, 14);
+    a.run(2);
+    a.hp(a.gun(), 1);
+    for (let i = 0; i < 120 && !a.events.some((e) => e.type === 'campCleared'); i++) a.run();
+    const at = a.events.find((e) => e.type === 'campCleared')!;
+    expect(at).toMatchObject({ kind: 'behemoth', team: Blue });
+    for (const e of [a.shooter, far!, down!]) expect(a.sim.stores.champions.get(e)!.xp).toBe(400);
+    expect(a.sim.stores.champions.get(red!)!.xp).toBe(0);
+    const inv = (e: number) => isInvulnerable(a.sim.stores.healths.get(e)!, a.sim.tick);
+    expect([inv(a.shooter), inv(far!), inv(red!)]).toEqual([true, true, false]);
+    expect(a.sim.snapshot().entities.find((e) => e.id === far)!.invulnerable).toBe(true);
+    a.run(at.tick + 450 - a.sim.tick);
+    expect([inv(a.shooter), inv(far!)]).toEqual([false, false]);
+  });
+});
+
+describe('the Behemoth is a team fight (D-082)', () => {
+  /** Three level 9 Alphas round the shipped Behemoth on the open map; `dodge` steps out of every marker, then back to each one's spot. */
+  function teamFight(dodge: boolean) {
+    const config = fixtureConfig();
+    config.waves.enabled = false;
+    config.powers.powers = [];
+    config.neutrals.camps.behemoth.firstSpawnSeconds = 0;
+    config.map.camps = [{ ...GUN, kind: 'behemoth' }];
+    addArena(config);
+    const alpha = config.champions.find((c) => c.id === 'alpha')!;
+    const keep = alpha.weapon.range + config.neutrals.camps.behemoth.unit.radius - 0.3;
+    const angles = [-Math.PI / 2, -Math.PI / 2 + 0.7, -Math.PI / 2 - 0.7];
+    const spots = angles.map((a) => ({ x: GUN.x + Math.cos(a) * keep, y: GUN.y + Math.sin(a) * keep }));
+    // They start on the arena floor (5 m in) to wake it.
+    const sim = createSim(config, 1, angles.map((a) => ({ team: Blue, championId: 'alpha', spawnAt: { x: GUN.x + Math.cos(a) * 5, y: GUN.y + Math.sin(a) * 5 } })));
+    const ids = angles.map((_, p) => sim.entityOf(p)!);
+    for (const e of ids) for (let k = 0; k < 8; k++) sim.debug.levelUp(e);
+    let cleared = false;
+    const alive = () => ids.filter((e) => sim.stores.healths.get(e)!.hp > 0).length;
+    for (let i = 0; i < 180 * 30 && !cleared && alive() > 0; i++) {
+      const snap = sim.snapshot();
+      const cmds: Command[] = ids.map((e, p) => {
+        const t = sim.stores.transforms.get(e)!;
+        let mx = 0;
+        let my = 0;
+        if (dodge) {
+          const out = wayOut(snap, t.x, t.y, alpha.radius + 0.2, GUN);
+          const s = spots[p]!;
+          const d = Math.hypot(s.x - t.x, s.y - t.y);
+          if (out) [mx, my] = [out.x, out.y];
+          else if (d > 0.3) [mx, my] = [(s.x - t.x) / d, (s.y - t.y) / d];
+        }
+        return { tick: sim.tick, player: p, moveX: Math.round(mx * 127), moveY: Math.round(my * 127), ult: false, draftPick: -1, reroll: false };
+      });
+      for (const ev of sim.step(cmds).events) if (ev.type === 'campCleared') cleared = true;
+    }
+    return { cleared, alive: alive(), level: sim.stores.champions.get(ids[0]!)!.level };
+  }
+
+  it('three level 9 Alphas that stand still lose it', () => {
+    expect(teamFight(false)).toMatchObject({ cleared: false, level: 9 });
+  }, 30_000);
+
+  it('three level 9 Alphas that step out of every marker clear it, at least two standing', () => {
+    const r = teamFight(true);
+    expect(r.cleared).toBe(true);
+    expect(r.alive).toBeGreaterThanOrEqual(2);
+  }, 30_000);
 });

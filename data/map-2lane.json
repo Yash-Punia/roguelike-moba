@@ -699,7 +699,8 @@
     { "id": "S1", "kind": "sniper", "x": 11, "y": -46 },
     { "id": "S2", "kind": "sniper", "x": -11, "y": 46 },
     { "id": "FG", "kind": "fieldGun", "x": 8, "y": -28 },
-    { "id": "HT", "kind": "halftrack", "x": -8, "y": 28 }
+    { "id": "HT", "kind": "halftrack", "x": -8, "y": 28 },
+    { "id": "BH", "kind": "behemoth", "x": 0, "y": 0 }
   ],
   "lanes": [
     {

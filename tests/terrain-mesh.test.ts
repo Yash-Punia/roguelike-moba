@@ -25,15 +25,19 @@ describe.each([
   const lane = map.walkable.findIndex((s) => s.id === 'centre-blue');
 
   it(`builds in reasonable time (${ms.toFixed(0)} ms)`, () => {
-    expect(ms).toBeLessThan(3000);
+    // A smoke budget: under 3 s alone, but about 4 s while the whole suite runs in parallel (D-082).
+    expect(ms).toBeLessThan(6000);
   });
 
   it('keeps every vertex inside the map bounds', () => {
     const b = map.bounds;
+    // One expect for the lot: an expect per vertex took about 5 s, past the default timeout.
+    let outside = 0;
     for (let v = 0; v < tri.length; v += 3) {
-      expect(tri[v]! >= b.minX - 1e-9 && tri[v]! <= b.maxX + 1e-9).toBe(true);
-      expect(tri[v + 1]! >= b.minY - 1e-9 && tri[v + 1]! <= b.maxY + 1e-9).toBe(true);
+      if (!(tri[v]! >= b.minX - 1e-9 && tri[v]! <= b.maxX + 1e-9)) outside++;
+      if (!(tri[v + 1]! >= b.minY - 1e-9 && tri[v + 1]! <= b.maxY + 1e-9)) outside++;
     }
+    expect(outside).toBe(0);
   });
 
   it('winds every triangle counter-clockwise (faces up) and covers the map exactly', () => {

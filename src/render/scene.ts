@@ -180,6 +180,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   // Fog of war (D-010): darker ground, and effects in the fog aren't drawn.
   const fog = new Fog(viewer);
   const sees = (x: number, y: number) => fog.sees(x, y);
+  const campEngaged: boolean[] = [];
 
   /** Call after every sim tick: shifts current → previous. */
   function capture(snap: Snapshot) {
@@ -257,6 +258,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     for (let i = 0; i < snap.medkits.length; i++) {
       const kit = arena.medkits[i];
       if (kit) kit.visible = snap.medkits[i]!.ready;
+    }
+    // A boss wakes with a roar of steam (GDD §11): a puff when its camp starts fighting (D-082).
+    for (let i = 0; i < snap.camps.length; i++) {
+      const c = snap.camps[i]!;
+      if (c.engaged && !campEngaged[i] && BOSS_MODELS.has(c.kind)) ultFx.smoke(c.x, c.y, 1.6, palette.steam, 8, clock);
+      campEngaged[i] = c.engaged;
     }
     tracers.capture(snap.projectiles, viewer, sees);
     ultFx.capture(snap.lobs, snap.zones, sees);
@@ -569,7 +576,7 @@ function buildArena(map: MapConfig, side: (t: Team) => Team) {
   // Camp props (NT-01): a campfire at each deserter camp, a sandbag horseshoe facing the nearest lane at each sniper nest.
   const lanePts = buildLanes(map).flatMap((l) => l.branches);
   for (const c of map.camps) {
-    const prop = c.kind === 'sniper' ? createSniperNest() : c.kind === 'deserter' ? createCampfire() : createArena(entrances(map, c.x, c.y));
+    const prop = c.kind === 'sniper' ? createSniperNest() : c.kind === 'deserter' ? createCampfire() : createArena(entrances(map, c.x, c.y), 6.3, c.kind === 'behemoth');
     prop.position.set(c.x, terrain.heightAt(c.x, c.y), -c.y);
     if (c.kind === 'sniper') {
       let best = Infinity;

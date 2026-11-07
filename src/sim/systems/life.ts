@@ -122,9 +122,12 @@ export function sprintSystem(ctx: LifeContext) {
  * Supply Drop (GDD §4, D-080), at the end of the tick: a mini-boss with a `supplyDrop` cleared
  * this tick gives every champion of the killing team, alive or not, its damage and move-speed
  * pcts for its `seconds`. A second clear while it's on restarts the timer without stacking.
+ * A Behemoth clear (D-082, user) makes every living champion of the killing team invincible for
+ * `invincibleSeconds`: through `invulnUntil`, like a lethal save, so it takes no damage and
+ * enemies don't target it. A champion knocked out at the time doesn't get it (respawn clears it).
  */
-export function supplySystem(ctx: LifeContext, n: Config['neutrals'], events: readonly SimEvent[], from: number) {
-  const { champions, teams } = ctx;
+export function supplySystem(ctx: LifeContext, n: Config['neutrals'], events: readonly SimEvent[], from: number, tick: number) {
+  const { champions, teams, healths } = ctx;
   for (let i = 0; i < champions.ids.length; i++) {
     const c = champions.data[i]!;
     if (c.supplyTicks > 0 && --c.supplyTicks === 0) setSupply(ctx, champions.ids[i]!, c, 0, 0);
@@ -132,6 +135,13 @@ export function supplySystem(ctx: LifeContext, n: Config['neutrals'], events: re
   for (let k = from; k < events.length; k++) {
     const ev = events[k]!;
     if (ev.type !== 'campCleared' || ev.team === undefined) continue;
+    const inv = n.camps[ev.kind].boss?.invincibleSeconds;
+    if (inv) {
+      for (let i = 0; i < champions.ids.length; i++) {
+        const h = healths.get(champions.ids[i]!)!;
+        if (teams.get(champions.ids[i]!) === ev.team && h.hp > 0) h.invulnUntil = Math.max(h.invulnUntil, tick + inv);
+      }
+    }
     const drop = n.camps[ev.kind].boss?.supplyDrop;
     if (!drop) continue;
     for (let i = 0; i < champions.ids.length; i++) {

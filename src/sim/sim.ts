@@ -895,7 +895,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       draftSystem(draftContext, config.powers, events);
       regenSystem(draftContext, config.powers, events, tick);
       sprintSystem(lifeContext);
-      supplySystem(lifeContext, config.neutrals, events, progressionFrom);
+      supplySystem(lifeContext, config.neutrals, events, progressionFrom, tick);
       structureRegenSystem(structureContext, config.structures);
       if (hqFell) events.push({ type: 'matchOver', winner: match.winner, reason: 'hq', tick });
       tick++;
@@ -1054,7 +1054,14 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       for (let c = 0; c < campContext.camps.length; c++) {
         const camp = campContext.camps[c]!;
         const p = config.neutrals.camps[camp.spot.kind].boss?.pattern;
-        if (camp.attack === BossAttack.None || p?.kind !== 'halftrack') continue;
+        if (camp.attack === BossAttack.None || !p) continue;
+        if (p.kind === 'shells') {
+          // The Behemoth's steam blast (D-082): a circle round it.
+          if (!p.blast) continue;
+          const t = telegraph(tn++, Team.Neutral, 'circle', camp.attackX, camp.attackY, tick - 1 - camp.attackStart, p.blast.windupSeconds);
+          t.radius = p.blast.radius;
+          continue;
+        }
         const spray = camp.attack === BossAttack.Spray;
         const t = telegraph(tn++, Team.Neutral, spray ? 'cone' : 'strip', camp.attackX, camp.attackY, tick - 1 - camp.attackStart, p.windupSeconds);
         t.angle = camp.attackAngle;

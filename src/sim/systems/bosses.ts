@@ -4,7 +4,7 @@ import { LobKind } from '../lobs';
 import { atan2, len } from '../math';
 import { Team } from '../sim';
 import { BossAttack, CampState, type Camp, type CampContext } from './camps';
-import { enemiesInCone, enemiesInStrip, maxRadius, type UltimateContext } from './ultimate';
+import { enemiesIn, enemiesInCone, enemiesInStrip, maxRadius, type UltimateContext } from './ultimate';
 
 const picked: Entity[] = [];
 
@@ -14,7 +14,10 @@ const picked: Entity[] = [];
  * attackers in reach and in sight, nearest first (ties by id); every attack is telegraphed.
  * - `shells` (Field Gun, D-079): every `intervalSeconds`, one shell at each of up to `targets`
  *   attackers within `range`, landing where they stood `flightSeconds` later. The shell is a lob,
- *   so its landing circle is the telegraph (D-078) and `lobSystem` deals the blast.
+ *   so its landing circle is the telegraph (D-078) and `lobSystem` deals the blast. With a `blast`
+ *   (Behemoth, D-082), every `blast.every`th attack is a steam blast round itself instead, if an
+ *   attacker is within `blast.radius`: a windup locked on its spot, then everyone inside is hit.
+ *   The attack count advances either way, so a skipped blast waits for the next turn.
  * - `halftrack` (D-080): every `intervalSeconds`, a windup locked on the nearest attacker: a spray
  *   cone, or every `chargeEvery`th time a charge strip. `windupSeconds` later everyone inside is
  *   hit; after a charge the Halftrack drives down the strip (`campSystem`). It holds still in the
@@ -53,8 +56,26 @@ export function bossSystem(ctx: CampContext, u: UltimateContext, n: Config['neut
       continue;
     }
 
+    const b = p.blast;
+    if (b && camp.attack === BossAttack.Blast) {
+      if (tick - camp.attackStart < b.windupSeconds) continue;
+      const list = enemiesIn(u, camp.attackX, camp.attackY, b.radius, Team.Neutral, maxRadius(u.colliders));
+      for (let k = 0; k < list.length; k++) u.hits.push(e, list[k]!, b.damage);
+      camp.attack = BossAttack.None;
+      continue;
+    }
     if (camp.attackWait > 0) continue;
+    if (b && (camp.attacks + 1) % b.every === 0 && pick(ctx, camp, t.x, t.y, b.radius, 1) > 0) {
+      camp.attack = BossAttack.Blast;
+      camp.attackX = t.x;
+      camp.attackY = t.y;
+      camp.attackStart = tick;
+      camp.attacks++;
+      camp.attackWait = p.intervalSeconds;
+      continue;
+    }
     if (pick(ctx, camp, t.x, t.y, p.range, p.targets) === 0) continue; // fires as soon as someone is in reach
+    camp.attacks++;
     for (let k = 0; k < picked.length; k++) {
       const ot = transforms.get(picked[k]!)!;
       u.lobs.spawn(e, Team.Neutral, t.x, t.y, ot.x, ot.y, p.flightSeconds, LobKind.Shell, p.damage, p.radius, p.arcHeight);

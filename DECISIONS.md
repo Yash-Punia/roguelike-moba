@@ -1630,3 +1630,49 @@ From TDD §13:
   - a pull radius (overlaps lanes);
   - only champions inside the arena may target an idle boss (still lets splash and flames chip at it);
   - leaving bots able to wake bosses until the bot AI row.
+
+## D-082 — The Behemoth: turret volleys, a steam blast, and invincibility for its killers
+- Date: 2026-11-08
+- Source: M4 row 4, plan approved by the user (turrets plus steam blast; no capture or lane push, 15 s of invincibility for the killing team instead, to be tested); the numbers made during development
+- Decision:
+  - **Where and when:** a one-unit boss camp `BH` at (0, 0) on both maps: The Crater on The Front, the river island on The Bridgehead.
+    - 9,000 HP (BS-01); up at 6:00, back 120 s after a clear (GDD §4); it never moves.
+    - It wakes only when a champion steps onto its floor, the `crater` or `island` shape (D-081). The Crater's ramps are their own shapes, so standing on a ramp doesn't wake it.
+  - **Attacks** (the `shells` pattern gains an optional `blast`):
+    - every 3 s, one shell from its four turrets at each of up to 4 attackers in reach (14 m) and in sight: 300 damage in 2.2 m, landing 0.8 s later where they stood. Circle telegraphs (D-078).
+    - Every 3rd attack, if an attacker is within 6 m, a **steam blast** round itself instead: a 6 m circle marked 0.8 s ahead, then 450 to everyone inside, with line of sight.
+    - The attack count advances either way, so a skipped blast waits for the next 3rd attack.
+  - **Reward:**
+    - 400 XP and +25 Ultimate charge to every champion of the killing team (GDD §4, §8);
+    - **every living champion of the killing team is invincible for 15 s** (`boss.invincibleSeconds`, user).
+    - This replaces the GDD and TDD capture, where the Behemoth revived and pushed the centre lane for 60 s. The Bridgehead has no centre lane, and the user dropped the push.
+    - It uses `invulnUntil`, the lethal-save mechanism. Damage is dropped, and enemy champions and towers don't target an invincible champion at all; they shoot something else.
+    - A champion knocked out at the kill doesn't get it: respawn clears `invulnUntil`. Left for the user's test.
+  - **Render:**
+    - the Behemoth per BS-01: a stepped riveted gunmetal hull with rust patches, tracks and road wheels, a bow plough, headlamps, four twin-barrel turrets, two smokestacks; real shadows and the boss HP bar.
+    - The Crater and the island get four sandbag horseshoes and four tank traps (crossed girders) between their ways in, in one baked mesh (`createArena` with no posts).
+    - Every boss now puffs steam when it wakes (GDD §11 "wakes with a roar of steam").
+    - Invincible champions show a brass dome. It's a new `shield` part on champion models, shown while `invulnerable`, so a lethal save shows it too.
+    - **Telegraphs sit on the highest ground they span:** a flat marker at its centre's height sank into the Crater's bowl (−0.9 m at the centre, −0.55 at the rim), and the 6 m blast ring was hidden. All marker shapes now take the highest of their centre and four rim points.
+  - **Bots:** they skip and path round boss camps (D-079, D-081); the Behemoth gets the same.
+  - **Measured:**
+    - all-bot 3v3, 30 seeds a map, with the Behemoth brought in at 1:00 so it is up (118 bot-minutes on The Front, 81 on The Bridgehead): 0 bot wakes of any boss;
+    - with the real 6:00 spawn: median match 296.5 s on The Front, 204.5 s on The Bridgehead, none past 12 minutes. The Behemoth rarely appears in all-bot matches, which mostly end before 6:00.
+    - Chrome, The Front: idle Behemoth 83 draw calls; the blast ring 84–85. Boss models are one mesh each: Field Gun 1,374 triangles, Halftrack 860, Behemoth 1,360.
+  - **Tests** (`tests/bosses.test.ts`):
+    - placement at (0, 0) and the 6:00 / 120 s timers on both maps;
+    - 4 attackers shelled in one volley;
+    - the blast: a 6 m circle marked 24 ticks ahead of its hit; a champion moved out takes nothing;
+    - the reward: 400 XP to the whole team, invincibility for the living killers for exactly 15 s and not for the other team;
+    - a team fight: three level 9 Alphas that stand still lose; three scripted dodgers clear it with at least two standing;
+    - the all-bot test brings the Behemoth in at 1:00 on both maps, and no bot wakes it.
+  - **Test upkeep:**
+    - champion triangle counts in `render-perf.test.ts` gain the dome (+240, one more mesh);
+    - two terrain-mesh tests failed on time on this machine without these changes too:
+      - the bounds check now counts out-of-bounds vertices and asserts once, instead of an `expect` per vertex (about 5 s);
+      - the build-time smoke budget goes 3 → 6 s, since it took about 4 s while the whole suite runs in parallel.
+- Why: the Behemoth is the late swing (GDD §12 risks). Invincibility gives the killing team a short window to push, without a lane unit that would need a centre lane The Bridgehead doesn't have.
+- Alternatives:
+  - the GDD capture and centre-lane push (dropped by the user);
+  - a third pattern kind (it shares the Field Gun's volley, so an optional blast was smaller);
+  - invincibility through a separate flag that keeps champions targetable (more code; the user tests this first).

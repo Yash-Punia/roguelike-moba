@@ -27,6 +27,8 @@ export enum BossAttack {
   None = 0,
   Spray = 1,
   Charge = 2,
+  /** The Behemoth's steam blast round itself (D-082). */
+  Blast = 3,
 }
 
 /** One neutral camp (a `map.camps` entry) and where it is in its state machine. */

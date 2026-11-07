@@ -187,7 +187,7 @@ const MapConfig = z.object({
   /** Medkit crates in the Trench medkit rooms (GDD §4). */
   medkits: z.array(vec).default([]),
   /** Neutral camps in the Trench rooms (GDD §4, map spec C1–C4 and S1–S4) and the mini-bosses in their arenas: `count` units at the centre (x, y). */
-  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun', 'halftrack']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
+  camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun', 'halftrack', 'behemoth']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
   /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
   fordSlowPct: pct().default(0),
 });
@@ -272,6 +272,11 @@ const CampDef = z.object({
           radius: positive(),
           /** Apex of the shell's arc (render, m). */
           arcHeight: nonneg(),
+          /**
+           * Behemoth (D-082): every `every`th attack, if an attacker is within `radius`, a steam blast
+           * round itself instead of a volley, marked `windupSeconds` before it hits.
+           */
+          blast: z.object({ every: z.number().int().min(1), radius: positive(), damage: nonneg(), windupSeconds: secs() }).optional(),
         }),
         /**
          * Halftrack (D-080): every `intervalSeconds`, at the nearest attacker within `range`, a spray
@@ -293,6 +298,8 @@ const CampDef = z.object({
       artilleryWaves: z.number().int().min(0).default(0),
       /** Supply Drop (D-080): every champion of the killing team deals `damagePct` more and moves `speedPct` faster for `seconds`. */
       supplyDrop: z.object({ damagePct: pct(), speedPct: pct(), seconds: secs() }).optional(),
+      /** Behemoth (D-082, user): every living champion of the killing team can't be hurt or targeted for this long. */
+      invincibleSeconds: secs().optional(),
     })
     .optional(),
 });
@@ -307,7 +314,7 @@ const Neutrals = z.object({
   rewardRadius: positive(),
   /** Squad members stand on a ring this wide round the campfire (m). */
   ringRadius: nonneg(),
-  camps: z.object({ deserter: CampDef, sniper: CampDef, fieldGun: CampDef, halftrack: CampDef }),
+  camps: z.object({ deserter: CampDef, sniper: CampDef, fieldGun: CampDef, halftrack: CampDef, behemoth: CampDef }),
 });
 
 /** XP and levels (GDD §8). */

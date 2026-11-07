@@ -81,7 +81,7 @@ export class Telegraphs {
     for (let i = 0; i < this.shownCircles; i++) {
       const { group, fill, t } = this.circles[i]!;
       group.visible = true;
-      group.position.set(t.x, this.heightAt(t.x, t.y) + LIFT, -t.y);
+      group.position.set(t.x, this.ground(t.x, t.y, t.radius) + LIFT, -t.y);
       group.scale.set(t.radius, 1, t.radius);
       const k = progress(t, alpha);
       fill.visible = k < 1;
@@ -93,7 +93,7 @@ export class Telegraphs {
       const x = a?.x ?? t.x;
       const y = a?.y ?? t.y;
       group.visible = true;
-      group.position.set(x, this.heightAt(x, y) + LIFT, -y);
+      group.position.set(x, this.ground(x + (Math.cos(t.angle) * t.length) / 2, y + (Math.sin(t.angle) * t.length) / 2, t.length / 2) + LIFT, -y);
       group.rotation.y = a?.angle ?? t.angle;
       group.scale.set(t.length, 1, t.width);
       const k = progress(t, alpha);
@@ -104,13 +104,23 @@ export class Telegraphs {
     for (let i = 0; i < this.shownCones; i++) {
       const { group, fill, t } = this.cones[i]!;
       group.visible = true;
-      group.position.set(t.x, this.heightAt(t.x, t.y) + LIFT, -t.y);
+      group.position.set(t.x, this.ground(t.x, t.y, t.radius) + LIFT, -t.y);
       group.rotation.y = t.angle;
       group.scale.set(t.radius, 1, t.radius);
       const k = progress(t, alpha);
       fill.visible = k < 1;
       fill.scale.set(k, 1, k);
     }
+  }
+
+  /**
+   * The highest ground under a flat marker of radius `r` round (x, y): its centre and four rim
+   * points. A marker at its centre's height would sink into a bowl (the Crater, D-082).
+   */
+  private ground(x: number, y: number, r: number): number {
+    let h = this.heightAt(x, y);
+    for (let k = 0; k < 4; k++) h = Math.max(h, this.heightAt(x + Math.cos((k * Math.PI) / 2) * r, y + Math.sin((k * Math.PI) / 2) * r));
+    return h;
   }
 
   private slot(pool: Slot[], i: number, baseGeo: THREE.BufferGeometry, baseMaterial: THREE.Material, fillGeo: THREE.BufferGeometry): Slot {

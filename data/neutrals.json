@@ -91,6 +91,32 @@
         },
         "supplyDrop": { "damagePct": 15, "speedPct": 10, "seconds": 60 }
       }
+    },
+    "behemoth": {
+      "name": "Behemoth",
+      "firstSpawnSeconds": 360,
+      "respawnSeconds": 120,
+      "xp": 400,
+      "ultCharge": 25,
+      "unit": {
+        "maxHp": 9000,
+        "radius": 2.2,
+        "moveSpeed": 0
+      },
+      "boss": {
+        "pattern": {
+          "kind": "shells",
+          "range": 14,
+          "intervalSeconds": 3,
+          "targets": 4,
+          "flightSeconds": 0.8,
+          "damage": 300,
+          "radius": 2.2,
+          "arcHeight": 8,
+          "blast": { "every": 3, "radius": 6, "damage": 450, "windupSeconds": 0.8 }
+        },
+        "invincibleSeconds": 15
+      }
     }
   }
 }
