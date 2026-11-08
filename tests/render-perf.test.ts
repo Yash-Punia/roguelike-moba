@@ -236,6 +236,16 @@ describe('GPU particles (D-102)', () => {
     expect(p.live).toBe(SHAPES.ring.capacity);
   });
 
+  it('"team" draws as the emit\'s tint', () => {
+    const v = pinned('cube', 1);
+    v.presets.p[0] = { ...v.presets.p[0]!, colour: ['team', 'mud'] };
+    const p = started(v);
+    p.emit('p', 0, 0, 0, 1, new THREE.Color(0.25, 0.5, 0.75));
+    p.update(16);
+    const from = drawn(p)[0]!.geometry.getAttribute('aFrom');
+    expect([from.getX(0), from.getY(0), from.getZ(0)]).toEqual([0.25, 0.5, 0.75]);
+  });
+
   it('density scales the counts', () => {
     const p = started({ ...pinned('cube', 10), density: 0.5 });
     p.emit('p', 0, 0);

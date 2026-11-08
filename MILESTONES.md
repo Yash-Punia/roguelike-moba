@@ -133,8 +133,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 
 | Status | Feature | Hash |
 | --- | --- | --- |
-| `[c]` | GPU particle pool, part 1: `particles.ts`, `vfx.json`, smoke, blasts, level-up and dust moved over, live count on the `?perf` bar (tracers were already instanced) (D-102) | |
-| `[ ]` | GPU particle pool, part 2: muzzle flashes, bullet impacts | |
+| `[p]` | GPU particle pool, part 1: `particles.ts`, `vfx.json`, smoke, blasts, level-up and dust moved over, live count on the `?perf` bar (tracers were already instanced) (D-102) | 704b817 |
+| `[c]` | GPU particle pool, part 2: muzzle flashes, bullet impacts in the shooter's team colour (D-103) | |
 | `[ ]` | GPU particle pool, part 3: fire, embers, debris, decals | |
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[ ]` | Audio: Howler sprites, event mapping, voice limits, music + Sudden Death crossfade | |

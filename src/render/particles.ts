@@ -100,11 +100,15 @@ interface Ring {
 
 interface Compiled {
   burst: VfxBurst;
-  from: THREE.Color;
-  to: THREE.Color;
+  /** Undefined: "team", the emit's tint. */
+  from: THREE.Color | undefined;
+  to: THREE.Color | undefined;
 }
 
-const colourOf = (name: string): THREE.Color => {
+const NO_TINT = new THREE.Color(1, 1, 1);
+
+const colourOf = (name: string): THREE.Color | undefined => {
+  if (name === 'team') return undefined;
   const hex = palette[name as keyof typeof palette];
   if (hex === undefined) throw new Error(`vfx.json: no palette colour "${name}"`);
   return new THREE.Color(hex);
@@ -158,8 +162,11 @@ export class Particles {
     this.uniforms.uWind.value.set(vfx.wind[0], 0, -vfx.wind[1]);
   }
 
-  /** Fires preset `name` at sim (x, y), `lift` metres above the ground; `scale` widens it (a blast's radius). */
-  emit(name: string, x: number, y: number, lift = 0, scale = 1) {
+  /**
+   * Fires preset `name` at sim (x, y), `lift` metres above the ground; `scale` widens it (a
+   * blast's radius), `tint` is what the colour name "team" draws as.
+   */
+  emit(name: string, x: number, y: number, lift = 0, scale = 1, tint = NO_TINT) {
     const compiled = this.presets.get(name);
     if (!compiled) throw new Error(`vfx.json: no preset "${name}"`);
     const ground = this.heightAt(x, y) + lift;
@@ -174,7 +181,7 @@ export class Particles {
         const reach = burst.scatter * scale;
         const throwSpeed = burst.speed * scale * this.jitter();
         this.write(
-          burst, from, to,
+          burst, from ?? tint, to ?? tint,
           x + ca * reach, ground + burst.lift, -y + sa * reach,
           ca * throwSpeed, burst.rise * this.jitter(), sa * throwSpeed,
           burst.scaleSize ? scale : 1,

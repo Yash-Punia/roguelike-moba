@@ -2,6 +2,16 @@
   "density": 100,
   "wind": [0.35, 0.15],
   "presets": {
+    "muzzleFlash": [
+      { "shape": "star", "count": 1, "life": 0.08, "size": [0.45, 0.6], "colour": ["muzzle", "muzzle"], "alpha": 100 },
+      { "shape": "ico", "count": 1, "life": 0.3, "size": [0.06, 0.16], "colour": ["smoke", "smoke"], "alpha": 40, "rise": 0.5, "wind": 100 }
+    ],
+    "hitSoft": [
+      { "shape": "ico", "count": 2, "life": 0.3, "size": [0.08, 0.2], "colour": ["team", "mud"], "alpha": 80, "scatter": 0.08, "speed": 0.6, "rise": 0.8 }
+    ],
+    "hitHard": [
+      { "shape": "cube", "count": 4, "life": 0.22, "size": [0.07, 0.03], "colour": ["team", "muzzle"], "alpha": 100, "speed": 3, "rise": 2, "gravity": 9, "spin": 400 }
+    ],
     "explosion": [
       { "shape": "ball", "count": 1, "life": 0.28, "size": [0.3, 1], "scaleSize": true, "colour": ["fire", "fire"], "alpha": 90, "lift": 0.4 },
       { "shape": "ico", "count": 5, "life": 0.9, "size": [0.25, 0.8], "colour": ["smoke", "smoke"], "alpha": 80, "lift": 0.4, "scatter": 0.35, "rise": 0.72, "spin": 60, "wind": 100 }

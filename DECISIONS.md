@@ -2156,3 +2156,16 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`, replacing D-100's): capacity under budget, every colour resolves, no new objects or materials however many fire, hidden after the longest life, ring reuse, density, live edits.
 - Why: the TDD's particle design, no allocation per effect, and a data file for the effects the next two parts add.
 - Alternatives: keeping CPU animation (D-100), which costs per puff per frame; one shared ring for all shapes (muzzle flashes would evict explosions).
+
+## D-103 — Muzzle flashes and bullet impacts
+- Date: 2026-11-09
+- Source: M5 row 1, part 2 (GDD §11 VFX table); the rest made during development
+- Decision:
+  - **Muzzle flash:** on `shot`, a flat four-point star and a tiny smoke puff at the shooter's collider edge along its aim, at gun height (`gunLift`, now shared with tracers). `target 0` is skipped: that is Gamma's cone, whose flames are its flash.
+  - **Impact:** on a `damage` event with `weapon` set, on the side of the target facing the shooter. Sparks on Sub-bases, HQs, Bazooka Tanks and bosses; mud puffs on everything else. Both start in the shooter's lightened tracer colour (GDD VFX rule: "tracers and impacts keep team colour"), via a `"team"` colour name in `vfx.json`.
+  - **Gated** on fog (`sees`) and Trench concealment (`fades`), and on a 30 m circle round the camera's focus, so far fights don't churn the rings. A circle, not a real view test.
+  - **Skipped:** impacts for bullets that miss (the sim has no event for them, and adding one touches the sim for a small gain); wood splinters (no crates can be hit).
+  - **Measured:** a lane fight at 1:04 on The Front, 43 live particles, 88 calls, no console errors. With `?fog`, a small live sample beside a fight: 4 shots by units the viewer can't see drew no flash, 3 visible shots did.
+  - **Tests** (`tests/render-perf.test.ts`): `"team"` draws as the emit's tint.
+- Why: core VFX in the GDD's art order, and the first effects that show who is shooting whom.
+- Alternatives: a sim hit-position on `DamageEvent` (not needed; the target's near side reads fine).

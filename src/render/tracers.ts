@@ -19,6 +19,13 @@ const BOOST_GROWTH = 0.6;
 const ROCKET_SCALE = 2;
 const ROCKET_LIFT = 0.75;
 
+/** How high a unit's gun is above the ground (m): where its tracers fly and its muzzle flashes. */
+export function gunLift(kind: Kind, rocket = false) {
+  if (rocket) return ROCKET_LIFT;
+  if (kind === Kind.Minion) return MINION_LIFT;
+  return kind === Kind.SubBase || kind === Kind.HQ ? STRUCTURE_LIFT : LIFT;
+}
+
 /**
  * Bullet tracers (GDD §11, TDD §8): one instanced, flat, stretched quad per projectile in its
  * team colour, so you can see who is shooting at whom. Positions are copied at capture and
@@ -39,7 +46,8 @@ export class Tracers {
   private readonly rotation = new THREE.Quaternion();
   private readonly scale = new THREE.Vector3(1, 1, 1);
   private readonly up = new THREE.Vector3(0, 1, 0);
-  private readonly colours: Record<Team, THREE.Color>;
+  /** Lightened team colours, by display team (impacts match the tracer that made them). */
+  readonly colours: Record<Team, THREE.Color>;
 
   constructor(private readonly heightAt: (x: number, y: number) => number, capacity = 512) {
     // Head at the origin, tail trailing back along −x, lying flat.
@@ -68,7 +76,7 @@ export class Tracers {
       const structure = p.ownerKind === Kind.SubBase || p.ownerKind === Kind.HQ;
       const base = p.rocket ? ROCKET_SCALE : p.ownerKind === Kind.Minion ? MINION_SCALE : structure ? STRUCTURE_SCALE : 1;
       this.sizes[i] = base * (1 + (p.boost - 1) * BOOST_GROWTH);
-      this.lifts[i] = p.rocket ? ROCKET_LIFT : p.ownerKind === Kind.Minion ? MINION_LIFT : structure ? STRUCTURE_LIFT : LIFT;
+      this.lifts[i] = gunLift(p.ownerKind, p.rocket);
     }
     this.count = n;
   }

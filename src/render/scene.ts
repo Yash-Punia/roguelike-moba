@@ -17,7 +17,7 @@ import { Knockouts } from './knockout';
 import { SoldierInstances } from './soldier-instances';
 import { TargetLine } from './target-line';
 import { Telegraphs } from './telegraphs';
-import { Tracers } from './tracers';
+import { gunLift, Tracers } from './tracers';
 import { palette } from './palette';
 import { buildSurround, buildTerrain } from './terrain';
 
@@ -32,6 +32,8 @@ const COLLAPSE_MS = 600;
 const rubbleTint = new THREE.Color(palette.scorched);
 /** A sprinting champion kicks up a dust puff this often (ms). */
 const SPRINT_PUFF_MS = 250;
+/** Muzzle flashes and impacts further than this from the camera's focus (m) aren't drawn. */
+const SHOT_FX_RANGE = 30;
 /** Enemies hidden in a Trench fade out, and back in when revealed, over this long (TDD §10). */
 const CONCEAL_MS = 200;
 
@@ -81,6 +83,8 @@ interface Interp {
   targetId: number;
   radius: number;
   kind: Kind;
+  /** Metal or concrete: bullets strike sparks, not mud. */
+  armoured: boolean;
   /** Structures: when it fell (ms), for the collapse; 0 while standing. */
   fellAt: number;
 }
@@ -188,6 +192,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   // Fog of war (D-010): darker ground, and effects in the fog aren't drawn.
   const fog = new Fog(viewer);
   const sees = (x: number, y: number) => fog.sees(x, y);
+  // ponytail: a circle round the focus, not a real view test; enough to keep far fights out of the rings.
+  const shotFxShown = (x: number, y: number) => (x - focus.x) ** 2 + (y - focus.y) ** 2 <= SHOT_FX_RANGE ** 2 && sees(x, y);
   const campEngaged: boolean[] = [];
 
   /** Call after every sim tick: shifts current → previous. */
@@ -199,7 +205,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, fellAt: 0 };
+        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, armoured: e.kind === Kind.SubBase || e.kind === Kind.HQ || e.modelId === 'bazookaTank' || BOSS_MODELS.has(e.modelId), fellAt: 0 };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, side(e.team));
@@ -297,6 +303,13 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     const now = clock;
     for (const ev of events) {
       if (ev.type === 'explosion' && sees(ev.x, ev.y)) particles.emit('explosion', ev.x, ev.y, 0, ev.radius);
+      if (ev.type === 'shot' && ev.target !== 0) {
+        // Target 0 is a cone weapon: its flames are the muzzle flash.
+        const s = interp.get(ev.id);
+        if (s && !fades.get(ev.id)?.hidden && shotFxShown(s.x, s.y)) {
+          particles.emit('muzzleFlash', s.x + Math.cos(s.f) * s.radius, s.y + Math.sin(s.f) * s.radius, gunLift(s.kind));
+        }
+      }
       if (ev.type === 'powerPicked') {
         const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         const name = config.powers.powers.find((p) => p.id === ev.power)?.name ?? ev.power;
@@ -366,6 +379,14 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       const s = interp.get(ev.target);
       if (!s || fades.get(ev.target)?.hidden) continue; // splash on a hidden unit doesn't give it away
       const lift = bars.get(ev.target)?.lift ?? 2;
+      if (ev.weapon && shotFxShown(s.x, s.y)) {
+        // ponytail: hits only; a bullet that misses has no sim event, so it leaves no puff.
+        const from = interp.get(ev.source);
+        const a = from ? Math.atan2(from.y - s.y, from.x - s.x) : 0;
+        const reach = from ? s.radius : 0; // on the side facing the shooter
+        const tint = tracers.colours[side(teams.get(ev.source) ?? Team.Neutral)];
+        particles.emit(s.armoured ? 'hitHard' : 'hitSoft', s.x + Math.cos(a) * reach, s.y + Math.sin(a) * reach, lift * 0.5, 1, tint);
+      }
       const ally = teams.get(ev.target) === localTeam;
       const hpLost = ev.amount - ev.absorbed;
       const text = ev.saved ? 'SAVED' : `${Math.round(ev.amount)}${ev.critical ? '!' : ''}`;
