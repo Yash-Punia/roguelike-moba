@@ -23,7 +23,7 @@ function Chevrons({ level }: { level: number }) {
 function Structure({ s }: { s: StructureView }) {
   const pips = [0.25, 0.5, 0.75, 1].map((t) => s.hp >= t - 0.125 && !s.destroyed);
   return (
-    <div class={`hud-structure ${s.kind}${s.destroyed ? ' destroyed' : ''}${s.shielded ? ' shielded' : ''}`}>
+    <div class={`hud-structure ${s.kind}${s.destroyed ? ' destroyed' : ''}${s.shielded ? ' shielded' : ''}${s.attacked ? ' attacked' : ''}`}>
       <div class="hud-structure-icon" />
       <div class="hud-pips">
         {pips.map((on) => (

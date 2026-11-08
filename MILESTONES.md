@@ -119,7 +119,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | feee8ce |
 | `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
 | `[p]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | 4f66ba4 |
-| `[c]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | |
+| `[p]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | fc78ed0 |
+| `[c]` | Base under attack: a sim event for the later voice line, a banner for your side, a pulsing top-bar icon (user, D-089) | |
 | `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.

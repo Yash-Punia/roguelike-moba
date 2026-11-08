@@ -29,7 +29,7 @@ import {
 } from './systems/minions';
 import { buildLanes, type LanePath } from '../data/map-geometry';
 import {
-  backdoorSystem, lastLineSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, underdogCharge, updateHqGate, warmupShot,
+  backdoorSystem, baseAlertSystem, lastLineSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, underdogCharge, updateHqGate, warmupShot,
   type StructureContext,
 } from './systems/structures';
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
@@ -272,6 +272,9 @@ export interface Structure {
   destroyed: boolean;
   /** HQ last line (GDD §9, D-084): fell below its threshold once, so it fires faster for the rest of the match. */
   lastLine: boolean;
+  /** The last tick an enemy hit it, and the first tick it may raise the alert again (D-089). */
+  lastHitTick: number;
+  nextAlertTick: number;
 }
 
 export interface EntitySnapshot {
@@ -296,6 +299,8 @@ export interface EntitySnapshot {
   invulnerable: boolean;
   /** Structures: fell this match (rubble). */
   destroyed: boolean;
+  /** Structures: an enemy hit it within `underAttackSeconds` (D-089). */
+  underAttack: boolean;
   /** Current auto-target, or 0. */
   targetId: Entity;
   /** Upper-body aim (radians); equals `facing` for units without a weapon. */
@@ -614,7 +619,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     teams.add(e, team);
     kinds.add(e, p.kind === 'hq' ? Kind.HQ : Kind.SubBase);
     models.add(e, p.kind);
-    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane, warmupStacks: 0, warmupTarget: 0, ticksSinceShot: 0, backdoor: true, secondaryId: 0, destroyed: false, lastLine: false });
+    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane, warmupStacks: 0, warmupTarget: 0, ticksSinceShot: 0, backdoor: true, secondaryId: 0, destroyed: false, lastLine: false, lastHitTick: -1e9, nextAlertTick: 0 });
     const def = config.structures[p.kind];
     healths.add(e, newHealth(def.maxHp));
     weapons.add(e, newWeapon(def.weapon, transforms.get(e)!.facing));
@@ -870,7 +875,9 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       heatWaveSystem(ultimateContext);
       underdogCharge(structureContext, ultimateContext.passiveMult, config.progression.underdogChargePct);
       ultimateSystem(ultimateContext, tick);
+      const damageFrom = events.length;
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
+      baseAlertSystem(structureContext, config.structures.rules, damageFrom, tick);
       damageChargeSystem(progressionContext, config.progression, events);
       const progressionFrom = events.length; // deaths and structure falls from here on pay XP
       deathSystem(lifeContext, config.match.respawn, match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.respawnPct : 1);
@@ -922,7 +929,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, streak: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, underAttack: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, streak: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -942,6 +949,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.shield = h?.shield ?? 0;
         s.invulnerable = h ? isInvulnerable(h, tick) : false;
         s.destroyed = structures.get(e)?.destroyed ?? false;
+        s.underAttack = !s.destroyed && tick - (structures.get(e)?.lastHitTick ?? -1e9) <= config.structures.rules.underAttackSeconds;
         s.targetId = targetings.get(e)?.targetId ?? 0;
         s.aim = weapons.get(e)?.aim ?? t.facing;
         const c = champions.get(e);

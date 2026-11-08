@@ -534,6 +534,24 @@ body {
 }
 
 /* The HQ gate: a faint dome outline while shielded. */
+/* Base under attack (D-089): the icon's fill pulses to alarm red (the icons are clipped, so an outline wouldn't show); steady without motion. */
+.hud-structure.attacked .hud-structure-icon {
+  animation: hud-attacked 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes hud-attacked {
+  to {
+    background: #ff4a3d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-structure.attacked .hud-structure-icon {
+    animation: none;
+    background: #ff4a3d;
+  }
+}
+
 .hud-structure.shielded {
   box-shadow: 0 0 0 0.45cqw rgb(255 255 255 / 0.55);
 }

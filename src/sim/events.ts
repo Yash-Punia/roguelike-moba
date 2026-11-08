@@ -49,6 +49,8 @@ export type SimEvent =
   | { type: 'structureDestroyed'; id: Entity; kind: 'subBase' | 'hq'; team: number; killer: Entity; x: number; y: number }
   /** An HQ dropped below its last-line threshold and fires faster from now on (GDD §9, D-084). */
   | { type: 'hqLastLine'; id: Entity; team: number }
+  /** A structure was hit, at most once per `alertCooldownSeconds` each (D-089): the HUD alert, and later the voice line. `lane` is '' for an HQ. */
+  | { type: 'baseUnderAttack'; id: Entity; kind: 'subBase' | 'hq'; lane: string; team: number }
   /** A minion wave spawned on every wave lane (0 = the first). */
   | { type: 'waveSpawned'; wave: number }
   /** A champion redeployed at (x, y). */

@@ -46,6 +46,8 @@
     "hqHpCutEnabled": false,
     "hqHpPerSubBaseLostPct": 25,
     "lastLineHpPct": 30,
-    "lastLineFireRatePct": 50
+    "lastLineFireRatePct": 50,
+    "alertCooldownSeconds": 20,
+    "underAttackSeconds": 2
   }
 }

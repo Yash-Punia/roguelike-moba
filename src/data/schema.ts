@@ -226,6 +226,10 @@ const StructureRules = z.object({
   /** HQ last line (GDD §9): once its HP drops below `lastLineHpPct`, its fire rate rises by `lastLineFireRatePct` for the rest of the match. */
   lastLineHpPct: pct(),
   lastLineFireRatePct: pct(),
+  /** Base under attack (D-089): each structure raises the alert at most this often. */
+  alertCooldownSeconds: secs(),
+  /** It reads as under attack for this long after a hit. */
+  underAttackSeconds: secs(),
 });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });
 

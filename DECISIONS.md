@@ -1898,3 +1898,23 @@ From TDD §13:
 - Alternatives:
   - Sharing the notice queue: a burst of kills would push out "Our Sub-base lost".
   - Counting in the sim: this is presentation only, and bots don't read it.
+
+## D-089 — Base under attack
+- Date: 2026-11-08
+- Source: user request (UI feedback when the base is under attack, with a voice line later). The rest was decided during development.
+- Decision:
+  - **A sim event, so the voice line can hook on later:** `baseUnderAttack { id, kind, lane, team }`, because audio reads only events (D-078). `baseAlertSystem` runs right after the damage stage and reads that tick's damage events.
+    - A standing structure hit by an enemy records the tick. It raises the event at most once per `structures.rules.alertCooldownSeconds` (20 s), per structure.
+    - Deterministic; no random numbers. A shielded HQ takes no damage, so it raises nothing.
+    - Minion hits count, not only champions: a wave at your tower is worth knowing about.
+  - **Snapshot:** `underAttack` on structures, true for `underAttackSeconds` (2 s) after a hit.
+  - **HUD:**
+    - A banner for the viewer's own team only: "Your base is under attack!" for the HQ, "Your Left Sub-base is under attack!" for a Sub-base.
+    - In the top bar, the structure's icon pulses to alarm red while `underAttack`, on both sides, so you can also see your push landing. Steady red under reduced motion. It pulses the fill, because the icons are clipped and an outline wouldn't show.
+  - **Not built:** the voice line (M5 audio row).
+- **Measured:** all-bot 3v3, 8 seeds per map: 0.59 alerts per team per minute on The Front, 0.63 on The Bridgehead, so the 20 s cooldown isn't noisy. Chrome, The Front: a forced hit on the left Sub-base showed the banner and the pulse; no console errors.
+- **Tests** (`tests/base-alert.test.ts`): one alert, then the cooldown; each structure on its own; none for a shielded HQ; `underAttack` and the top-bar flag expire; wording for the HQ and a Sub-base, from either team; no banner for the other team.
+- Why: losing a base you weren't watching was silent, and the map is too long to keep an eye on all of it.
+- Alternatives:
+  - Detecting it in the HUD from damage events: the voice line would need it again, and it would need its own cooldown.
+  - Champion hits only: a lone wave could then take a tower without a word.

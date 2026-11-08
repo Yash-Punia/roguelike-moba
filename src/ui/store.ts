@@ -64,6 +64,8 @@ export interface StructureView {
   hp: number;
   shielded: boolean;
   destroyed: boolean;
+  /** Hit moments ago: its icon pulses (D-089). */
+  attacked: boolean;
 }
 
 /**
@@ -147,6 +149,10 @@ export function pushNotices(events: readonly SimEvent[], snap: Snapshot, localId
       const name = ev.kind === 'hq' ? 'HQ' : 'Sub-base';
       if (sideOf(ev.team, localTeam) === 'ours') say(`Our ${name} lost`, 'bad');
       else say(`Enemy ${name} destroyed`, 'good');
+    } else if (ev.type === 'baseUnderAttack') {
+      if (sideOf(ev.team, localTeam) !== 'ours') continue;
+      const lane = ev.lane ? `${ev.lane[0]!.toUpperCase()}${ev.lane.slice(1)} ` : '';
+      say(ev.kind === 'hq' ? 'Your base is under attack!' : `Your ${lane}Sub-base is under attack!`, 'bad');
     } else if (ev.type === 'hqLastLine') {
       if (sideOf(ev.team, localTeam) === 'ours') say('Our HQ: last line', 'neutral');
       else say('Enemy HQ: last line', 'good');
@@ -190,7 +196,7 @@ export function pushNotices(events: readonly SimEvent[], snap: Snapshot, localId
 
 const order = (a: StructureView, b: StructureView) => (a.kind === b.kind ? a.id - b.id : a.kind === 'hq' ? -1 : 1);
 const same = (a: StructureView[], b: StructureView[]) =>
-  a.length === b.length && a.every((s, i) => s.id === b[i]!.id && s.hp === b[i]!.hp && s.shielded === b[i]!.shielded && s.destroyed === b[i]!.destroyed);
+  a.length === b.length && a.every((s, i) => s.id === b[i]!.id && s.hp === b[i]!.hp && s.shielded === b[i]!.shielded && s.destroyed === b[i]!.destroyed && s.attacked === b[i]!.attacked);
 
 /** Copies the HUD's values from a snapshot, for the champion `localId` on team `localTeam`. */
 export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam: Team, powers?: Config['powers'], champions?: Config['champions']) {
@@ -228,6 +234,7 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
         hp: e.maxHp > 0 ? Math.round((Math.max(0, e.hp) / e.maxHp) * 100) / 100 : 0,
         shielded: e.invulnerable && !e.destroyed,
         destroyed: e.destroyed,
+        attacked: e.underAttack,
       };
       (side === Team.Blue ? mine : enemy).push(view);
     }

@@ -217,6 +217,26 @@ export function updateHqGate(ctx: StructureContext) {
 }
 
 /**
+ * Base under attack (D-089): reads this tick's damage events from `from`. A standing structure
+ * hit by an enemy remembers the tick, and raises `baseUnderAttack` at most once per
+ * `alertCooldownSeconds`. An event, so the HUD and later the voice line both hook on it.
+ */
+export function baseAlertSystem(ctx: StructureContext, rules: Config['structures']['rules'], from: number, tick: number) {
+  const { structures, teams, events } = ctx;
+  const end = events.length;
+  for (let i = from; i < end; i++) {
+    const ev = events[i]!;
+    if (ev.type !== 'damage' || ev.amount <= 0) continue;
+    const st = structures.get(ev.target);
+    if (!st || st.destroyed || teams.get(ev.source) === teams.get(ev.target)) continue;
+    st.lastHitTick = tick;
+    if (tick < st.nextAlertTick) continue;
+    st.nextAlertTick = tick + rules.alertCooldownSeconds;
+    events.push({ type: 'baseUnderAttack', id: ev.target, kind: st.kind, lane: st.lane ?? '', team: teams.get(ev.target)! });
+  }
+}
+
+/**
  * Underdog charge (GDD §9, D-084): the team with fewer standing Sub-bases gets `pct` more
  * passive Ultimate charge; writes each team's multiplier into `mult`.
  */
