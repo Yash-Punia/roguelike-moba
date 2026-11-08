@@ -12,7 +12,7 @@ import { bossBar, HpBars, type HpBar } from './hp-bars';
 import { BOSS_MODELS, createArena, createCampfire, createCave, createMedkit, createModel, createSniperNest, createSpawnPad, partsOf } from './models';
 import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
-import { Particles } from './particles';
+import { Decals, Particles } from './particles';
 import { Knockouts } from './knockout';
 import { SoldierInstances } from './soldier-instances';
 import { TargetLine } from './target-line';
@@ -162,10 +162,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   const epicFx = new EpicFx((x, y) => arena.terrain.heightAt(x, y), config, viewer);
   scene.add(epicFx.group);
   scene.add(tracers.mesh);
-  const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
-  scene.add(ultFx.group);
   const particles = new Particles((x, y) => arena.terrain.heightAt(x, y), config.vfx);
   scene.add(particles.group);
+  const decals = new Decals((x, y) => arena.terrain.heightAt(x, y));
+  scene.add(decals.mesh);
+  const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y), particles, decals);
+  scene.add(ultFx.group);
   const telegraphs = new Telegraphs((x, y) => arena.terrain.heightAt(x, y));
   scene.add(telegraphs.group);
   const knockouts = new Knockouts(scene, (x, z) => arena.terrain.heightAt(x, -z));
@@ -302,7 +304,10 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   function addEvents(events: readonly SimEvent[]) {
     const now = clock;
     for (const ev of events) {
-      if (ev.type === 'explosion' && sees(ev.x, ev.y)) particles.emit('explosion', ev.x, ev.y, 0, ev.radius);
+      if (ev.type === 'explosion' && sees(ev.x, ev.y)) {
+        particles.emit('explosion', ev.x, ev.y, 0, ev.radius);
+        decals.stamp(ev.x, ev.y, ev.radius * 0.7);
+      }
       if (ev.type === 'shot' && ev.target !== 0) {
         // Target 0 is a cone weapon: its flames are the muzzle flash.
         const s = interp.get(ev.id);

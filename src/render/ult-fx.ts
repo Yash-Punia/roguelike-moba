@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 import type { LobSnapshot, ZoneSnapshot } from '../sim/sim';
 import { palette } from './palette';
+import type { Decals, Particles } from './particles';
 import { discGeo, ringGeo } from './telegraphs';
 
 // Presentation only: timings and sizes of the effects (not gameplay numbers).
-const FLAMES = 11;
-/** The pool size `FLAMES` is drawn for (the Frag Grenade's fire pool, m). */
-const POOL_RADIUS = 3;
 const POOL_FADE_TICKS = 15;
 
 type HeightAt = (x: number, y: number) => number;
@@ -16,10 +14,6 @@ const basic = (color: number, opacity: number) =>
 
 const grenadeGeo = new THREE.SphereGeometry(0.13, 8, 6).scale(1, 1.3, 1);
 const grenadeMat = new THREE.MeshLambertMaterial({ color: palette.olive, flatShading: true });
-const scorchMat = basic(palette.scorched, 0.85);
-const flameGeo = new THREE.ConeGeometry(0.32, 1.05, 5).translate(0, 0.52, 0);
-const flameOuterMat = new THREE.MeshBasicMaterial({ color: palette.fire });
-const flameInnerMat = new THREE.MeshBasicMaterial({ color: palette.muzzle });
 // Lead Storm: bright streaks flying down the strip (the strip itself is a telegraph, D-078).
 const streakGeo = new THREE.BoxGeometry(0.8, 0.04, 0.04);
 const streakMat = new THREE.MeshBasicMaterial({ color: palette.muzzle, toneMapped: false });
@@ -28,20 +22,27 @@ const STREAKS = 12;
 const STREAK_RATE = 2.2;
 const GUN_HEIGHT = 0.9;
 
-// Gamma's flamethrower: tumbling blobs from the nozzle, yellow near it, orange out to the tip.
-const FLAME_BLOBS = 9;
-const FLAME_RATE = 3.2;
-const flameBlobGeo = new THREE.IcosahedronGeometry(1, 0);
+// Gamma's flamethrower: the flames start this far ahead of the body and this high (m).
 const NOZZLE = { x: 1.3, y: 0.95 };
+/** Scorch left at the flame's tip: this far along its range, this wide (m). */
+const SCORCH_REACH = 0.8;
+const SCORCH_RADIUS = 0.55;
+const TAU = Math.PI * 2;
 // Gamma's Heat Wave: a pulsing gold ring with a faint gold floor.
 const waveRingMat = basic(palette.brass, 0.85);
 const waveFillMat = basic(palette.brass, 0.12);
 
 interface Flames {
-  group: THREE.Group;
-  blobs: THREE.Mesh[];
+  on: boolean;
   range: number;
   half: number;
+  x: number;
+  y: number;
+  angle: number;
+  /** Particles owed, as a fraction carried between frames. */
+  owed: number;
+  /** Render clock (ms) of the next scorch mark. */
+  scorchAt: number;
 }
 
 interface Storm {
@@ -56,17 +57,18 @@ interface Lob {
   snap: Omit<LobSnapshot, 'id' | 'team'>;
 }
 interface Pool {
-  group: THREE.Group;
-  flames: THREE.Mesh[];
-  phase: number[];
+  x: number;
+  y: number;
+  radius: number;
   elapsed: number;
   total: number;
+  owed: number;
 }
 
 /**
  * Ultimate effects (GDD §11): the Frag Grenade on its arc (its landing telegraph is drawn by
- * `Telegraphs`, D-078) and its fire pool as scorched ground with flickering flame cones, Lead
- * Storm, Gamma's flames and Heat Wave. Reads lob and zone snapshots; never writes sim state.
+ * `Telegraphs`, D-078), the emitters for fire pools and Gamma's flames (particles and scorch,
+ * D-104), Lead Storm and Heat Wave. Reads lob and zone snapshots; never writes sim state.
  */
 export class UltFx {
   readonly group = new THREE.Group();
@@ -76,8 +78,9 @@ export class UltFx {
   private readonly flames = new Map<number, Flames>();
   private readonly waves = new Map<number, THREE.Group>();
   private readonly seen = new Set<number>();
+  private last: number | undefined;
 
-  constructor(private readonly heightAt: HeightAt) {}
+  constructor(private readonly heightAt: HeightAt, private readonly particles: Particles, private readonly decals: Decals) {}
 
   /** `shown`: fog of war; a grenade shows only if its landing spot is seen, a fire pool if its centre is. */
   capture(lobs: readonly LobSnapshot[], zones: readonly ZoneSnapshot[], shown?: (x: number, y: number) => boolean) {
@@ -110,10 +113,8 @@ export class UltFx {
       pool.elapsed = z.elapsed;
       pool.total = z.total;
     }
-    for (const [id, pool] of this.pools) {
-      if (this.seen.has(id)) continue;
-      this.group.remove(pool.group);
-      this.pools.delete(id);
+    for (const id of this.pools.keys()) {
+      if (!this.seen.has(id)) this.pools.delete(id);
     }
   }
 
@@ -157,14 +158,9 @@ export class UltFx {
     let f = this.flames.get(id);
     if (!f) {
       if (!on) return;
-      const group = new THREE.Group();
-      const blobs: THREE.Mesh[] = [];
-      for (let k = 0; k < FLAME_BLOBS; k++) blobs.push(new THREE.Mesh(flameBlobGeo, flameInnerMat));
-      group.add(...blobs);
-      this.group.add(group);
-      this.flames.set(id, (f = { group, blobs, range, half: angle / 2 }));
+      this.flames.set(id, (f = { on, range, half: angle / 2, x: 0, y: 0, angle: 0, owed: 0, scorchAt: 0 }));
     }
-    f.group.visible = on;
+    f.on = on;
   }
 
   /** Shows or hides Gamma's Heat Wave ring (`radius`, GDD §11) for champion `id`. */
@@ -191,19 +187,10 @@ export class UltFx {
   placeChampion(id: number, x: number, y: number, angle: number, now: number) {
     const ground = this.heightAt(x, y);
     const f = this.flames.get(id);
-    if (f?.group.visible) {
-      f.group.position.set(x, ground, -y);
-      f.group.rotation.y = angle;
-      const spread = Math.tan(f.half);
-      for (let k = 0; k < f.blobs.length; k++) {
-        const t = ((now / 1000) * FLAME_RATE + k / FLAME_BLOBS) % 1;
-        const along = NOZZLE.x + t * (f.range - NOZZLE.x + 0.3);
-        const b = f.blobs[k]!;
-        b.position.set(along, NOZZLE.y + t * 0.35, (((k * 0.618) % 1) * 2 - 1) * spread * along * 0.8);
-        b.scale.setScalar(0.12 + 0.32 * t);
-        b.rotation.set(now * 0.004 + k, now * 0.003, 0);
-        b.material = t < 0.35 ? flameInnerMat : flameOuterMat;
-      }
+    if (f) {
+      f.x = x;
+      f.y = y;
+      f.angle = angle;
     }
     const w = this.waves.get(id);
     if (w?.visible) {
@@ -224,46 +211,36 @@ export class UltFx {
       fx.grenade.rotation.z = -t * Math.PI * 3;
     }
 
+    const dt = Math.min(0.1, (now - (this.last ?? now)) / 1000);
+    this.last = now;
+    const { flameRate, poolFlamesPerM2, flameScorchSeconds } = this.particles.vfx;
     for (const pool of this.pools.values()) {
-      const left = pool.total - pool.elapsed;
-      const fade = Math.min(1, Math.max(0, left / POOL_FADE_TICKS));
-      for (let i = 0; i < pool.flames.length; i++) {
-        const f = pool.flames[i]!;
-        const flicker = 0.75 + 0.25 * Math.sin(now * 0.018 + pool.phase[i]!) + 0.12 * Math.sin(now * 0.041 + pool.phase[i]! * 2);
-        f.scale.set(fade, flicker * fade, fade);
+      const fade = Math.min(1, Math.max(0, (pool.total - pool.elapsed) / POOL_FADE_TICKS));
+      pool.owed += Math.PI * pool.radius * pool.radius * poolFlamesPerM2 * fade * dt;
+      for (; pool.owed >= 1; pool.owed--) {
+        const a = Math.random() * TAU;
+        const r = pool.radius * 0.85 * Math.sqrt(Math.random());
+        this.particles.emit('poolFlame', pool.x + Math.cos(a) * r, pool.y + Math.sin(a) * r);
+      }
+    }
+    for (const f of this.flames.values()) {
+      if (!f.on) continue;
+      const cos = Math.cos(f.angle);
+      const sin = Math.sin(f.angle);
+      f.owed += flameRate * dt;
+      for (; f.owed >= 1; f.owed--) {
+        this.particles.emitAlong('gammaFlame', f.x + cos * NOZZLE.x, f.y + sin * NOZZLE.x, NOZZLE.y, f.angle, f.range - NOZZLE.x + 0.3, f.half * 0.8);
+      }
+      if (now >= f.scorchAt) {
+        f.scorchAt = now + flameScorchSeconds * 1000;
+        this.decals.stamp(f.x + cos * f.range * SCORCH_REACH, f.y + sin * f.range * SCORCH_REACH, SCORCH_RADIUS);
       }
     }
   }
 
   private addPool(z: ZoneSnapshot): Pool {
-    const group = new THREE.Group();
-    const h = this.heightAt(z.x, z.y);
-    group.position.set(z.x, h, -z.y);
-    const scorch = new THREE.Mesh(discGeo, scorchMat);
-    scorch.scale.set(z.radius, 1, z.radius);
-    scorch.position.y = 0.03;
-    scorch.receiveShadow = true;
-    group.add(scorch);
-    const flames: THREE.Mesh[] = [];
-    const phase: number[] = [];
-    // Flames scale with the pool's area, so small burning ground (Napalm Tank, D-060) stays cheap.
-    // ponytail: one draw call per flame; instance them with the M5 particle pool if pools pile up.
-    const count = Math.max(2, Math.min(FLAMES, Math.round(FLAMES * (z.radius / POOL_RADIUS) ** 2)));
-    for (let i = 0; i < count; i++) {
-      // A golden-angle scatter: even cover, a different look for every pool.
-      const a = i * 2.39996 + z.id;
-      const r = z.radius * 0.85 * Math.sqrt((i + 0.5) / count);
-      const inner = i % 3 === 0;
-      const f = new THREE.Mesh(flameGeo, inner ? flameInnerMat : flameOuterMat);
-      f.position.set(Math.cos(a) * r, 0.03, Math.sin(a) * r);
-      f.rotation.y = a;
-      if (inner) f.position.y += 0.02;
-      flames.push(f);
-      phase.push(a * 3.7);
-      group.add(f);
-    }
-    this.group.add(group);
-    const pool: Pool = { group, flames, phase, elapsed: z.elapsed, total: z.total };
+    this.decals.stamp(z.x, z.y, z.radius); // outlives the fire
+    const pool: Pool = { x: z.x, y: z.y, radius: z.radius, elapsed: z.elapsed, total: z.total, owed: 0 };
     this.pools.set(z.id, pool);
     return pool;
   }

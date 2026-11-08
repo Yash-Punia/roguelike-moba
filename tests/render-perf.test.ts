@@ -7,8 +7,10 @@ import { buildTerrain } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
 import { HpBars } from '../src/render/hp-bars';
 import { SoldierInstances } from '../src/render/soldier-instances';
-import { Particles, SHAPES } from '../src/render/particles';
+import { Decals, MAX_DECALS, Particles, SHAPES } from '../src/render/particles';
+import { UltFx } from '../src/render/ult-fx';
 import type { VfxBurst } from '../src/data/schema';
+import type { ZoneSnapshot } from '../src/sim/sim';
 import { Kind, Team } from '../src/sim/sim';
 
 const stats = (o: THREE.Object3D) => {
@@ -182,6 +184,7 @@ describe('soldier instancing (D-101)', () => {
 describe('GPU particles (D-102)', () => {
   const vfx = parseConfig(rawConfig).vfx;
   const pinned = (shape: VfxBurst['shape'], count: number) => ({
+    ...vfx,
     density: 1,
     wind: [0, 0] as [number, number],
     presets: { p: [{ ...vfx.presets['death']![0]!, shape, count, life: 1 }] },
@@ -211,7 +214,7 @@ describe('GPU particles (D-102)', () => {
     p.update(16);
     expect(p.group.children).toHaveLength(before);
     expect(new Set(meshes(p).map((m) => m.material)).size).toBe(1);
-    expect(drawn(p)).toHaveLength(2); // a fireball and smoke, however many blasts
+    expect(drawn(p)).toHaveLength(3); // fireball, debris and smoke, however many blasts
   });
 
   it('hide once the longest life is over, and restart the ring', () => {
@@ -244,6 +247,40 @@ describe('GPU particles (D-102)', () => {
     p.update(16);
     const from = drawn(p)[0]!.geometry.getAttribute('aFrom');
     expect([from.getX(0), from.getY(0), from.getZ(0)]).toEqual([0.25, 0.5, 0.75]);
+  });
+
+  it('flames and fire pools emit particles and add no meshes (D-104)', () => {
+    const p = started(vfx);
+    const decals = new Decals(() => 0);
+    const fx = new UltFx(() => 0, p, decals);
+    fx.flame(1, true, 6, 1);
+    fx.capture([], [{ id: 9, x: 5, y: 5, radius: 3, elapsed: 0, total: 300 } as ZoneSnapshot]);
+    const before = fx.group.children.length;
+    expect(decals.mesh.count).toBe(1); // the pool's scorch
+    fx.placeChampion(1, 0, 0, 0, 0);
+    fx.update(0, 0);
+    fx.update(0, 100);
+    p.update(100);
+    expect(p.live).toBeGreaterThanOrEqual(Math.floor(vfx.flameRate * 0.1));
+    expect(fx.group.children).toHaveLength(before);
+    fx.flame(1, false, 6, 1);
+    fx.capture([], []); // the fire is out; the scorch stays
+    const live = p.live;
+    fx.update(0, 200);
+    p.update(200);
+    expect(p.live).toBeLessThanOrEqual(live);
+    expect(decals.mesh.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('decals stay at 64 and recycle the oldest', () => {
+    const d = new Decals(() => 0);
+    for (let i = 0; i < 70; i++) d.stamp(i, 0, 1);
+    expect(d.mesh.count).toBe(MAX_DECALS);
+    const m = new THREE.Matrix4();
+    d.mesh.getMatrixAt(0, m);
+    expect(new THREE.Vector3().setFromMatrixPosition(m).x).toBe(64); // the 65th took slot 0
+    d.mesh.getMatrixAt(6, m);
+    expect(new THREE.Vector3().setFromMatrixPosition(m).x).toBe(6);
   });
 
   it('density scales the counts', () => {

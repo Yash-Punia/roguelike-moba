@@ -825,6 +825,12 @@ const Vfx = z.object({
   density: pct(),
   /** Shared drift (m/s, sim axes). */
   wind: z.tuple([z.number(), z.number()]),
+  /** Gamma's flame particles per second, per flamethrower. */
+  flameRate: positive(),
+  /** Fire pool flames per second, per square metre of pool. */
+  poolFlamesPerM2: positive(),
+  /** A firing flamethrower leaves a scorch mark this often (render seconds). */
+  flameScorchSeconds: positive(),
   presets: z.record(z.string(), z.array(VfxBurst).min(1)),
 });
 export type VfxBurst = z.output<typeof VfxBurst>;

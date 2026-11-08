@@ -1,6 +1,9 @@
 {
   "density": 100,
   "wind": [0.35, 0.15],
+  "flameRate": 29,
+  "poolFlamesPerM2": 1.2,
+  "flameScorchSeconds": 0.6,
   "presets": {
     "muzzleFlash": [
       { "shape": "star", "count": 1, "life": 0.08, "size": [0.45, 0.6], "colour": ["muzzle", "muzzle"], "alpha": 100 },
@@ -12,8 +15,17 @@
     "hitHard": [
       { "shape": "cube", "count": 4, "life": 0.22, "size": [0.07, 0.03], "colour": ["team", "muzzle"], "alpha": 100, "speed": 3, "rise": 2, "gravity": 9, "spin": 400 }
     ],
+    "gammaFlame": [
+      { "shape": "ico", "count": 1, "life": 0.31, "size": [0.12, 0.44], "colour": ["muzzle", "fire"], "alpha": 100, "rise": 1.1, "spin": 240 }
+    ],
+    "poolFlame": [
+      { "shape": "cone", "count": 0.67, "life": 0.7, "size": [1, 0.75], "colour": ["fire", "fire"], "alpha": 160, "rise": 0.4 },
+      { "shape": "cone", "count": 0.33, "life": 0.55, "size": [0.75, 0.5], "colour": ["muzzle", "fire"], "alpha": 160, "rise": 0.5 },
+      { "shape": "cube", "count": 0.12, "life": 1.1, "size": [0.07, 0.02], "colour": ["muzzle", "fire"], "alpha": 100, "lift": 0.4, "speed": 0.4, "rise": 2.2, "spin": 300, "wind": 100 }
+    ],
     "explosion": [
       { "shape": "ball", "count": 1, "life": 0.28, "size": [0.3, 1], "scaleSize": true, "colour": ["fire", "fire"], "alpha": 90, "lift": 0.4 },
+      { "shape": "cube", "count": 6, "life": 0.7, "size": [0.22, 0.12], "colour": ["gunmetal", "scorched"], "alpha": 100, "lift": 0.4, "speed": 1.1, "rise": 5, "gravity": 14, "spin": 500 },
       { "shape": "ico", "count": 5, "life": 0.9, "size": [0.25, 0.8], "colour": ["smoke", "smoke"], "alpha": 80, "lift": 0.4, "scatter": 0.35, "rise": 0.72, "spin": 60, "wind": 100 }
     ],
     "death": [
@@ -26,6 +38,9 @@
       { "shape": "ico", "count": 7, "life": 0.9, "size": [0.25, 0.8], "colour": ["smoke", "smoke"], "alpha": 80, "lift": 0.4, "scatter": 0.7, "rise": 0.72, "spin": 60, "wind": 100 }
     ],
     "structureDown": [
+      { "shape": "cube", "count": 14, "life": 1.1, "size": [0.42, 0.26], "colour": ["concrete", "concreteShadow"], "alpha": 100, "lift": 1, "scatter": 1, "speed": 2.4, "rise": 7, "gravity": 13, "spin": 300 },
+      { "shape": "ring", "count": 1, "life": 0.7, "size": [1, 7], "colour": ["laneDirt", "laneDirt"], "alpha": 70, "lift": 0.1 },
+      { "shape": "ico", "count": 8, "life": 2.6, "size": [0.7, 1.9], "colour": ["smoke", "smoke"], "alpha": 70, "lift": 1.5, "scatter": 0.8, "rise": 2.2, "spin": 60, "wind": 100 },
       { "shape": "ico", "count": 10, "life": 0.9, "size": [0.25, 0.8], "colour": ["smoke", "smoke"], "alpha": 80, "lift": 0.4, "scatter": 1.12, "rise": 0.72, "spin": 60, "wind": 100 },
       { "shape": "ico", "count": 6, "life": 0.9, "size": [0.25, 0.8], "colour": ["mud", "mud"], "alpha": 80, "lift": 0.4, "scatter": 0.7, "rise": 0.72, "spin": 60, "wind": 100 }
     ],

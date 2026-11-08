@@ -124,6 +124,8 @@ export class Particles {
   private readonly rings = new Map<Shape, Ring>();
   private readonly presets = new Map<string, Compiled[]>();
   private readonly uniforms = { uTime: { value: 0 }, uWind: { value: new THREE.Vector3() } };
+  /** The live config (the emitters read their rates from it). */
+  vfx: Vfx;
   private density = 1;
   private base: number | undefined;
   private time = 0;
@@ -149,11 +151,13 @@ export class Particles {
       this.group.add(mesh);
       this.rings.set(shape, { mesh, geometry, buffer, data, capacity, head: 0, used: 0, fresh: 0, lastDeath: 0 });
     }
+    this.vfx = vfx;
     this.setVfx(vfx);
   }
 
   /** (Re)compiles the presets: at start and after a live edit in the debug panel. */
   setVfx(vfx: Vfx) {
+    this.vfx = vfx;
     this.presets.clear();
     for (const [name, bursts] of Object.entries(vfx.presets)) {
       this.presets.set(name, bursts.map((burst) => ({ burst, from: colourOf(burst.colour[0]), to: colourOf(burst.colour[1]) })));
@@ -186,6 +190,22 @@ export class Particles {
           ca * throwSpeed, burst.rise * this.jitter(), sa * throwSpeed,
           burst.scaleSize ? scale : 1,
         );
+      }
+    }
+  }
+
+  /** Fires preset `name` from sim (x, y) along `angle` (±`halfAngle`), each particle covering `reach` metres in its life. */
+  emitAlong(name: string, x: number, y: number, lift: number, angle: number, reach: number, halfAngle: number) {
+    const compiled = this.presets.get(name);
+    if (!compiled) throw new Error(`vfx.json: no preset "${name}"`);
+    const ground = this.heightAt(x, y) + lift;
+    for (let b = 0; b < compiled.length; b++) {
+      const { burst, from, to } = compiled[b]!;
+      const n = Math.floor(burst.count * this.density + Math.random());
+      for (let i = 0; i < n; i++) {
+        const a = angle + (Math.random() * 2 - 1) * halfAngle;
+        const speed = reach / burst.life;
+        this.write(burst, from ?? NO_TINT, to ?? NO_TINT, x, ground + burst.lift, -y, Math.cos(a) * speed, burst.rise * this.jitter(), -Math.sin(a) * speed, 1);
       }
     }
   }
@@ -247,5 +267,39 @@ export class Particles {
       }
     }
     return n;
+  }
+}
+
+/** Scorch marks at any one time; past this the oldest is reused (TDD §9). */
+export const MAX_DECALS = 64;
+const DECAL_LIFT = 0.03;
+const decalMatrix = new THREE.Matrix4();
+const decalPosition = new THREE.Vector3();
+const decalRotation = new THREE.Quaternion();
+const decalScale = new THREE.Vector3();
+
+/** Scorched ground left by blasts, fire pools and flames, all in one draw (D-104). */
+export class Decals {
+  readonly mesh = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: palette.scorched, transparent: true, opacity: 0.8, depthWrite: false }),
+    MAX_DECALS,
+  );
+  private head = 0;
+
+  constructor(private readonly heightAt: HeightAt) {
+    this.mesh.count = 0;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 0.5; // under the blobs (1) and every effect
+  }
+
+  /** A mark at sim (x, y), `radius` metres wide. */
+  stamp(x: number, y: number, radius: number) {
+    decalPosition.set(x, this.heightAt(x, y) + DECAL_LIFT, -y);
+    decalScale.set(radius, 1, radius);
+    this.mesh.setMatrixAt(this.head, decalMatrix.compose(decalPosition, decalRotation, decalScale));
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.head = (this.head + 1) % MAX_DECALS;
+    this.mesh.count = Math.min(this.mesh.count + 1, MAX_DECALS);
   }
 }
