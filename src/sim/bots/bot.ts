@@ -222,6 +222,40 @@ export function createBot(
     if (threat.on) threat.need = Math.min(def.maxDefenders, Math.max(1, near.enemy)) - near.own - (d ? d.bots.length : 0);
   }
 
+  /**
+   * Regrouping (TDD §7, D-094): once any Sub-base has fallen, the team's bots play the lane with
+   * the most living allied champions, humans counted. Ties keep the current lane, then map order.
+   */
+  function updateRegroup(cfg: Config, snap: Snapshot, nav: Nav, tick: number) {
+    if (tick < squad!.regroupNext) return;
+    let fallen = false;
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind === Kind.SubBase && e.destroyed) fallen = true;
+    }
+    if (!fallen) return;
+    squad!.regroupNext = tick + cfg.bots.regroup.recheckSeconds;
+    const lanes = getLanes();
+    const counts = lanes.map(() => 0);
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind !== Kind.Champion || e.team !== team || e.hp <= 0) continue;
+      let nearest = 0;
+      let cost = Infinity;
+      for (let k = 0; k < lanes.length; k++) {
+        const c = metres(nav, laneField(nav, lanes[k]!.id), e.x, e.y);
+        if (c < cost) {
+          cost = c;
+          nearest = k;
+        }
+      }
+      counts[nearest]!++;
+    }
+    let best = lanes.findIndex((l) => l.id === squad!.regroupLane);
+    for (let k = 0; k < lanes.length; k++) if (best < 0 || counts[k]! > counts[best]!) best = k;
+    squad!.regroupLane = lanes[best]?.id;
+  }
+
   /** The lane to defend a structure from: a Sub-base's own; for the HQ, the lane its nearest attacking minion came down, else one whose own Sub-base is down. */
   function defenceLane(snap: Snapshot, s: EntitySnapshot, reach: number): string {
     if (s.kind === Kind.SubBase) return s.lane;
@@ -384,10 +418,10 @@ export function createBot(
 
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
   const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
-  const laneField = (nav: Nav) =>
-    nav.field(`lane:${laneId}`, () => {
+  const laneField = (nav: Nav, id = laneId) =>
+    nav.field(`lane:${id}`, () => {
       const cells: number[] = [];
-      for (const l of getLanes()) if (l.id === laneId) for (const pts of l.branches) cells.push(...nav.polyline(pts));
+      for (const l of getLanes()) if (l.id === id) for (const pts of l.branches) cells.push(...nav.polyline(pts));
       return cells.length ? cells : nav.polyline(trackFrom!);
     });
   const padField = (nav: Nav, cfg: Config) => {
@@ -538,7 +572,7 @@ export function createBot(
       cmd.ult = false;
       cmd.draftPick = -1;
       const defence = squad?.defenceOf(self);
-      laneId = defence ? defence.lane : homeLane;
+      laneId = defence?.lane ?? squad?.regroupLane ?? homeLane;
       if (snap.match.phase === 'ended' || !laneTrack()) return cmd;
       readLane(read, snap, self, team, track!, cfg, laneId);
       const me = read.me;
@@ -590,6 +624,7 @@ export function createBot(
         }
         if (squad && nav) {
           callDefenders(cfg, snap, nav, tick);
+          updateRegroup(cfg, snap, nav, tick);
           plan = squad.planOf(self); // a bot sent to defend stops farming
         }
         // Now and then it hesitates, like a human (never while retreating).

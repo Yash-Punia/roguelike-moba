@@ -30,6 +30,7 @@
     "normal": { "decisionSeconds": 0.2, "reactionSeconds": 0.35, "retreatHpPct": [18, 30], "dodgeChancePct": 60, "draftTop": 1 },
     "hard": { "decisionSeconds": 0.1, "reactionSeconds": 0.2, "retreatHpPct": [18, 30], "dodgeChancePct": 90, "draftTop": 1 }
   },
+  "regroup": { "recheckSeconds": 20 },
   "dodge": { "margin": 0.3 },
   "draft": {
     "minDelaySeconds": 1,

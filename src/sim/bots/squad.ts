@@ -30,6 +30,9 @@ export interface Defence {
 export class Squad {
   readonly plans: FarmPlan[] = [];
   readonly defences: Defence[] = [];
+  /** The lane the team's bots regroup on (D-094), and the tick it may be chosen again. */
+  regroupLane: string | undefined;
+  regroupNext = 0;
   /** Registered bots (ascending, as they report), the last tick each was free (to farm, to defend), and where it stood. */
   readonly ids: Entity[] = [];
   private readonly freeAt: number[] = [];

@@ -623,6 +623,8 @@ const Bots = z.object({
   }),
   /** Difficulty tiers (TDD §7, D-086). */
   difficulty: z.object({ easy: BotTier, normal: BotTier, hard: BotTier }),
+  /** Regrouping (TDD §7, D-094): once a Sub-base has fallen, a team's bots play the lane with the most allies, chosen again this often. */
+  regroup: z.object({ recheckSeconds: secs() }),
   /** Dodging telegraphs (TDD §7, D-085); the chance and reaction are per tier. */
   dodge: z.object({
     /** Extra clearance past the marker's edge (m). */

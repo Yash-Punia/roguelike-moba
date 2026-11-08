@@ -1981,3 +1981,25 @@ From TDD §13:
 - **Tests** (`tests/results.test.ts`): damage adds up to what was dealt, and a structure's hits credit no champion; rows' order and values; won, lost and draw for both viewers; each ending's wording and the match time.
 - Why: the match had no end screen beyond a line of the local player's numbers.
 - Alternatives: damage counted in the HUD from events (telemetry will want it from the sim too).
+
+## D-094 — Bots regroup after the first Sub-base falls
+- Date: 2026-11-08
+- Source: M4 row "Utility bot AI"; TDD §7. The rest was decided during development.
+- Decision:
+  - Once any Sub-base has fallen, a team's bots play `Squad.regroupLane`: the lane with the most living allied champions, humans counted.
+    - Which lane a champion is in comes from the lowest walking cost over the lane fields.
+    - It is chosen again every `bots.regroup.recheckSeconds` (20). Ties keep the current lane, then map order.
+  - The lane a bot plays is its call to defend, else the regroup lane, else its own (D-083's lane switching does the rest).
+  - Bots without a squad never regroup.
+- **Measured** (all-bot, all-Normal 3v3, 30 seeds per map, against the D-086 all-Normal run):
+
+  | Map | Median before | Median after | Range after |
+  | --- | --- | --- | --- |
+  | The Front | 5.07 min | 4.94 min | 2.22–8.57 |
+  | The Bridgehead | 3.96 min | 3.55 min | 2.11–6.55 |
+
+  - None went past 12 minutes; 0 bot boss wakes. After a fall, all of a team's bots play one lane 95–97% of the time. About a third of structures (47 of 159) fell with no ally within 14 m in the last 10 s.
+  - Chrome, The Front: a forced Sub-base fall moved both teams' bots to one lane; no console errors.
+- **Tests** (`tests/bot-regroup.test.ts`): no regroup before a fall; all move to the fullest lane; a tie keeps the lane; chosen again only after the recheck; a call to defend wins.
+- Why: TDD §7, and it makes the mid-game a team fight rather than three separate duels.
+- Alternatives: regrouping on the lane with the fallen Sub-base (TDD says most allies); each bot deciding alone (they could split).
