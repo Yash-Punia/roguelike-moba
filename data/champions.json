@@ -2,6 +2,8 @@
   {
     "id": "alpha",
     "name": "Alpha",
+    "title": "The Sergeant",
+    "role": "All-rounder",
     "weaponTags": [
       "projectile",
       "crit"
@@ -54,6 +56,8 @@
   {
     "id": "beta",
     "name": "Beta",
+    "title": "The Runner",
+    "role": "Skirmisher",
     "weaponTags": [
       "projectile",
       "speed"
@@ -110,6 +114,8 @@
   {
     "id": "gamma",
     "name": "Gamma",
+    "title": "The Furnace",
+    "role": "Tank / support",
     "weaponTags": [
       "burn"
     ],

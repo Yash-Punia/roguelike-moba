@@ -120,6 +120,9 @@ const HeatWave = z.object({
 });
 
 const Champion = z.object({
+  /** Shown on the match-setup card (GDD §7). */
+  title: z.string().optional(),
+  role: z.string().optional(),
   id: z.string(),
   name: z.string(),
   maxHp: positive(),

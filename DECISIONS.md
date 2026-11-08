@@ -1940,3 +1940,17 @@ From TDD §13:
 - Alternatives:
   - A WebGL minimap: more draw calls, against a budget that's already tight.
   - Pings as sim commands: nothing would read them until bots can answer or multiplayer exists.
+
+## D-091 — Title and match setup
+- Date: 2026-11-08
+- Source: M4 row "Menus", first commit; picked by the user. The rest was decided during development.
+- Decision:
+  - **The URL stays the way a match is configured.** The menu builds the query string and navigates, so each match is a fresh page load. Nothing needs tearing down between matches, and every existing param, the debug tools and `browser-check` keep working.
+  - **Boot:** a bare URL shows the menus; any query string starts a match. `src/app/main.ts` is now that small switch, and the match code moved unchanged to `src/app/match.ts`, loaded on demand, so Three.js isn't loaded on the menu.
+  - **Title:** Play and Quick match (`?quick`, every default).
+  - **Match setup** (TDD §10): champion cards with name, title and role; team; map; lane (Auto or that map's lanes; a lane the new map lacks goes back to Auto); team size 2v2 to 5v5; bot difficulty; optional seed.
+  - **Data:** `title` and `role` on champions (GDD §7).
+  - **Not built:** Settings and How to play (Settings is its own M5 row). Choices aren't remembered between visits to the menu.
+- **Tests** (`tests/menus.test.ts`): every choice reaches the URL; an Auto lane, an empty or non-numeric seed and a lane the map lacks are left out; a map change resets only a lane it lacks; each map's lanes; defaults; every champion has a title and role.
+- Why: until now a match could only be set up by editing the URL.
+- Alternatives: starting a match inside the page without a reload (needs every system to tear down cleanly, for nothing the player can see).

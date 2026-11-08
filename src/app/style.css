@@ -126,6 +126,185 @@ body {
 }
 
 
+/* Title and match setup (ui/menus.tsx, D-091): the field-kit look of the draft tray. */
+.menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqw;
+  padding: calc(env(safe-area-inset-top, 0px) + 5cqw) 5cqw calc(env(safe-area-inset-bottom, 0px) + 5cqw);
+  overflow: hidden auto;
+  background: #1b1a17;
+  color: #e9ddd0;
+  font-family: system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+.menu button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.menu-title {
+  justify-content: center;
+  align-items: center;
+  gap: 3cqw;
+  text-align: center;
+}
+
+.menu-hazard {
+  align-self: stretch;
+  height: 2cqw;
+  background: repeating-linear-gradient(-45deg, #d8a64a 0 3cqw, #1b1a17 3cqw 6cqw);
+}
+
+.menu-title h1 {
+  margin: 0;
+  color: #d8a64a;
+  font-size: 13cqw;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.menu-title p {
+  margin: 0;
+  font-size: max(14px, 4cqw);
+  letter-spacing: 0.08em;
+}
+
+.menu-title .menu-actions {
+  align-self: stretch;
+  margin-top: 8cqw;
+}
+
+.menu-setup h2 {
+  margin: 0;
+  color: #d8a64a;
+  font-size: max(20px, 6.4cqw);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.menu-field {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.menu-field legend,
+.menu-seed span {
+  display: block;
+  margin-bottom: 1cqw;
+  padding: 0;
+  color: #bdb398;
+  font-size: max(14px, 3.2cqw);
+  font-weight: 700;
+}
+
+.menu-segments {
+  display: flex;
+  gap: 1.2cqw;
+}
+
+.menu-segments button {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 1cqw;
+  border: 1px solid #5a5140;
+  border-radius: 0.8cqw;
+  background: #2b2822;
+  color: #e9ddd0;
+  font-size: max(14px, 3.6cqw);
+  font-weight: 700;
+}
+
+.menu-segments button.on {
+  border-color: #d8a64a;
+  background: #d8a64a;
+  color: #1b1a17;
+}
+
+.menu-champions {
+  display: flex;
+  gap: 1.6cqw;
+}
+
+.menu-champions button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqw;
+  min-height: 44px;
+  padding: 2cqw 1cqw;
+  border: 0.6cqw solid #8a6a3f;
+  border-radius: 1cqw;
+  background: #ddd3b4;
+  color: #1b1a17;
+}
+
+.menu-champions button.on {
+  border-color: #ffd24a;
+  box-shadow: 0 0 0 0.6cqw rgb(255 210 74 / 0.35);
+}
+
+.menu-champions strong {
+  font-size: max(16px, 4.6cqw);
+  font-weight: 900;
+}
+
+.menu-champions span,
+.menu-champions em {
+  font-size: max(12px, 3cqw);
+  font-style: normal;
+}
+
+.menu-seed input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 2cqw;
+  border: 1px solid #5a5140;
+  border-radius: 0.8cqw;
+  background: #2b2822;
+  color: #e9ddd0;
+  font: inherit;
+  font-size: 16px; /* below this, phones zoom the page on focus */
+}
+
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6cqw;
+  margin-top: auto;
+}
+
+.menu .menu-primary,
+.menu .menu-secondary {
+  min-height: 52px;
+  border-radius: 1cqw;
+  font-size: max(16px, 4.6cqw);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.menu .menu-primary {
+  border: 0;
+  background: #d8a64a;
+  color: #1b1a17;
+}
+
+.menu .menu-secondary {
+  border: 1px solid #5a5140;
+  background: none;
+  color: #e9ddd0;
+}
+
 /* Minimal end-of-match banner (app/end-banner.ts, D-038) until the M4 Results screen. */
 .end-banner {
   position: absolute;
