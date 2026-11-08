@@ -96,27 +96,56 @@ function Vitals() {
   );
 }
 
-/** Surrender (GDD §2), from 5:00 until the M4 pause menu takes it: the first tap asks, a second within 3 s concedes. */
-function SurrenderButton({ onSurrender }: { onSurrender: () => void }) {
-  const confirming = useSignal(false);
-  if (!hud.canSurrender.value || hud.ended.value) return null;
+function PauseButton() {
+  if (hud.ended.value || hud.paused.value) return null;
   return (
     <button
       type="button"
-      class={`hud-surrender${confirming.value ? ' confirm' : ''}`}
+      class="hud-pause-button"
+      aria-label="Pause"
       onPointerDown={(e) => {
         e.stopPropagation(); // never spawn the joystick under it
         e.preventDefault();
-        if (confirming.value) {
-          onSurrender();
-          return;
-        }
-        confirming.value = true;
-        setTimeout(() => (confirming.value = false), 3000);
+        hud.paused.value = true;
       }}
     >
-      {confirming.value ? 'Confirm?' : 'Surrender'}
+      <i />
+      <i />
     </button>
+  );
+}
+
+/** The pause menu (TDD §10, D-092). Surrender (GDD §2) is from 5:00: the first tap asks, a second within 3 s concedes. */
+function PauseMenu({ onSurrender }: { onSurrender: () => void }) {
+  const confirming = useSignal(false);
+  if (!hud.paused.value || hud.ended.value) return null;
+  return (
+    <div class="hud-pause" onPointerDown={(e) => e.stopPropagation()}>
+      <h2>Paused</h2>
+      <button type="button" class="primary" onClick={() => (hud.paused.value = false)}>
+        Resume
+      </button>
+      {hud.canSurrender.value && (
+        <button
+          type="button"
+          class={confirming.value ? 'confirm' : ''}
+          onClick={() => {
+            if (confirming.value) {
+              hud.paused.value = false; // the loop must run for the command to reach the sim
+              onSurrender();
+              return;
+            }
+            confirming.value = true;
+            setTimeout(() => (confirming.value = false), 3000);
+          }}
+        >
+          {confirming.value ? 'Confirm surrender?' : 'Surrender'}
+        </button>
+      )}
+      <button type="button" onClick={() => (location.href = location.pathname)}>
+        Quit
+      </button>
+    </div>
   );
 }
 
@@ -210,9 +239,10 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
       <Notice />
       <RespawnOverlay />
       <Scoreboard />
-      <SurrenderButton onSurrender={onSurrender} />
+      <PauseButton />
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
+      <PauseMenu onSurrender={onSurrender} />
     </>
   );
 }
@@ -223,6 +253,7 @@ export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, 
   layer.className = 'hud';
   frame.appendChild(layer);
   addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.repeat && !hud.ended.value) hud.paused.value = !hud.paused.value;
     if (e.key !== 'Tab') return;
     e.preventDefault(); // Tab shows the scoreboard, not the browser's focus ring
     hud.boardOpen.value = true;

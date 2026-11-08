@@ -5,6 +5,7 @@ import { createScene } from '../render/scene';
 import { createInput } from '../input';
 import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot } from '../sim/sim';
 import { TICK_HZ, type Difficulty } from '../data/schema';
+import { effect } from '@preact/signals';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
 import { Squad } from '../sim/bots/squad';
@@ -149,6 +150,11 @@ const loop = startLoop({
     view.render();
     if (debug) stats.renderMs = performance.now() - r0;
   },
+});
+
+// The pause menu holds the loop (D-092).
+effect(() => {
+  loop.held = hud.paused.value;
 });
 
 if (debug) {

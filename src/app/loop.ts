@@ -12,7 +12,8 @@ export interface LoopHooks {
 
 /** Fixed-tick loop with render interpolation (TDD §4). */
 export function startLoop(hooks: LoopHooks) {
-  const state = { paused: false, timeScale: 1 };
+  /** `paused`: the tab is hidden, or the debug panel. `held`: the pause menu; a separate flag, so coming back to the tab doesn't resume it (D-092). */
+  const state = { paused: false, held: false, timeScale: 1 };
   let acc = 0;
   let last = performance.now();
 
@@ -23,7 +24,7 @@ export function startLoop(hooks: LoopHooks) {
   });
 
   function frame(now: number) {
-    if (!state.paused) {
+    if (!state.paused && !state.held) {
       acc += Math.min(now - last, 250) * state.timeScale; // clamp after tab switches
       let steps = 0;
       while (acc >= TICK_MS && steps < MAX_STEPS_PER_FRAME) {

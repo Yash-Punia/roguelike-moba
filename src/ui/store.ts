@@ -96,6 +96,8 @@ export const hud = {
   suddenDeath: signal(false),
   /** Surrender would be accepted now. */
   canSurrender: signal(false),
+  /** The pause menu is open: the match is held (D-092). */
+  paused: signal(false),
   /** The banner showing now. */
   notice: signal<NoticeView | null>(null),
   /** The kill banner showing now (D-088). */

@@ -428,24 +428,75 @@ body {
 }
 
 /* Temporary until the M4 pause menu: surrender from 5:00, tap twice. */
-.hud-surrender {
+/* Pause (D-092). */
+.hud-pause-button {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 13cqw);
+  top: calc(env(safe-area-inset-top, 0px) + 14cqw);
   left: 2cqw;
-  padding: 0.6cqw 2cqw;
-  border: 1px solid #e9ddd0;
-  border-radius: 4px;
-  background: rgba(27, 26, 23, 0.7);
-  color: #e9ddd0;
-  font-size: max(11px, 2.6cqw);
-  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--hud-panel);
   pointer-events: auto;
   cursor: pointer;
 }
 
-.hud-surrender.confirm {
-  background: #6b3a33;
+.hud-pause-button i {
+  width: 5px;
+  height: 18px;
+  background: #e9ddd0;
+}
+
+.hud-pause {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqw;
+  background: rgb(27 26 23 / 0.78);
+  pointer-events: auto;
+}
+
+.hud-pause h2 {
+  margin: 0 0 3cqw;
+  color: var(--hud-brass);
+  font-size: max(24px, 9cqw);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud-pause button {
+  width: 60cqw;
+  font-family: inherit;
+  min-height: 52px;
+  border: 1px solid #5a5140;
+  border-radius: 1cqw;
+  background: #2b2822;
+  color: #e9ddd0;
+  font-size: max(16px, 4.6cqw);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.hud-pause button.primary {
+  border: 0;
+  background: var(--hud-brass);
+  color: var(--hud-dark);
+}
+
+.hud-pause button.confirm {
   border-color: #ff3b30;
+  background: #6b3a33;
 }
 
 .hud-score {

@@ -1954,3 +1954,17 @@ From TDD §13:
 - **Tests** (`tests/menus.test.ts`): every choice reaches the URL; an Auto lane, an empty or non-numeric seed and a lane the map lacks are left out; a map change resets only a lane it lacks; each map's lanes; defaults; every champion has a title and role.
 - Why: until now a match could only be set up by editing the URL.
 - Alternatives: starting a match inside the page without a reload (needs every system to tear down cleanly, for nothing the player can see).
+
+## D-092 — Pause menu
+- Date: 2026-11-08
+- Source: M4 row "Menus", second commit. The rest was decided during development.
+- Decision:
+  - **Pause** with Esc or a 44 px button at the top left, where the temporary Surrender button was. The menu has Resume, Surrender and Quit. Settings is its own M5 row.
+  - **`loop.held`, a separate flag from `loop.paused`.** `paused` follows the tab's visibility and the debug panel, so coming back to the tab would have resumed a paused match. The frame steps only with both off. Rendering carries on while paused.
+  - **Surrender moved in here** (the D-068 button is gone): still from 5:00 and still two taps within 3 s. The second tap resumes, so the command reaches the sim.
+  - **Quit** goes to the title.
+  - It is a local pause: fine while every other player is a bot.
+- **Measured** (Chrome, The Front): Esc and the button stop the clock, Resume restarts it; Surrender appears only from 5:00 and ends the match; no console errors.
+- **Tests** (`tests/pause.test.ts`, on a stubbed frame loop): held stops stepping and releasing carries on; a held match stays held when the tab is hidden and shown again.
+- Why: a match couldn't be stopped, and D-068 left Surrender on the HUD only until this menu existed.
+- Alternatives: sharing `paused` and re-checking the menu in the visibility handler (the loop would need to know about the menu).
