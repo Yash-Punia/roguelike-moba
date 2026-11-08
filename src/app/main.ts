@@ -12,7 +12,7 @@ import { matchSlots, type Slot } from '../sim/match-setup';
 import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
-import { hud, updateHud } from '../ui/store';
+import { hud, pushNotices, updateHud } from '../ui/store';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -76,11 +76,6 @@ const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();
 // While knocked out the camera follows the killer (D-034); otherwise the local champion.
 let cameraFocus = localEntity;
-// Minimal respawn countdown until the M4 respawn overlay.
-const banner = document.createElement('div');
-banner.className = 'respawn-banner';
-container.appendChild(banner);
-let bannerSeconds = -1;
 // The HQ falls: 1 s of slow motion on the effects (the sim is already frozen), then the banner.
 const SLOW_MOTION_MS = 1000;
 const SLOW_MOTION_SCALE = 0.25;
@@ -89,7 +84,6 @@ let ended = false;
 function endMatch(winner: Team | undefined, reason: 'hq' | 'timeout' | 'surrender') {
   ended = true;
   ultGauge.hide();
-  banner.classList.remove('show');
   view.setTimeScale(SLOW_MOTION_SCALE);
   setTimeout(() => {
     view.setTimeScale(1);
@@ -120,11 +114,12 @@ const loop = startLoop({
     const snap = sim.snapshot();
     lastSnap = snap;
     view.capture(snap);
+    pushNotices(events, snap, localEntity, localTeam, config); // every tick: no event is missed
     // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
     let draftNews = false;
     for (let i = 0; i < events.length; i++) if (events[i]!.type === 'draftOffered' || events[i]!.type === 'powerPicked') draftNews = true;
     if (snap.tick % 3 === 0 || snap.match.phase === 'ended' || draftNews) {
-      updateHud(snap, localEntity, localTeam, config.powers);
+      updateHud(snap, localEntity, localTeam, config.powers, config.champions);
       hud.keyHints.value = input.lastInput === 'keyboard';
     }
     if (ended) return;
@@ -139,12 +134,6 @@ const loop = startLoop({
     ultGauge.keyHint(input.lastInput === 'keyboard');
     const down = me.respawnTicks > 0;
     cameraFocus = down && me.killer !== 0 && entityIn(snap, me.killer) ? me.killer : localEntity;
-    const seconds = down ? Math.ceil(me.respawnTicks / TICK_HZ) : 0;
-    if (seconds !== bannerSeconds) {
-      bannerSeconds = seconds;
-      banner.textContent = down ? `REDEPLOYING IN ${seconds}` : '';
-      banner.classList.toggle('show', down);
-    }
   },
   draw: (alpha) => {
     const now = performance.now();

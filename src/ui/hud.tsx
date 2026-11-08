@@ -46,9 +46,18 @@ function TopStrip() {
       <div class="hud-centre">
         <div class="hud-timer">{clock(hud.seconds.value)}</div>
         {hud.suddenDeath.value && <div class="hud-sudden-death">SUDDEN DEATH</div>}
-        <div class="hud-score">
+        <button
+          type="button"
+          class="hud-score"
+          aria-label="Scoreboard"
+          onPointerDown={(e) => {
+            e.stopPropagation(); // never spawn the joystick under it
+            e.preventDefault();
+            hud.boardOpen.value = !hud.boardOpen.value;
+          }}
+        >
           <span class="ours">{ours}</span> · <span class="theirs">{theirs}</span>
-        </div>
+        </button>
       </div>
       <div class="hud-side theirs">
         {hud.theirs.value.map((s) => (
@@ -111,10 +120,79 @@ function SurrenderButton({ onSurrender }: { onSurrender: () => void }) {
   );
 }
 
+/** One short banner at a time, for match events (TDD §10). */
+function Notice() {
+  const n = hud.notice.value;
+  if (!n || hud.ended.value || hud.boardOpen.value) return null;
+  return (
+    <div key={n.id} class={`hud-notice ${n.tone}`} role="status">
+      {n.text}
+    </div>
+  );
+}
+
+/** The countdown while knocked out, and who did it; a team-coloured badge stands in for a portrait. */
+function RespawnOverlay() {
+  const r = hud.respawn.value;
+  if (!r || hud.ended.value) return null;
+  return (
+    <div class="hud-respawn">
+      <div class="hud-respawn-label">REDEPLOYING IN</div>
+      <div class="hud-respawn-seconds">{r.seconds}</div>
+      {r.killerName && (
+        <div class={`hud-respawn-killer ${r.killerSide}`}>
+          <i />
+          {r.killerName}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** All champions (TDD §10): hold Tab, or tap the score. No power icons exist yet, so powers are a count per rarity. */
+function Scoreboard() {
+  if (!hud.boardOpen.value || hud.ended.value) return null;
+  return (
+    <div class="hud-board">
+      <table>
+        <thead>
+          <tr>
+            <th>Champion</th>
+            <th>Lv</th>
+            <th>K</th>
+            <th>D</th>
+            <th>A</th>
+            <th>Powers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hud.board.value.map((r) => (
+            <tr key={r.id} class={`${r.side}${r.me ? ' me' : ''}${r.down ? ' down' : ''}`}>
+              <td>{r.name}</td>
+              <td>{r.level}</td>
+              <td>{r.kills}</td>
+              <td>{r.deaths}</td>
+              <td>{r.assists}</td>
+              <td class="hud-board-powers">
+                <span class="common">{r.powers.common}</span>
+                <span class="rare">{r.powers.rare}</span>
+                <span class="epic">{r.powers.epic}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void }) {
   return (
     <>
       <TopStrip />
+      <Notice />
+      <RespawnOverlay />
+      <Scoreboard />
       <SurrenderButton onSurrender={onSurrender} />
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
@@ -122,11 +200,19 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
   );
 }
 
-/** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards take pointer input. */
+/** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards and the buttons take pointer input. */
 export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}, onSurrender: () => void = () => {}) {
   const layer = document.createElement('div');
   layer.className = 'hud';
   frame.appendChild(layer);
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault(); // Tab shows the scoreboard, not the browser's focus ring
+    hud.boardOpen.value = true;
+  });
+  addEventListener('keyup', (e) => {
+    if (e.key === 'Tab') hud.boardOpen.value = false;
+  });
   render(<Hud onPick={onPick} onReroll={onReroll} onSurrender={onSurrender} />, layer);
   return layer;
 }

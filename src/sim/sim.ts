@@ -320,6 +320,8 @@ export interface EntitySnapshot {
   /** Champions: takedowns landed and times knocked out. */
   kills: number;
   deaths: number;
+  /** Champions: takedowns since it was last knocked out (its bounty, D-084). */
+  streak: number;
   /** Champions: takedowns assisted, and whether the Redeploy sprint is on. */
   assists: number;
   sprinting: boolean;
@@ -920,7 +922,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, streak: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -957,6 +959,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.powers = c ? c.powers : noPowers;
         s.kills = c?.kills ?? 0;
         s.deaths = c?.deaths ?? 0;
+        s.streak = c?.streak ?? 0;
         s.assists = c?.assists ?? 0;
         s.sprinting = (c?.sprintPct ?? 0) > 0;
         s.supply = (c?.supplyTicks ?? 0) > 0;

@@ -126,27 +126,6 @@ body {
 }
 
 
-/* Minimal respawn countdown (app/main.ts) until the M4 respawn overlay. */
-.respawn-banner {
-  display: none;
-  position: absolute;
-  left: 50%;
-  top: 38%;
-  transform: translateX(-50%);
-  padding: 8px 16px;
-  border-radius: 4px;
-  background: rgb(27 26 23 / 0.7);
-  color: #fff;
-  font: 800 18px/1.2 system-ui, sans-serif;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.respawn-banner.show {
-  display: block;
-}
-
 /* Minimal end-of-match banner (app/end-banner.ts, D-038) until the M4 Results screen. */
 .end-banner {
   position: absolute;
@@ -291,9 +270,178 @@ body {
 }
 
 .hud-score {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
   font-size: max(14px, 3.6cqw);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* A 44 px touch target round the small score pill (TDD §10). */
+.hud-score::after {
+  content: '';
+  position: absolute;
+  inset: -14px -18px;
+}
+
+/* Notices, the respawn overlay and the scoreboard (D-087). */
+.hud-notice {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 27cqw);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1cqw 3.2cqw;
+  border-left: 1cqw solid var(--hud-brass);
+  border-radius: 0.8cqw;
+  background: var(--hud-panel);
+  font-size: max(14px, 3.6cqw);
+  font-weight: 800;
+  white-space: nowrap;
+  animation: hud-notice-in 0.18s ease-out;
+}
+
+.hud-notice.good {
+  border-left-color: var(--hud-blue);
+}
+
+.hud-notice.bad {
+  border-left-color: var(--hud-red);
+}
+
+@keyframes hud-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -1.6cqw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-notice {
+    animation: none;
+  }
+}
+
+.hud-respawn {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqw;
+  padding: 2cqw 5cqw;
+  border-radius: 1.2cqw;
+  background: var(--hud-panel);
+  white-space: nowrap;
+}
+
+.hud-respawn-label {
+  font-size: max(14px, 3cqw);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.hud-respawn-seconds {
+  font-size: max(32px, 11cqw);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-respawn-killer {
+  display: flex;
+  align-items: center;
+  gap: 1.2cqw;
+  font-size: max(14px, 3cqw);
+}
+
+.hud-respawn-killer i {
+  width: max(12px, 2.8cqw);
+  height: max(12px, 2.8cqw);
+  border-radius: 50%;
+  background: var(--hud-brass);
+}
+
+.hud-respawn-killer.ours i {
+  background: var(--hud-blue);
+}
+
+.hud-respawn-killer.theirs i {
+  background: var(--hud-red);
+}
+
+.hud-board {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 27cqw);
+  left: 3cqw;
+  right: 3cqw;
+  padding: 1.6cqw 2cqw;
+  border-radius: 1.2cqw;
+  background: rgb(27 26 23 / 0.88);
+  font-size: max(14px, 3.2cqw);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-board table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hud-board th {
+  font-size: max(12px, 2.6cqw);
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.hud-board th,
+.hud-board td {
+  padding: 0.7cqw 1cqw;
+  text-align: center;
+}
+
+.hud-board th:first-child,
+.hud-board td:first-child {
+  text-align: left;
+}
+
+.hud-board tr.ours td:first-child {
+  border-left: 1cqw solid var(--hud-blue);
+}
+
+.hud-board tr.theirs td:first-child {
+  border-left: 1cqw solid var(--hud-red);
+}
+
+.hud-board tr.me td {
+  font-weight: 800;
+  color: var(--hud-brass);
+}
+
+.hud-board tr.down td {
+  opacity: 0.5;
+}
+
+.hud-board-powers span {
+  margin: 0 0.4cqw;
+  font-weight: 800;
+}
+
+.hud-board-powers .common {
+  color: #cfcabd;
+}
+
+.hud-board-powers .rare {
+  color: #7fa8ee;
+}
+
+.hud-board-powers .epic {
+  color: var(--hud-brass);
 }
 
 .hud-score .ours {

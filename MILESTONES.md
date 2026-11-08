@@ -115,10 +115,10 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Behemoth: spawn at 6:00, in The Crater (Front) and on the river island (Bridgehead); model per the bosses sheet; turret volleys at up to 4 attackers and a steam blast every 3rd attack; capture and the lane push dropped for 15 s invincibility for the killing team (user, D-082) | 5e3d269 |
 | `[ ]` | Environment dressing per the props and environment sheets: base tents, flags, searchlights, telegraph poles, sandbag revetments, barbed wire, tank traps, craters, wrecked biplanes, edge ruins, river reeds; within SG-01 tri budgets | |
 | `[~]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid; done so far: "take camp" in pairs from 0:00 and when the lane is quiet, trench navigation by flow fields on the obstacle grid (D-075); defending another lane's Sub-base or the HQ through a squad board, and backing off when outnumbered (D-083) | aec2e81, f601b3a |
-| `[c]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard): dodging and draft picks (D-085), the Ultimate rules were already in place; tiers, hesitation per second, one retreat range (D-086); Hard only clearly ahead of Easy on The Bridgehead | e7d99f9 |
+| `[p]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard): dodging and draft picks (D-085), the Ultimate rules were already in place; tiers, hesitation per second, one retreat range (D-086); Hard only clearly ahead of Easy on The Bridgehead | e7d99f9, c5bd862 |
 | `[p]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | feee8ce |
 | `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
-| `[ ]` | HUD: top bar structures, scoreboard, notifications, respawn overlay | |
+| `[c]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | |
 | `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.

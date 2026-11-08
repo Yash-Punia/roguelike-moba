@@ -1858,3 +1858,25 @@ From TDD §13:
 - Alternatives:
   - Shipping the TDD table as written: Hard lost 5–25 on The Front.
   - New tier settings (accuracy, damage): not tried. Stat bonuses would make Hard stronger rather than smarter; the user can ask for them after a playtest.
+
+## D-087 — HUD: notices, respawn overlay, scoreboard
+- Date: 2026-11-08
+- Source: M4 row "HUD: top bar structures, scoreboard, notifications, respawn overlay", picked by the user. The rest was decided during development. The top bar already existed (D-039).
+- Decision:
+  - **Notices:** `pushNotices` in `ui/store.ts`, called every tick so no event is missed by the 10 Hz HUD update. One banner at a time for 2.5 s, counted in sim ticks. At most 4 wait behind it; the oldest drop.
+    - Sources, worded for the viewer's side: Sub-base or HQ lost or destroyed; HQ last line; Sudden Death; a boss appearing ("Behemoth has awoken", "Field Gun spotted") or taken; a champion reaching a bounty.
+    - "Behemoth has awoken" fires when it spawns at 6:00 (TDD §10's wording), though it stays idle until a champion steps onto its floor (D-081).
+    - `streak` is added to the champion snapshot for the bounty notice.
+  - **Respawn overlay:** replaces the plain "REDEPLOYING IN n" banner. It shows the countdown and the killer's name with a team-coloured badge in place of a portrait (no portrait art exists).
+    - The name is worked out once, on the local champion's `death` event, and stored: a pooled minion's id can vanish or be reused, so later snapshots can't be trusted for it.
+  - **Scoreboard:** hold Tab, or tap the score. Your side first; name, level, takedowns, deaths, assists, and powers as a count per rarity (no power icons exist). Rows are filled only while it is open.
+    - The score is a button with a 44 px touch target from a pseudo-element, so the pill keeps its size.
+    - Banners hide while the board is open, and the respawn overlay sits below it.
+  - **Sim:** read only. Nothing in `ui` writes sim state.
+- **Measured** (Chrome, The Front, 540 × 960 and 360 wide): a Sub-base fall, HQ last line, a knock-out and the board all show correctly; no console errors. The overlay read 130–136 draw calls at some moments in busy spots, over the 120 budget. Other moments read 108. The HUD is DOM and adds none, so this was already there; not investigated.
+- **Tests** (`tests/hud-notices.test.ts`): each notice for both viewer sides; queue order, expiry and the drop rule; a boss on appearing but not on first look; a bounty once per crossing; the respawn view for a champion, structures, a soldier and an unknown killer, and that the name survives its killer leaving the snapshot; board order, values, side flip, and that it fills only while open.
+- Why: the rules from D-083 to D-086 were invisible without these, and the respawn overlay replaces a stopgap from M2.
+- Alternatives:
+  - Notices from the 10 Hz update: events on the other two ticks would be lost.
+  - A keyboard-only scoreboard: phones need the tap.
+  - Looking the killer up at 10 Hz: the id can go stale.
