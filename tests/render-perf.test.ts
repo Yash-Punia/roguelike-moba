@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { parseConfig, rawConfig } from '../src/data/load';
+import { createCameraRig, fitShadowBox } from '../src/render/camera';
 import { createModel, partsOf } from '../src/render/models';
 import { buildTerrain } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
@@ -70,6 +71,36 @@ describe('baked models (D-044)', () => {
     let soldierCasts = false;
     a.traverse((o) => (soldierCasts ||= o.castShadow));
     expect(soldierCasts).toBe(false);
+  });
+});
+
+describe('shadow box (D-099)', () => {
+  const cameraConfig = parseConfig(rawConfig).camera;
+  const sunOffset = new THREE.Vector3(-12, 20, 8);
+
+  it.each([
+    ['Blue', Team.Blue, 9 / 16],
+    ['Red', Team.Red, 9 / 16],
+    ['Blue, tall frame', Team.Blue, 9 / 21],
+  ] as const)('holds the whole view on the ground for %s, in less than the old 60 m square', (_, team, aspect) => {
+    const camera = new THREE.PerspectiveCamera(cameraConfig.fovDeg, aspect, 1, 300);
+    createCameraRig(camera, team).update({ x: 7, y: -31, vx: 0, vy: 0 }, cameraConfig, 1 / 60);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    const sun = new THREE.DirectionalLight();
+    fitShadowBox(sun, sunOffset, camera);
+    sun.updateMatrixWorld();
+    sun.target.updateMatrixWorld();
+    sun.shadow.updateMatrices(sun);
+    const box = sun.shadow.camera;
+    for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      const ray = new THREE.Vector3(x, y, 0.5).unproject(camera).sub(camera.position);
+      const ground = ray.multiplyScalar(-camera.position.y / ray.y).add(camera.position);
+      const local = ground.applyMatrix4(box.matrixWorldInverse);
+      expect(Math.abs(local.x)).toBeLessThan(box.right);
+      expect(Math.abs(local.y)).toBeLessThan(box.top);
+    }
+    expect((box.right - box.left) * (box.top - box.bottom)).toBeLessThan(60 * 60);
   });
 });
 

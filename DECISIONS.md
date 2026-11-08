@@ -2083,3 +2083,22 @@ From TDD §13:
   - **Measured:** in Chrome with synthetic touch events, the stick appeared and moved the champion from top right, bottom right and bottom left; the Ultimate, pause button and minimap did not spawn it.
 - Why: on a phone the right thumb and the top of the screen were dead for movement, and the stats bar covered the play area.
 - Alternatives: tap a spot to walk there (a different control scheme from the GDD's joystick); deleting the stats bar (the perf checks need it).
+
+## D-099 — Shadow box fitted to the view
+- Date: 2026-11-08
+- Source: user request (draw-call task, open since D-086); the rest made during development
+- Decision:
+  - **Cause:** the sun's shadow box was a fixed ±30 m square round the player. The view's ground footprint is about 14–20 m wide and 35–46 m deep, so the shadow pass drew up to 40 terrain tiles (14 in the main pass) and casters that never reach the screen. It was about half of every frame's calls.
+  - **Fit:** each frame, `fitShadowBox` (`src/render/camera.ts`) intersects the camera's four corner rays with y = 0, centres the sun on them in the shadow camera's own axes and sizes the box to them plus a 5 m margin for raised ground and tall props near the screen edge. It reads the live camera, so a Red viewer, every frame shape and live camera tuning work. The projection is only rebuilt when the size changes.
+  - **Done in `render()`,** since the camera rig moves after `update()`.
+  - **Side effects:** denser shadows (the same map over about 45 × 33 m rather than 60 × 60 m), and the top corner of a 9:21 frame, which fell outside the old box, is now covered.
+  - **Measured** (headless Chrome, software GL, so only calls and triangles count; seed 11, The Front, 3v3; base, left, right, Crater and trunk at 0:06, 1:02 and 2:30, each side):
+    - shadow-pass calls: 42–74 → 27–53;
+    - 1:02 at the trunk, the usual worst view: Blue 134–138 → 110–113, Red 140–148 → 121–125;
+    - triangles: up to 105k → up to 89k;
+    - no console errors;
+    - screenshots of the same views before and after, both sides: shadows unchanged, no clipping at the screen edges.
+  - **Still over budget:** a fight at the trunk reached 158 (main pass 93). The main pass is the rest of the work.
+  - **Tests** (`tests/render-perf.test.ts`): the box holds the whole ground view for a Blue and a Red camera and a 9:21 frame, and is smaller than the old square.
+- Why: it is the largest single source of calls, costs no visible quality and improves shadow resolution.
+- Alternatives: coarser terrain tiles for the shadow pass (Three.js has no shadow-only draw without also drawing in the main pass); a fixed smaller box (breaks for the Red camera, tall frames and live tuning).

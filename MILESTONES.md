@@ -121,7 +121,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | 4f66ba4 |
 | `[p]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | fc78ed0 |
 | `[p]` | Base under attack: a sim event for the later voice line, a banner for your side, a pulsing top-bar icon (user, D-089) | 56bda99 |
-| `[c]` | Joystick from anywhere on the screen; stats bar only with `?perf` (user, D-098) | |
+| `[p]` | Joystick from anywhere on the screen; stats bar only with `?perf` (user, D-098) | 9b5b3db |
+| `[~]` | Draw calls within the mobile budget in busy views: shadow box fitted to the view (D-099) | |
 | `[p]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed) (D-091), pause (D-092), results (D-093) | fc83002, c2f041b, 09ce0c5 |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.

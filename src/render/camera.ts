@@ -1,4 +1,4 @@
-import type { PerspectiveCamera } from 'three';
+import { Vector3, type DirectionalLight, type PerspectiveCamera } from 'three';
 import type { Config } from '../data/schema';
 import { Team } from '../sim/sim';
 
@@ -50,4 +50,47 @@ export function createCameraRig(camera: PerspectiveCamera, team: Team) {
   }
 
   return { update };
+}
+
+/** Beyond the view's ground footprint: raised ground and tall props near the screen edge still receive shadows (m). */
+const SHADOW_MARGIN = 5;
+const NDC_CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
+const WORLD_UP = new Vector3(0, 1, 0);
+const corner = new Vector3();
+const toSun = new Vector3();
+const lightX = new Vector3();
+const lightY = new Vector3();
+
+/**
+ * Fits the sun's shadow box to what the camera sees (D-099): centred on the view's footprint on
+ * the ground, in the axes the shadow camera will use. Only casters that can reach the screen are
+ * drawn in the shadow pass, whichever way the camera faces and whatever the frame's shape.
+ */
+export function fitShadowBox(sun: DirectionalLight, sunOffset: Vector3, camera: PerspectiveCamera) {
+  camera.updateMatrixWorld();
+  toSun.copy(sunOffset).normalize();
+  lightX.crossVectors(WORLD_UP, toSun).normalize();
+  lightY.crossVectors(toSun, lightX);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of NDC_CORNERS) {
+    corner.set(x, y, 0.5).unproject(camera).sub(camera.position);
+    corner.multiplyScalar(-camera.position.y / corner.y).add(camera.position); // where this corner's ray meets y = 0
+    const u = corner.dot(lightX);
+    const v = corner.dot(lightY);
+    minX = Math.min(minX, u);
+    maxX = Math.max(maxX, u);
+    minY = Math.min(minY, v);
+    maxY = Math.max(maxY, v);
+  }
+  sun.target.position.copy(lightX).multiplyScalar((minX + maxX) / 2).addScaledVector(lightY, (minY + maxY) / 2);
+  sun.position.copy(sun.target.position).add(sunOffset);
+  const box = sun.shadow.camera;
+  const halfX = (maxX - minX) / 2 + SHADOW_MARGIN;
+  const halfY = (maxY - minY) / 2 + SHADOW_MARGIN;
+  if (Math.abs(box.right - halfX) + Math.abs(box.top - halfY) < 1e-3) return;
+  Object.assign(box, { left: -halfX, right: halfX, top: halfY, bottom: -halfY });
+  box.updateProjectionMatrix();
 }

@@ -3,6 +3,7 @@ import type { Config, MapConfig } from '../data/schema';
 import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
+import { fitShadowBox } from './camera';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { buildDressing } from './dressing';
 import { EpicFx } from './epic-fx';
@@ -115,7 +116,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   const sunOffset = new THREE.Vector3(-12, 20, 8);
   sun.castShadow = true;
   sun.shadow.mapSize.setScalar(coarsePointer ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 80 });
+  Object.assign(sun.shadow.camera, { near: 1, far: 80 }); // its sides follow the view (fitShadowBox, D-099)
   scene.add(sun, sun.target);
 
   let arena = buildArena(config.map, side);
@@ -502,13 +503,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     } else {
       targetLine?.hide();
     }
-    sun.target.position.set(focus.x, 0, -focus.y);
-    sun.position.copy(sun.target.position).add(sunOffset);
   }
 
   function render() {
     // Bars face the camera; done here because the camera rig moves after update().
     barLayer.update(camera);
+    fitShadowBox(sun, sunOffset, camera);
     renderer.render(scene, camera);
     damageNumbers.update(camera, container.clientWidth, container.clientHeight, clock);
   }
