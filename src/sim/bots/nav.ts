@@ -56,13 +56,19 @@ export class Nav {
    * The field towards `key`'s goal, built on first use by Dijkstra from `goals` (cell indices,
    * called only then). Open goal cells only; a goal with none falls back to the raw grid.
    */
-  field(key: string, goals: () => readonly number[]): Uint16Array {
+  field(key: string, goals: () => readonly number[], free?: { x: number; y: number; r: number }): Uint16Array {
     let f = this.fields.get(key);
     if (f) return f;
     const { cols, rows } = this.grid;
     f = new Uint16Array(cols * rows).fill(FAR);
     const heap = this.heap;
     heap.length = 0;
+    // `free`: no avoid cost inside this disc, for a field that goes to a boss on purpose (D-095).
+    let penalty = this.penalty;
+    if (free) {
+      penalty = penalty.slice();
+      for (const i of this.disc(free.x, free.y, free.r)) penalty[i] = 0;
+    }
     const cells = goals();
     let open = false;
     for (const g of cells) open ||= !this.closed[g];
@@ -87,7 +93,7 @@ export class Nav {
         if (shut[n]) continue;
         // No corner cutting: a diagonal step needs both straight neighbours open.
         if (k >= 4 && (shut[row * cols + c] || shut[r * cols + col])) continue;
-        const nd = d + (k < 4 ? STRAIGHT : DIAGONAL) + this.penalty[n]!;
+        const nd = d + (k < 4 ? STRAIGHT : DIAGONAL) + penalty[n]!;
         if (nd < f[n]! && nd < FAR) {
           f[n] = nd;
           push(heap, nd * 0x100000 + n);

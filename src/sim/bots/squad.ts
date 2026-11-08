@@ -1,15 +1,13 @@
 import type { Entity } from '../ecs';
 
-/** Two bots taking one camp together (D-075). */
+/** Bots taking one camp or boss together (D-075, D-095). */
 export interface FarmPlan {
   /** Index into `map.camps` / `snapshot.camps`. */
   camp: number;
-  a: Entity;
-  b: Entity;
+  members: Entity[];
   started: number;
-  /** Last tick each was in the farm mode. */
-  seenA: number;
-  seenB: number;
+  /** Last tick each member was in the farm mode. */
+  seen: number[];
 }
 
 /** Bots sent to an own structure under attack (D-083). */
@@ -103,7 +101,7 @@ export class Squad {
   }
 
   planOf(e: Entity): FarmPlan | undefined {
-    for (const p of this.plans) if (p.a === e || p.b === e) return p;
+    for (const p of this.plans) if (p.members.includes(e)) return p;
     return undefined;
   }
 
@@ -112,14 +110,13 @@ export class Squad {
     return false;
   }
 
-  form(camp: number, a: Entity, b: Entity, tick: number) {
-    this.plans.push({ camp, a, b, started: tick, seenA: tick, seenB: tick });
+  form(camp: number, members: Entity[], tick: number) {
+    this.plans.push({ camp, members, started: tick, seen: members.map(() => tick) });
   }
 
   /** It is farming this tick. */
   seen(p: FarmPlan, e: Entity, tick: number) {
-    if (p.a === e) p.seenA = tick;
-    else p.seenB = tick;
+    p.seen[p.members.indexOf(e)] = tick;
   }
 
   /** Ends a plan; both stay in lane for `cooldown` ticks. */
@@ -127,6 +124,6 @@ export class Squad {
     const k = this.plans.indexOf(p);
     if (k < 0) return;
     this.plans.splice(k, 1);
-    for (const e of [p.a, p.b]) this.cooldownUntil[this.slot(e)] = tick + cooldown;
+    for (const e of p.members) this.cooldownUntil[this.slot(e)] = tick + cooldown;
   }
 }

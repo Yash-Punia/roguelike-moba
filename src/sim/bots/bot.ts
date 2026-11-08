@@ -418,6 +418,12 @@ export function createBot(
 
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
   const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
+  /** The way to a plan's camp. A boss's own arena has no avoid cost (D-095). */
+  const planField = (nav: Nav, cfg: Config, i: number) => {
+    const c = cfg.map.camps[i]!;
+    if (!cfg.neutrals.camps[c.kind].boss) return campField(nav, cfg, i);
+    return nav.field(`boss:${i}`, () => nav.disc(c.x, c.y, 1.5), { x: c.x, y: c.y, r: cfg.bots.farm.bossAvoidRadius });
+  };
   const laneField = (nav: Nav, id = laneId) =>
     nav.field(`lane:${id}`, () => {
       const cells: number[] = [];
@@ -453,12 +459,17 @@ export function createBot(
   function planOver(cfg: Config, snap: Snapshot, plan: FarmPlan, self: Entity, tick: number): boolean {
     const f = cfg.bots.farm;
     const camp = snap.camps[plan.camp];
-    if (!camp || camp.members === 0 || camp.leashing || tick - plan.started > f.maxSeconds) return true;
-    const partner = byId(snap, plan.a === self ? plan.b : plan.a);
-    const seen = plan.a === self ? plan.seenB : plan.seenA;
-    const gone = !partner || partner.hp <= 0 || tick - seen > f.staleSeconds;
+    const limit = camp && cfg.neutrals.camps[camp.kind].boss ? cfg.bots.boss.maxSeconds : f.maxSeconds;
+    if (!camp || camp.members === 0 || camp.leashing || tick - plan.started > limit) return true;
+    let others = 0;
+    for (let k = 0; k < plan.members.length; k++) {
+      const m = plan.members[k]!;
+      if (m === self) continue;
+      const mate = byId(snap, m);
+      if (mate && mate.hp > 0 && tick - plan.seen[k]! <= f.staleSeconds) others++;
+    }
     // Alone, it finishes only a camp that is nearly down.
-    return gone && !(camp.engaged && campShare(cfg, snap, plan.camp) < f.finishHpPct);
+    return others === 0 && !(camp.engaged && campShare(cfg, snap, plan.camp) < f.finishHpPct);
   }
 
   /**
@@ -493,7 +504,48 @@ export function createBot(
       }
     }
     if (bestCamp < 0) return undefined;
-    squad!.form(bestCamp, me.id, bestPartner, tick);
+    squad!.form(bestCamp, [me.id, bestPartner], tick);
+    return squad!.planOf(me.id);
+  }
+
+  /**
+   * Contesting a boss (TDD §7, D-095): one that is up and unclaimed, idle with no enemy champion
+   * at it or being fought and below `stealHpPct`, for the nearest free bots of the level it asks
+   * for, if enough are within `maxTravel`. Any free bot may start it for the squad.
+   */
+  function tryBoss(cfg: Config, snap: Snapshot, nav: Nav, me: EntitySnapshot, tick: number): FarmPlan | undefined {
+    const c = cfg.bots.boss;
+    let best = Infinity;
+    let bestCamp = -1;
+    let bestMembers: Entity[] = [];
+    for (let i = 0; i < snap.camps.length; i++) {
+      const camp = snap.camps[i]!;
+      const need = c.squad[camp.kind];
+      const level = c.minLevel[camp.kind];
+      if (!cfg.neutrals.camps[camp.kind].boss || need === undefined || level === undefined || camp.members === 0 || camp.leashing || squad!.campTaken(i)) continue;
+      if (camp.engaged ? campShare(cfg, snap, i) >= c.stealHpPct : enemyNear(snap, camp.x, camp.y, cfg.bots.farm.contestRadius)) continue;
+      const field = planField(nav, cfg, i);
+      const ready: { id: Entity; d: number }[] = [];
+      for (let k = 0; k < squad!.ids.length; k++) {
+        const o = squad!.ids[k]!;
+        if (!squad!.isFree(o, tick)) continue;
+        const bot = o === me.id ? me : byId(snap, o);
+        if (!bot || bot.hp <= 0 || bot.level < level) continue;
+        const d = metres(nav, field, bot.x, bot.y);
+        if (d <= c.maxTravel) ready.push({ id: o, d });
+      }
+      if (ready.length < need) continue;
+      ready.sort((a, b) => a.d - b.d || a.id - b.id);
+      let total = 0;
+      for (let k = 0; k < need; k++) total += ready[k]!.d;
+      if (total < best) {
+        best = total;
+        bestCamp = i;
+        bestMembers = ready.slice(0, need).map((r) => r.id);
+      }
+    }
+    if (bestCamp < 0) return undefined;
+    squad!.form(bestCamp, bestMembers, tick);
     return squad!.planOf(me.id);
   }
 
@@ -504,7 +556,7 @@ export function createBot(
    */
   function farmAim(cfg: Config, snap: Snapshot, nav: Nav, plan: FarmPlan, me: EntitySnapshot): { x: number; y: number } | undefined {
     const camp = snap.camps[plan.camp]!;
-    const field = campField(nav, cfg, plan.camp);
+    const field = planField(nav, cfg, plan.camp);
     let near: EntitySnapshot | undefined;
     let nd = Infinity;
     for (let i = 0; i < snap.entities.length; i++) {
@@ -516,11 +568,22 @@ export function createBot(
         near = e;
       }
     }
-    const partner = byId(snap, plan.a === me.id ? plan.b : plan.a);
-    const together = camp.engaged || !partner || partner.hp <= 0 || metres(nav, field, partner.x, partner.y) <= metres(nav, field, me.x, me.y) + cfg.bots.farm.gatherSlack;
-    // The pair stands at the shorter of its two ranges, so both draw the camp's fire.
-    const partnerRange = partner && partner.hp > 0 ? (cfg.champions.find((c) => c.id === partner.modelId)?.weapon.range ?? read.range) : read.range;
-    const range = Math.min(read.range, partnerRange);
+    // They stand at the shortest of their ranges, so all draw the camp's fire.
+    let together = true;
+    let range = read.range;
+    for (let k = 0; k < plan.members.length; k++) {
+      const mate = byId(snap, plan.members[k]!);
+      if (!mate || mate.id === me.id || mate.hp <= 0) continue;
+      if (!camp.engaged && metres(nav, field, mate.x, mate.y) > metres(nav, field, me.x, me.y) + cfg.bots.farm.gatherSlack) together = false;
+      range = Math.min(range, cfg.champions.find((c) => c.id === mate.modelId)?.weapon.range ?? read.range);
+    }
+    // A boss sleeps until someone stands on its floor (D-081): gather outside, then all walk on.
+    if (cfg.neutrals.camps[camp.kind].boss && !camp.engaged) {
+      const floor = cfg.map.walkable.find((w) => w.shape === 'circle' && len(w.x - camp.x, w.y - camp.y) < 1);
+      const gather = (floor?.shape === 'circle' ? floor.r : 0) + cfg.bots.boss.gatherMargin;
+      if (!together && len(me.x - camp.x, me.y - camp.y) <= gather) return undefined;
+      return nav.towards(field, me.x, me.y, NAV_LOOK, p) ? p : undefined;
+    }
     if (near) {
       const sight = rayBlocked(nav.grid, me.x, me.y, near.x, near.y) < 0;
       if (together && sight && nd <= range * personality.spacing * 0.9) return undefined; // in place: shoot
@@ -640,7 +703,7 @@ export function createBot(
         const available = !defending && calm && hpMe >= b.defend.minHpPct && state.mode !== 'retreat';
         squad.report(self, free, me.x, me.y, tick, available);
         if (free) {
-          plan = tryForm(cfg, snap, nav, me, tick);
+          plan = tryBoss(cfg, snap, nav, me, tick) ?? tryForm(cfg, snap, nav, me, tick);
           if (plan) {
             state.mode = 'farm';
             state.committedUntil = tick + personality.patience;

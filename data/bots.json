@@ -31,6 +31,14 @@
     "hard": { "decisionSeconds": 0.1, "reactionSeconds": 0.2, "retreatHpPct": [18, 30], "dodgeChancePct": 90, "draftTop": 1 }
   },
   "regroup": { "recheckSeconds": 20 },
+  "boss": {
+    "squad": { "fieldGun": 2, "halftrack": 2, "behemoth": 3 },
+    "minLevel": { "fieldGun": 6, "halftrack": 6, "behemoth": 12 },
+    "maxTravel": 60,
+    "stealHpPct": 50,
+    "gatherMargin": 3,
+    "maxSeconds": 60
+  },
   "dodge": { "margin": 0.3 },
   "draft": {
     "minDelaySeconds": 1,

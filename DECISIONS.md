@@ -2003,3 +2003,31 @@ From TDD §13:
 - **Tests** (`tests/bot-regroup.test.ts`): no regroup before a fall; all move to the fullest lane; a tie keeps the lane; chosen again only after the recheck; a call to defend wins.
 - Why: TDD §7, and it makes the mid-game a team fight rather than three separate duels.
 - Alternatives: regrouping on the lane with the fallen Sub-base (TDD says most allies); each bot deciding alone (they could split).
+
+## D-095 — Bots contest bosses
+- Date: 2026-11-08
+- Source: M4 row "Utility bot AI"; TDD §7. Amends D-079, which kept bots away from bosses until they could dodge (D-085). The rest was decided during development.
+- Decision:
+  - **Farm plans now hold any number of members** (`members`, `seen[]`). Camps stay pairs; bosses take `bots.boss.squad`: 2 for a mini-boss, 3 for the Behemoth.
+  - **`tryBoss`, ahead of camps:** a boss that is up and unclaimed, and either idle with no enemy champion within 12 m, or being fought and below `stealHpPct` (50%). It needs enough free bots of `minLevel` (mini-bosses 6, Behemoth 12) within `maxTravel` (60 m). The nearest go.
+  - **Paths:** `Nav.field` takes an exemption, so a field to a boss has no avoid cost in that boss's own arena. Every other path still routes round arenas (D-081).
+  - **Waking it:** the group gathers `gatherMargin` (3 m) outside the floor, then walks on together, since only standing on the floor wakes a boss. After that they fight as at a camp: same range rule, dodging, retreat and Ultimate.
+  - **A plan ends** as for camps, after `maxSeconds` (60), or when a bot has no one left with it, unless the boss is nearly down. The Behemoth's three carry on after losing one.
+- **Measured** (all-bot, all-Normal 3v3, 30 seeds per map, against D-094):
+
+  | | The Front | The Bridgehead |
+  | --- | --- | --- |
+  | Median match | 4.94 → 4.20 min | 3.55 → 3.77 min |
+  | Range | 2.25–7.47 | 2.11–7.09 |
+  | Plans started | 114 | 118 |
+  | Bosses woken | 56 | 50 |
+  | Cleared | 53 | 46 |
+  | Champions killed by neutrals | 2 | 0 |
+
+  - None went past 12 minutes. Every wake came from a plan.
+  - Chrome, The Front: a pair gathered and woke the Field Gun, and was bringing it down; no console errors.
+  - **Fights are won, about 94% of those started.** About half of all plans are called off before the boss wakes, as a member leaves for a fight or a defence. The planned step of raising the level bar when under half of attempts clear was not applied: it targets lost fights, and these aren't.
+  - The Behemoth wasn't fought in these runs: it spawns at 6:00 and most matches end before then. Its three-bot rule is covered by tests only.
+- **Tests** (`tests/bot-boss.test.ts`, The Front): a pair gathers, wakes the Field Gun together and clears it; one bot of the level doesn't start; an enemy at an idle boss blocks; a healthy fought boss doesn't draw a steal and one below half does; the Behemoth waits for three. `tests/bosses.test.ts` keeps its "no bot wakes a boss" check with contests turned off.
+- Why: TDD §7, and bosses are the map's objectives; until now only humans ever took them.
+- Alternatives: a separate boss plan type (it would repeat the farm plan's lifecycle); a radius instead of the floor for gathering (ramps and lanes run close to the arenas).

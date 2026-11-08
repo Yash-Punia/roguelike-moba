@@ -625,6 +625,18 @@ const Bots = z.object({
   difficulty: z.object({ easy: BotTier, normal: BotTier, hard: BotTier }),
   /** Regrouping (TDD §7, D-094): once a Sub-base has fallen, a team's bots play the lane with the most allies, chosen again this often. */
   regroup: z.object({ recheckSeconds: secs() }),
+  /** Contesting bosses (TDD §7, D-095). Per boss kind: how many bots go together, and the level each needs. */
+  boss: z.object({
+    squad: z.record(z.string(), z.number().int().min(2)),
+    minLevel: z.record(z.string(), z.number().int().min(1)),
+    /** Each walks at most this far to it (m). */
+    maxTravel: positive(),
+    /** A boss someone else is fighting draws a steal below this much HP. */
+    stealHpPct: pct(),
+    /** They gather this far outside its floor before walking on together (m). */
+    gatherMargin: nonneg(),
+    maxSeconds: secs(),
+  }),
   /** Dodging telegraphs (TDD §7, D-085); the chance and reaction are per tier. */
   dodge: z.object({
     /** Extra clearance past the marker's edge (m). */

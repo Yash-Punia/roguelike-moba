@@ -411,13 +411,14 @@ describe('Halftrack (D-080)', () => {
   });
 });
 
-describe('bots leave the mini-bosses alone (D-079, user)', () => {
+describe('with boss contests off, bots leave bosses alone (D-079, D-095)', () => {
   it.each([3, 2] as const)('no farm plan targets a boss, and no bot wakes one walking past, the Behemoth brought in at 1:00 (%d lanes)', async (lanes) => {
     const { createBot } = await import('../src/sim/bots/bot');
     const { Squad } = await import('../src/sim/bots/squad');
     const { matchSlots } = await import('../src/sim/match-setup');
     const config = parseConfig({ ...rawConfig, map: maps[lanes] });
     config.neutrals.camps.behemoth.firstSpawnSeconds = 60 * 30; // most all-bot matches end before 6:00
+    config.bots.boss.minLevel = { fieldGun: 99, halftrack: 99, behemoth: 99 };
     const slots = matchSlots(config, { teamSize: 3, localTeam: Blue });
     const sim = createSim(config, 1, slots);
     const squads = [new Squad(), new Squad()];
