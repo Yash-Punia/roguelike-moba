@@ -2131,8 +2131,9 @@ From TDD §13:
     | The Bridgehead, Blue | not sampled | 96 |
     | Triangles | 107k | 89k |
 
-    Every one of the 45 samples is within the 120 budget. Views without a fight are about 50–95.
-  - **Screenshots** of lanes, base and a fight on both sides, a soldier knock-out and a `?fog` match look the same as before; no console errors.
+    Every one of those 45 samples, all at 9:16, is within the 120 budget. Taller frames on The Front, Blue, show more of the map: the worst sample is 113 at 540 × 1170 and **125 at 540 × 1260** (9:21, the trunk at 2:30, 113–125 across its frames), so the tallest frame can still go a few calls over in a fight. Views without a fight are about 50–95.
+  - **Screenshots** of lanes, base and a fight on both sides, and a soldier knock-out look the same as before; a `?fog` match was checked afterwards only, with enemies in the fog not drawn; no console errors.
+  - **Past the cap:** a soldier that finds its layer full (64 of one model and team in view) draws as its own model rather than vanishing.
   - **Not covered:** the samples are fixed views of one seed. An HQ's fall with Lead Storm and Gamma's flames on screen together could still exceed 120: streaks (12) and flame blobs (9) are still a mesh each. Calls were counted in software GL, so this says nothing about a phone's frame rate.
   - **Tests** (`tests/render-perf.test.ts`): one mesh per part, instances match the model's pose, each team has its own parts, off-screen soldiers are skipped, nothing is drawn when none are added, champions and bosses stay out. The fall-back to the normal model lives in `scene.ts`, which needs WebGL, so it is checked in the browser only.
 - Why: after the shadow fit and the puffs, soldiers were the largest remaining source in a fight, at about a third of the main pass.

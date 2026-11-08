@@ -157,6 +157,15 @@ describe('soldier instancing (D-101)', () => {
     expect(counts(s)).toEqual([1, 1, 1, 1, 1, 1]);
   });
 
+  it('leaves a soldier past the cap as its own visible model', () => {
+    const s = new SoldierInstances();
+    const units = Array.from({ length: 65 }, (_, i) => soldier(i % 5, i % 13));
+    for (const u of units) s.add(u);
+    s.draw(camera);
+    expect(counts(s)).toEqual([64, 64, 64]);
+    expect(units.filter((u) => u.visible)).toEqual([units[64]]);
+  });
+
   it('draws nothing once no soldier is added, and leaves champions and bosses out', () => {
     const s = new SoldierInstances();
     s.add(soldier(0, 0));

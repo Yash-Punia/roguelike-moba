@@ -34,9 +34,13 @@ export class SoldierInstances {
     for (const root of this.roots) {
       this.bounds.center.copy(root.position);
       if (!this.frustum.intersectsSphere(this.bounds)) continue;
-      for (const part of partsOf(root).baked!) {
+      const baked = partsOf(root).baked!;
+      if (this.layer(baked[0]!.geometry).count >= MAX_IN_VIEW) {
+        root.visible = true; // no room: it draws as its own model
+        continue;
+      }
+      for (const part of baked) {
         const layer = this.layer(part.geometry);
-        if (layer.count >= MAX_IN_VIEW) continue;
         part.updateWorldMatrix(true, false);
         layer.setMatrixAt(layer.count++, part.matrixWorld);
       }
