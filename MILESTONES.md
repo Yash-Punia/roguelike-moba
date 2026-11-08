@@ -116,12 +116,12 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[ ]` | Environment dressing per the props and environment sheets: base tents, flags, searchlights, telegraph poles, sandbag revetments, barbed wire, tank traps, craters, wrecked biplanes, edge ruins, river reeds; within SG-01 tri budgets | |
 | `[~]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid; done so far: "take camp" in pairs from 0:00 and when the lane is quiet, trench navigation by flow fields on the obstacle grid (D-075); defending another lane's Sub-base or the HQ through a squad board, and backing off when outnumbered (D-083) | aec2e81, f601b3a |
 | `[ ]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard) | |
-| `[c]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | |
+| `[p]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | feee8ce |
 | `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
 | `[ ]` | HUD: top bar structures, scoreboard, notifications, respawn overlay | |
 | `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
-**Exit criteria:** bot matches land near 8–10 minutes; Normal bots feel like a real 3v3.
+**Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.
 
 ---
 
