@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { maps, parseConfig, rawConfig } from '../src/data/load';
 import type { MapConfig, PropKind } from '../src/data/schema';
 import { rasterise } from '../src/data/map-geometry';
-import { planDressing, propTemplate } from '../src/render/dressing';
+import { planDressing, propKinds, propTemplate } from '../src/render/dressing';
 import { Team } from '../src/sim/sim';
 
 const load = (lanes: 2 | 3) => parseConfig({ ...rawConfig, map: maps[lanes] }).map;
 
 /** Over 1.2 m, so it must stay off the lanes (EN-01). Flags are bare poles and stand by the pad as EN-01 draws them. */
-const TALL: readonly PropKind[] = ['tent', 'searchlight'];
+const TALL: readonly PropKind[] = ['tent', 'searchlight', 'pole'];
 
 function ownerAt(map: MapConfig, x: number, y: number) {
   const r = rasterise(map);
@@ -29,6 +29,13 @@ describe.each([3, 2] as const)('dressing on the %i-lane map', (lanes) => {
     }
   });
 
+  it('lines the outer lanes with poles and revetments on raised ground', () => {
+    const line = plan.filter((p) => p.kind === 'pole' || p.kind === 'revetment');
+    expect(line.length).toBeGreaterThan(16);
+    expect(line.some((p) => p.kind === 'revetment')).toBe(true);
+    for (const p of line) expect(ownerAt(map, p.x, p.y).shape, `${p.kind} at ${p.x}, ${p.y}`).toBeUndefined();
+  });
+
   it('gives every prop a twin at (−x, −y)', () => {
     const key = (x: number, y: number) => `${x.toFixed(2)},${y.toFixed(2)}`;
     const seen = new Set(plan.map((p) => `${p.kind}@${key(p.x, p.y)}`));
@@ -42,7 +49,7 @@ describe.each([3, 2] as const)('dressing on the %i-lane map', (lanes) => {
 
 describe('prop templates', () => {
   it('stay within the SG-01 prop budget', () => {
-    for (const kind of ['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall'] as const) {
+    for (const kind of propKinds) {
       expect(propTemplate(kind, Team.Blue).attributes.position!.count / 3, kind).toBeLessThanOrEqual(500);
     }
   });

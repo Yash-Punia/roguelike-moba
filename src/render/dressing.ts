@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rasterise } from '../data/map-geometry';
 import type { MapConfig, PropKind } from '../data/schema';
 import { Team } from '../sim/sim';
 import { bake } from './bake';
@@ -86,7 +87,20 @@ const PROPS: Record<PropKind, (root: THREE.Object3D, team: Team) => void> = {
   sandbagWall(root) {
     sandbags(root, 2, 6);
   },
+  pole(root) {
+    const mast = new THREE.Group();
+    mast.rotation.z = 0.05;
+    root.add(mast);
+    part(mast, cyl(0.06, 0.09, 2.7, 5), palette.wood, 0, 1.35, 0);
+    part(mast, box(0.95, 0.08, 0.08), palette.wood, 0, 2.45, 0);
+    for (const x of [-0.38, 0.38]) part(mast, box(0.07, 0.12, 0.07), palette.concrete, x, 2.54, 0);
+  },
+  revetment(root) {
+    sandbags(root, 2, 4);
+  },
 };
+
+export const propKinds = Object.keys(PROPS) as PropKind[];
 
 const templates = new Map<string, THREE.BufferGeometry>();
 
@@ -107,9 +121,53 @@ export function propTemplate(kind: PropKind, team: Team): THREE.BufferGeometry {
 /** Where every prop goes. Pure, so tests can check the rules without a renderer. */
 export function planDressing(map: MapConfig): Placement[] {
   const out: Placement[] = [];
-  for (const p of map.dressing.placed) {
-    out.push({ kind: p.kind, x: p.x, y: p.y, rot: p.rot, team: Team.Blue });
-    out.push({ kind: p.kind, x: -p.x, y: -p.y, rot: p.rot + Math.PI, team: Team.Red });
+  const add = (kind: PropKind, x: number, y: number, rot: number) => {
+    out.push({ kind, x, y, rot, team: Team.Blue });
+    out.push({ kind, x: -x, y: -y, rot: rot + Math.PI, team: Team.Red });
+  };
+  const raster = rasterise(map);
+  /** True where (x, y) and four points `margin` metres round it are all raised ground. */
+  const raised = (x: number, y: number, margin = 0) => {
+    for (const [dx, dy] of [[0, 0], [margin, 0], [-margin, 0], [0, margin], [0, -margin]] as const) {
+      const c = Math.floor((x + dx - raster.minX) / raster.cell);
+      const r = Math.floor((y + dy - raster.minY) / raster.cell);
+      if (c < 0 || c >= raster.cols || r < 0 || r >= raster.rows || raster.owner[r * raster.cols + c] !== -1) return false;
+    }
+    return true;
+  };
+
+  for (const p of map.dressing.placed) add(p.kind, p.x, p.y, p.rot);
+
+  // Telegraph poles on the map-edge side of a lane, every third a revetment (map spec).
+  const { poleLanes, poleSpacing, revetmentEvery } = map.dressing;
+  for (const id of poleLanes) {
+    const lane = map.walkable.findIndex((s) => s.id === id);
+    const shape = map.walkable[lane];
+    const pts = raster.samples[lane];
+    if (shape?.shape !== 'path' || !pts) continue;
+    let next = poleSpacing / 2;
+    let walked = 0;
+    let n = 0;
+    for (let k = 0; k + 3 < pts.length; k += 2) {
+      const ax = pts[k]!;
+      const ay = pts[k + 1]!;
+      const dx = pts[k + 2]! - ax;
+      const dy = pts[k + 3]! - ay;
+      const step = Math.hypot(dx, dy);
+      const tx = dx / step;
+      const ty = dy / step;
+      // The normal that points away from the centre of the map.
+      const side = -ty * ax > 0 ? 1 : -1;
+      for (; next <= walked + step; next += poleSpacing) {
+        const along = next - walked;
+        const revetment = ++n % revetmentEvery === 0;
+        const reach = shape.width / 2 + (revetment ? 0.9 : 1.2);
+        const x = ax + tx * along - ty * side * reach;
+        const y = ay + ty * along + tx * side * reach;
+        if (raised(x, y, 0.4)) add(revetment ? 'revetment' : 'pole', x, y, Math.atan2(tx, -ty)); // local z runs along the lane
+      }
+      walked += step;
+    }
   }
   return out;
 }

@@ -167,12 +167,18 @@ const WalkShape = z.discriminatedUnion('shape', [
 const TeamName = z.enum(['blue', 'red']);
 const StructureKind = z.enum(['subBase', 'hq']);
 
-const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall']);
+const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall', 'pole', 'revetment']);
 
 /** Map scenery (map spec "Dressing", PR-01, PR-02). Render only: the sim never reads it (D-097). */
 const Dressing = z.object({
   /** Hand-placed props on the Blue half; each gets a twin at (−x, −y) for Red. */
   placed: z.array(z.object({ kind: PropKind, x: z.number(), y: z.number(), rot: deg().default(0) })).default([]),
+  /** Lanes that get telegraph poles on their map-edge side; twinned at (−x, −y), so list one of each pair. */
+  poleLanes: z.array(z.string()).default([]),
+  /** Metres along the lane between poles. */
+  poleSpacing: positive().default(11),
+  /** Every nth pole is a sandbag revetment instead. */
+  revetmentEvery: z.number().int().min(1).default(3),
 });
 
 const MapConfig = z.object({
