@@ -15,7 +15,7 @@ The game loop runs on `requestAnimationFrame`. The app's built-in Browser pane g
 
 1. **Dev server:** `preview_start` with `{name: "dev"}` (`.claude/launch.json`, port 5173). It reuses one that is already running. Never start it from Bash.
 2. **Open:** `new_page` with `http://localhost:5173/?<params>` (first time), then `navigate_page` on that page id. Useful params:
-   - `lanes=3` (The Front) / `lanes=2` (The Bridgehead), `seed=N` (repeatable match)
+   - `lanes=3` (The Front) / `lanes=2` (The Bridgehead), `seed=N` (repeatable match), `perf` (show the stats bar)
    - `nobot` (alone), `nowaves`, `dummy` / `dummy=armed` (1v1 dummy), `fog`, `champ=beta|gamma`, `size=2..5`, `lane=left|centre|right`
 3. **Portrait:** `resize_page` 540 × 960 (the game is a 9:16–9:21 portrait frame).
 4. **Drive it** with `evaluate_script` (`waitForStableDom: false`). Dev builds expose `window.warfront = { sim, view, loop, bot, bots, squads, config }`:
@@ -36,7 +36,7 @@ The game loop runs on `requestAnimationFrame`. The app's built-in Browser pane g
    - Health and HP: `w.sim.stores.healths.get(id).hp`. Camp state: `w.sim.camps`.
    - Never write sim state in shipped code. This is dev-only poking.
 5. **Screenshot:** `take_screenshot` (jpeg, quality ~60). Report what is visible and the time on the HUD clock.
-6. **Perf:** the overlay (dev builds or `?debug`) reads `fps · worst · sim · render · calls · tris`. Mobile budget: **≤ 120 draw calls, ≤ 150k triangles** (D-044). Measure on the busiest scene, usually The Front (`lanes=3`).
+6. **Perf:** the overlay (`?perf`, in dev builds or with `?debug`) reads `fps · worst · sim · render · calls · tris`. Mobile budget: **≤ 120 draw calls, ≤ 150k triangles** (D-044). Measure on the busiest scene, usually The Front (`lanes=3`).
 7. **Errors:** `list_console_messages` with `types: ["error"]`.
 
 ## Coordinates

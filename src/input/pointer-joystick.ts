@@ -4,8 +4,9 @@ import { shapeStick, type Vec } from './command-builder';
 type InputConfig = Config['input'];
 
 /**
- * Floating joystick (GDD §3, TDD §8): spawns under the pointer anywhere in the
- * lower-left zone of the frame. Works for touch, mouse and pen via Pointer Events.
+ * Floating joystick (GDD §3, TDD §8): spawns under the pointer anywhere in the zone of the
+ * frame (the whole screen, D-098); HUD controls stop their own pointerdowns from reaching it.
+ * Works for touch, mouse and pen via Pointer Events.
  * It owns one pointerId, so another finger can use the rest of the screen.
  */
 export function createJoystick(frame: HTMLElement, getConfig: () => InputConfig) {

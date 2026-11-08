@@ -108,7 +108,7 @@ export function createDebugPanel({ raw, apply, loop, stats, frame, sim, localEnt
     folder.add({ export: () => download(configFiles[key], edits[key]) }, 'export').name(`Export ${configFiles[key]}`);
   }
 
-  createFpsOverlay(frame, stats, renderInfo);
+  if (new URLSearchParams(location.search).has('perf')) createFpsOverlay(frame, stats, renderInfo); // off unless asked for (D-098)
 }
 
 function addFields(folder: GUI, obj: Record<string, unknown>, onChange: () => void) {

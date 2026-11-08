@@ -2062,7 +2062,7 @@ From TDD §13:
 - Date: 2026-11-08
 - Source: M4 row "Environment dressing"; the rest made during development
 - Decision:
-  - **Merged into the terrain tiles:** dressing triangles go into the same 12 m tile buffers as the ground, so they add no draw calls and are culled and shadowed with their tile. They also darken in the fog, as the ground does. TDD §491 suggests instancing repeated props; that would add calls, and busy views are already at the budget.
+  - **Merged into the terrain tiles:** dressing triangles go into the same 12 m tile buffers as the ground, so they add no draw calls and are culled and shadowed with their tile. They also darken in the fog, as the ground does. This amends D-058's "only the ground darkens" for dressing; campfires, arena posts and sniper nests still don't darken. TDD §491 suggests instancing repeated props; that would add calls, and busy views are already at the budget.
   - **Measured before dressing (seed 11, The Front, 0:57):** 96–120 draw calls and 63–86k triangles across the base, left lane, right lane, Crater and Blue trunk; 133 calls at the base at 0:06.
   - **Measured after (same match, dressing toggled live through `setMap`, 30-frame means, seed 11, The Front, about 1:05):** base 115 calls with / 113 without, left 87 / 87, right 98 / 98, Crater 100 / 104, trunk 142 / 141; triangles 74–100k with, 64–87k without. So 0–2 calls of frame noise and +10–14k triangles. The trunk's 141 is a fight in view and is over the 120 budget with or without dressing.
   - **Decoration only (D-061):** no obstacle-grid change, so nothing reaches the sim. A champion can walk through a base prop; hand placement keeps props off the routes.
@@ -2070,6 +2070,16 @@ From TDD §13:
   - **Flags stand on the apron** in front of the spawn pad as EN-01 draws them, so they are exempt from EN-01's own 1.2 m rule: a bare pole hides nothing.
   - **Spec conflict:** the map spec puts a biplane at (30, −10) on The Front, but the right lane covers x 24–32 there, which breaks EN-01's rule that anything over 1.2 m stays off lanes. Moved to (32, −16), twin (−32, 16); The Bridgehead's from (26, −14) to (27.5, −14).
   - **Searchlight lens** is a flat bright colour, not an emissive material (as Gamma's lenses are), to avoid another draw call.
-  - **Tests:** tall props stay off lane paths, every prop has a twin, the plan is repeatable, every template is within the 500-triangle prop budget (GDD §12).
+  - **Tests:** tall props stay off lane paths, poles, craters and scatter stay on raised ground, wire, traps and scorch stay in the middle band, the edge stays clear of the caves, reeds only on The Bridgehead's raised banks, every prop has a twin, the plan is repeatable, every template is within the 500-triangle prop budget (GDD §12).
 - Why: the sheets call for hundreds of props, and draw calls are the limit that is already reached.
 - Alternatives: a separate dressing group on coarser tiles (still adds calls in both passes); instancing per prop kind (one call per kind in view, in both passes).
+
+## D-098 — Joystick from anywhere; stats bar off by default
+- Date: 2026-11-08
+- Source: user request (phone testing)
+- Decision:
+  - **Joystick zone is the whole screen:** `zoneWidthPct` and `zoneHeightPct` go from 60 to 100, so the floating stick spawns wherever a thumb lands. Amends GDD §3's "lower-left 60%". Buttons, power cards, the score and the minimap already stop their own pointerdowns, so they keep working.
+  - **Stats bar only with `?perf`:** it was on in every dev build. The numbers stay available for perf checks.
+  - **Measured:** in Chrome with synthetic touch events, the stick appeared and moved the champion from top right, bottom right and bottom left; the Ultimate, pause button and minimap did not spawn it.
+- Why: on a phone the right thumb and the top of the screen were dead for movement, and the stats bar covered the play area.
+- Alternatives: tap a spot to walk there (a different control scheme from the GDD's joystick); deleting the stats bar (the perf checks need it).

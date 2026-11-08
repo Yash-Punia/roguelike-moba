@@ -428,7 +428,7 @@ Both control schemes produce the same per-tick `Command` (Section 3), so they ca
 
 | Action | PC (keyboard and mouse) | Mobile (touch) | Gamepad (stretch goal) |
 | --- | --- | --- | --- |
-| Move | WASD or arrow keys (8 directions, full speed); or drag with the left mouse button anywhere in the lower-left of the game view to use the on-screen joystick | Floating joystick: touch anywhere in the lower-left 60% of the screen | Left stick |
+| Move | WASD or arrow keys (8 directions, full speed); or drag with the left mouse button anywhere in the game view to use the on-screen joystick | Floating joystick: touch anywhere on the screen that isn't a control | Left stick |
 | Ultimate | Space or Q; or click the Ultimate button | Tap the Ultimate button (bottom right) | A or right trigger |
 | Pick power card | 1, 2, 3; or click a card | Tap a card | X, Y, B |
 | Reroll draft | R | Tap the reroll icon | Left bumper |

@@ -81,7 +81,7 @@ The player has exactly two inputs in combat: a floating movement joystick and on
 
 | Input | Where | Behaviour |
 | --- | --- | --- |
-| Movement joystick | Touch anywhere in the lower-left 60% of the screen | Floating: spawns under the thumb. 8 mm dead zone; full speed at 60% of the ring radius. Release = stop. |
+| Movement joystick | Touch anywhere on the screen that isn't a button, card or the minimap | Floating: spawns under the thumb. 8 mm dead zone; full speed at 60% of the ring radius. Release = stop. |
 | Ultimate button | Bottom right, 22 mm diameter | Fills clockwise as it charges. Glows and pulses when ready. Tap = cast on the automatic target. Greyed out with a "no target" icon if nothing valid is in range. |
 | Power card | Slides up above the joystick on level-up | Tap one of three cards. Play never pauses (Section 8). |
 | Ping (optional) | Long-press the minimap | Places one of three pings: Attack, Defend, Danger. Not needed to play. |

@@ -3,6 +3,6 @@
   "deadZoneMm": 3,
   "ringRadiusPx": 60,
   "fullSpeedPct": 60,
-  "zoneWidthPct": 60,
-  "zoneHeightPct": 60
+  "zoneWidthPct": 100,
+  "zoneHeightPct": 100
 }
