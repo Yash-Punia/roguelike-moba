@@ -2067,6 +2067,7 @@ From TDD §13:
   - **Decoration only (D-061):** no obstacle-grid change, so nothing reaches the sim. A champion can walk through a base prop; hand placement keeps props off the routes.
   - **Placement data:** `map.dressing` holds the numbers; `placed` lists hand-set props on the Blue half, each twinned at (−x, −y) for Red.
   - **Flags stand on the apron** in front of the spawn pad as EN-01 draws them, so they are exempt from EN-01's own 1.2 m rule: a bare pole hides nothing.
+  - **Spec conflict:** the map spec puts a biplane at (30, −10) on The Front, but the right lane covers x 24–32 there, which breaks EN-01's rule that anything over 1.2 m stays off lanes. Moved to (32, −16), twin (−32, 16); The Bridgehead's from (26, −14) to (27.5, −14).
   - **Searchlight lens** is a flat bright colour, not an emissive material (as Gamma's lenses are), to avoid another draw call.
   - **Tests:** tall props stay off lane paths, every prop has a twin, the plan is repeatable, every template is within the 500-triangle prop budget (GDD §12).
 - Why: the sheets call for hundreds of props, and draw calls are the limit that is already reached.

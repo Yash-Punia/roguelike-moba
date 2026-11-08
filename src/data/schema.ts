@@ -167,7 +167,7 @@ const WalkShape = z.discriminatedUnion('shape', [
 const TeamName = z.enum(['blue', 'red']);
 const StructureKind = z.enum(['subBase', 'hq']);
 
-const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall', 'pole', 'revetment']);
+const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall', 'pole', 'revetment', 'wire', 'traps', 'biplane', 'tree', 'stump', 'rubble']);
 
 /** Map scenery (map spec "Dressing", PR-01, PR-02). Render only: the sim never reads it (D-097). */
 const Dressing = z.object({
@@ -179,6 +179,16 @@ const Dressing = z.object({
   poleSpacing: positive().default(11),
   /** Every nth pole is a sandbag revetment instead. */
   revetmentEvery: z.number().int().min(1).default(3),
+  /** Scatter on the raised ground: map-wide counts, half on each side of the map. */
+  craters: z.number().int().nonnegative().default(0),
+  trees: z.number().int().nonnegative().default(0),
+  stumps: z.number().int().nonnegative().default(0),
+  rubble: z.number().int().nonnegative().default(0),
+  /** No-man's land: wire, tank traps and scorched ground only where |y| is below this (m). */
+  middleBandY: positive().default(15),
+  wire: z.number().int().nonnegative().default(0),
+  traps: z.number().int().nonnegative().default(0),
+  scorch: z.number().int().nonnegative().default(0),
 });
 
 const MapConfig = z.object({

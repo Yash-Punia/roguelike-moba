@@ -280,7 +280,10 @@
   "caves": [{ "team": "blue", "x": 0, "y": -81 }, { "team": "red", "x": 0, "y": 81 }],
   "dressing": {
     "poleLanes": ["left"], "poleSpacing": 11, "revetmentEvery": 3,
+    "craters": 60, "trees": 34, "stumps": 14, "rubble": 16,
+    "middleBandY": 15, "wire": 10, "traps": 8, "scorch": 8,
     "placed": [
+      { "kind": "biplane", "x": 32, "y": -16, "rot": 95 },
       { "kind": "tent", "x": -19, "y": -72, "rot": -80 }, { "kind": "tent", "x": -13, "y": -75, "rot": -100 },
       { "kind": "tent", "x": 13, "y": -75, "rot": -80 }, { "kind": "tent", "x": 19, "y": -71.5, "rot": -100 },
       { "kind": "flag", "x": -4.6, "y": -62.5 }, { "kind": "flag", "x": 4.6, "y": -62.5 },

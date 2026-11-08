@@ -677,7 +677,10 @@
   ],
   "dressing": {
     "poleLanes": ["left"], "poleSpacing": 11, "revetmentEvery": 3,
+    "craters": 48, "trees": 28, "stumps": 12, "rubble": 14,
+    "middleBandY": 15, "wire": 8, "traps": 6, "scorch": 6,
     "placed": [
+      { "kind": "biplane", "x": 27.5, "y": -14, "rot": 95 },
       { "kind": "tent", "x": -17, "y": -66, "rot": -80 }, { "kind": "tent", "x": -12, "y": -69.5, "rot": -100 },
       { "kind": "tent", "x": 12, "y": -69.5, "rot": -80 }, { "kind": "tent", "x": 17, "y": -65.5, "rot": -100 },
       { "kind": "flag", "x": -4.4, "y": -56.5 }, { "kind": "flag", "x": 4.4, "y": -56.5 },

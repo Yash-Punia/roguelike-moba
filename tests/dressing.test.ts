@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { maps, parseConfig, rawConfig } from '../src/data/load';
-import type { MapConfig, PropKind } from '../src/data/schema';
+import type { MapConfig } from '../src/data/schema';
 import { rasterise } from '../src/data/map-geometry';
 import { planDressing, propKinds, propTemplate } from '../src/render/dressing';
 import { Team } from '../src/sim/sim';
@@ -8,7 +8,7 @@ import { Team } from '../src/sim/sim';
 const load = (lanes: 2 | 3) => parseConfig({ ...rawConfig, map: maps[lanes] }).map;
 
 /** Over 1.2 m, so it must stay off the lanes (EN-01). Flags are bare poles and stand by the pad as EN-01 draws them. */
-const TALL: readonly PropKind[] = ['tent', 'searchlight', 'pole'];
+const TALL: readonly string[] = ['tent', 'searchlight', 'pole', 'tree', 'biplane'];
 
 function ownerAt(map: MapConfig, x: number, y: number) {
   const r = rasterise(map);
@@ -34,6 +34,21 @@ describe.each([3, 2] as const)('dressing on the %i-lane map', (lanes) => {
     expect(line.length).toBeGreaterThan(16);
     expect(line.some((p) => p.kind === 'revetment')).toBe(true);
     for (const p of line) expect(ownerAt(map, p.x, p.y).shape, `${p.kind} at ${p.x}, ${p.y}`).toBeUndefined();
+  });
+
+  it('scatters craters and scenery only on the raised ground', () => {
+    const scatter = plan.filter((p) => ['crater', 'scorch', 'wire', 'traps', 'tree', 'stump', 'rubble'].includes(p.kind));
+    for (const p of scatter) expect(ownerAt(map, p.x, p.y).shape, `${p.kind} at ${p.x}, ${p.y}`).toBeUndefined();
+    // "About" 60 / 48 (map spec): a piece with no free spot is dropped.
+    const craters = plan.filter((p) => p.kind === 'crater').length;
+    expect(craters).toBeGreaterThanOrEqual(map.dressing.craters * 0.9);
+    expect(craters).toBeLessThanOrEqual(map.dressing.craters);
+  });
+
+  it('keeps wire, traps and scorch in the middle band', () => {
+    for (const p of plan) {
+      if (p.kind === 'wire' || p.kind === 'traps' || p.kind === 'scorch') expect(Math.abs(p.y)).toBeLessThanOrEqual(map.dressing.middleBandY);
+    }
   });
 
   it('gives every prop a twin at (−x, −y)', () => {
