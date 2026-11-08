@@ -7,7 +7,8 @@ import { buildTerrain } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
 import { HpBars } from '../src/render/hp-bars';
 import { SoldierInstances } from '../src/render/soldier-instances';
-import { UltFx } from '../src/render/ult-fx';
+import { Particles, SHAPES } from '../src/render/particles';
+import type { VfxBurst } from '../src/data/schema';
 import { Kind, Team } from '../src/sim/sim';
 
 const stats = (o: THREE.Object3D) => {
@@ -178,29 +179,76 @@ describe('soldier instancing (D-101)', () => {
   });
 });
 
-describe('smoke puffs (D-100)', () => {
-  const instanced = (fx: UltFx) => fx.group.children.filter((c): c is THREE.InstancedMesh => c instanceof THREE.InstancedMesh);
+describe('GPU particles (D-102)', () => {
+  const vfx = parseConfig(rawConfig).vfx;
+  const pinned = (shape: VfxBurst['shape'], count: number) => ({
+    density: 1,
+    wind: [0, 0] as [number, number],
+    presets: { p: [{ ...vfx.presets['death']![0]!, shape, count, life: 1 }] },
+  });
+  const started = (v: Parameters<Particles['setVfx']>[0]) => {
+    const p = new Particles(() => 0, v);
+    p.update(0);
+    return p;
+  };
+  const meshes = (p: Particles) => p.group.children as THREE.Mesh<THREE.InstancedBufferGeometry>[];
+  const drawn = (p: Particles) => meshes(p).filter((m) => m.visible);
 
-  it('from several blasts draw as one mesh, and are gone after their life', () => {
-    const fx = new UltFx(() => 0);
-    fx.smoke(0, 0, 1, 0xff0000, 6, 0);
-    fx.explode(4, 4, 2, 0); // 5 more, and a flash of its own
-    fx.update(0, 100);
-    const [smoke, ...others] = instanced(fx);
-    expect(others).toHaveLength(0);
-    expect(smoke!.count).toBe(11);
-    expect(smoke!.visible).toBe(true);
-    fx.update(0, 2000);
-    expect(smoke!.count).toBe(0);
-    expect(smoke!.visible).toBe(false);
-    expect(fx.group.children).toHaveLength(1); // the flash went too
+  it('fit the mobile budget of 2,000', () => {
+    expect(Object.values(SHAPES).reduce((n, s) => n + s.capacity, 0)).toBeLessThanOrEqual(2000);
   });
 
-  it('reuse the oldest past the pool', () => {
-    const fx = new UltFx(() => 0);
-    for (let i = 0; i < 40; i++) fx.smoke(0, 0, 1, 0xffffff, 5, 0);
-    fx.update(0, 1);
-    expect(instanced(fx)[0]!.count).toBe(128);
+  it('every preset in vfx.json compiles (its colours are in the palette)', () => {
+    expect(() => new Particles(() => 0, vfx)).not.toThrow();
+    const bad = { ...vfx, presets: { p: [{ ...vfx.presets['death']![0]!, colour: ['nope', 'mud'] as [string, string] }] } };
+    expect(() => new Particles(() => 0, bad)).toThrow(/nope/);
+  });
+
+  it('add no objects or materials however many fire, and draw one mesh per shape', () => {
+    const p = started(vfx);
+    const before = p.group.children.length;
+    for (let i = 0; i < 200; i++) p.emit('explosion', i, 0, 0, 2);
+    p.update(16);
+    expect(p.group.children).toHaveLength(before);
+    expect(new Set(meshes(p).map((m) => m.material)).size).toBe(1);
+    expect(drawn(p)).toHaveLength(2); // a fireball and smoke, however many blasts
+  });
+
+  it('hide once the longest life is over, and restart the ring', () => {
+    const p = started(pinned('ico', 5));
+    p.emit('p', 0, 0);
+    p.update(100);
+    expect(p.live).toBe(5);
+    expect(drawn(p)[0]!.geometry.instanceCount).toBe(5);
+    p.update(5000);
+    expect(p.live).toBe(0);
+    expect(drawn(p)).toHaveLength(0);
+    p.emit('p', 0, 0);
+    p.update(5100);
+    expect(drawn(p)[0]!.geometry.instanceCount).toBe(5);
+  });
+
+  it('reuse the oldest slot and never pass a shape\'s capacity', () => {
+    const p = started(pinned('ring', 10));
+    for (let i = 0; i < 4; i++) p.emit('p', i, 0);
+    p.update(16);
+    expect(drawn(p)[0]!.geometry.instanceCount).toBe(SHAPES.ring.capacity);
+    expect(p.live).toBe(SHAPES.ring.capacity);
+  });
+
+  it('density scales the counts', () => {
+    const p = started({ ...pinned('cube', 10), density: 0.5 });
+    p.emit('p', 0, 0);
+    p.update(16);
+    expect(p.live).toBe(5);
+  });
+
+  it('a live edit reaches the next emit', () => {
+    const p = started(pinned('cube', 2));
+    p.setVfx(pinned('cube', 7));
+    p.emit('p', 0, 0);
+    p.update(16);
+    expect(p.live).toBe(7);
   });
 });
 

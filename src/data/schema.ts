@@ -794,6 +794,41 @@ const Input = z.object({
   zoneHeightPct: pct(),
 });
 
+/** One group of particles in a preset (TDD §9, D-102). Times are render seconds, not ticks. */
+const VfxBurst = z.object({
+  shape: z.enum(['star', 'cube', 'ico', 'ball', 'cone', 'ring', 'pillar']),
+  count: positive(),
+  life: positive(),
+  /** Metres at birth and at death. */
+  size: z.tuple([nonneg(), nonneg()]),
+  /** Colours at birth and at death: names from the render palette. */
+  colour: z.tuple([z.string(), z.string()]),
+  alpha: pct(),
+  /** Multiply `size` by the emit's scale (a blast's radius). Scatter and speed always are. */
+  scaleSize: z.boolean().default(false),
+  /** Height above the emit point (m). */
+  lift: z.number().default(0),
+  /** Radius of the ring they start on (m). */
+  scatter: nonneg().default(0),
+  /** Outward and upward speed (m/s). */
+  speed: nonneg().default(0),
+  rise: z.number().default(0),
+  /** Downward acceleration (m/s²). */
+  gravity: z.number().default(0),
+  /** Tumble (degrees/s). */
+  spin: deg().default(0),
+  /** How much of the shared wind it drifts with (%). */
+  wind: pct().default(0),
+});
+const Vfx = z.object({
+  /** All particle counts (%); the Reduced effects setting halves it. */
+  density: pct(),
+  /** Shared drift (m/s, sim axes). */
+  wind: z.tuple([z.number(), z.number()]),
+  presets: z.record(z.string(), z.array(VfxBurst).min(1)),
+});
+export type VfxBurst = z.output<typeof VfxBurst>;
+
 export const ConfigSchema = z.object({
   match: Match,
   champions: z.array(Champion).min(1),
@@ -808,6 +843,7 @@ export const ConfigSchema = z.object({
   combat: Combat,
   camera: Camera,
   input: Input,
+  vfx: Vfx,
 });
 
 export type RawConfig = z.input<typeof ConfigSchema>;

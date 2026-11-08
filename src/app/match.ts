@@ -161,6 +161,7 @@ if (debug) {
       raw,
       apply: (next) => {
         if (JSON.stringify(next.map) !== JSON.stringify(config.map)) view.setMap(next.map);
+        view.particles.setVfx(next.vfx);
         config = next;
         sim.setConfig(next);
       },
@@ -172,6 +173,7 @@ if (debug) {
       bot,
       seed,
       renderInfo: view.renderer.info,
+      particles: view.particles,
     }),
   );
 }

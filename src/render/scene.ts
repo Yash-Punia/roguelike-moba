@@ -12,6 +12,7 @@ import { bossBar, HpBars, type HpBar } from './hp-bars';
 import { BOSS_MODELS, createArena, createCampfire, createCave, createMedkit, createModel, createSniperNest, createSpawnPad, partsOf } from './models';
 import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
+import { Particles } from './particles';
 import { Knockouts } from './knockout';
 import { SoldierInstances } from './soldier-instances';
 import { TargetLine } from './target-line';
@@ -159,6 +160,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   scene.add(tracers.mesh);
   const ultFx = new UltFx((x, y) => arena.terrain.heightAt(x, y));
   scene.add(ultFx.group);
+  const particles = new Particles((x, y) => arena.terrain.heightAt(x, y), config.vfx);
+  scene.add(particles.group);
   const telegraphs = new Telegraphs((x, y) => arena.terrain.heightAt(x, y));
   scene.add(telegraphs.group);
   const knockouts = new Knockouts(scene, (x, z) => arena.terrain.heightAt(x, -z));
@@ -233,7 +236,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       s.x = e.x; s.y = e.y; s.f = aim; s.l = e.facing;
       if (e.kind === Kind.Champion && e.sprinting && !hidden && (e.vx !== 0 || e.vy !== 0) && clock - (sprintPuffAt.get(e.id) ?? 0) >= SPRINT_PUFF_MS) {
         sprintPuffAt.set(e.id, clock); // the Redeploy sprint kicks up dust (D-067)
-        ultFx.smoke(e.x, e.y, 0.5, palette.laneDirt, 2, clock);
+        particles.emit('sprintDust', e.x, e.y);
       }
       if (e.kind === Kind.Champion) {
         const def = config.champions.find((c) => c.id === e.modelId);
@@ -267,7 +270,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     // A boss wakes with a roar of steam (GDD §11): a puff when its camp starts fighting (D-082).
     for (let i = 0; i < snap.camps.length; i++) {
       const c = snap.camps[i]!;
-      if (c.engaged && !campEngaged[i] && BOSS_MODELS.has(c.kind)) ultFx.smoke(c.x, c.y, 1.6, palette.steam, 8, clock);
+      if (c.engaged && !campEngaged[i] && BOSS_MODELS.has(c.kind)) particles.emit('bossWake', c.x, c.y);
       campEngaged[i] = c.engaged;
     }
     tracers.capture(snap.projectiles, viewer, sees);
@@ -293,7 +296,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   function addEvents(events: readonly SimEvent[]) {
     const now = clock;
     for (const ev of events) {
-      if (ev.type === 'explosion' && sees(ev.x, ev.y)) ultFx.explode(ev.x, ev.y, ev.radius, now);
+      if (ev.type === 'explosion' && sees(ev.x, ev.y)) particles.emit('explosion', ev.x, ev.y, 0, ev.radius);
       if (ev.type === 'powerPicked') {
         const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         const name = config.powers.powers.find((p) => p.id === ev.power)?.name ?? ev.power;
@@ -313,7 +316,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       if (ev.type === 'levelUp') {
         const s = fades.get(ev.id)?.hidden ? undefined : interp.get(ev.id);
         if (s) {
-          ultFx.levelUp(s.x, s.y, now);
+          particles.emit('levelUp', s.x, s.y);
           const lift = (bars.get(ev.id)?.lift ?? 2) + 0.9;
           damageNumbers.spawn(s.x, arena.terrain.heightAt(s.x, s.y) + lift, -s.y, `LEVEL ${ev.level}`, damageColours.level, true, now);
         }
@@ -327,8 +330,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       }
       if (ev.type === 'structureDestroyed') {
         // Roof caves in: a dust and smoke column (GDD §11), then rubble for the rest of the match.
-        ultFx.smoke(ev.x, ev.y, 3.2, palette.smoke, 10, now);
-        ultFx.smoke(ev.x, ev.y, 2, palette.mud, 6, now);
+        particles.emit('structureDown', ev.x, ev.y);
       }
       if (ev.type === 'chain') {
         const a = interp.get(ev.from);
@@ -344,7 +346,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
           fades.delete(ev.id);
           knockouts.start(ev.id, mesh, now);
         }
-        if (sees(ev.x, ev.y)) ultFx.smoke(ev.x, ev.y, 1, palette.mud, 3, now);
+        if (sees(ev.x, ev.y)) particles.emit('summonDown', ev.x, ev.y);
       }
       if (ev.type === 'death') {
         const mesh = meshes.get(ev.id);
@@ -354,11 +356,11 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
           fades.delete(ev.id);
           if (mesh) knockouts.start(ev.id, mesh, now);
         }
-        if (sees(ev.x, ev.y)) ultFx.smoke(ev.x, ev.y, 1.4, palette.mud, 4, now);
+        if (sees(ev.x, ev.y)) particles.emit('death', ev.x, ev.y);
       }
       if (ev.type === 'respawn') {
         knockouts.restore(ev.id);
-        ultFx.smoke(ev.x, ev.y, 2, palette.smoke, 7, now); // smoke-grenade pop on the pad
+        particles.emit('respawn', ev.x, ev.y); // smoke-grenade pop on the pad
       }
       if (ev.type !== 'damage') continue;
       const s = interp.get(ev.target);
@@ -393,7 +395,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     for (let i = blastQueue.length - 1; i >= 0; i--) {
       const b = blastQueue[i]!;
       if (b.at > now) continue;
-      ultFx.explode(b.x, b.y, 2.2, now);
+      particles.emit('explosion', b.x, b.y, 0, 2.2);
       blastQueue.splice(i, 1);
     }
     for (const t of toppling) {
@@ -482,6 +484,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     fog.update(dt);
     tracers.update(alpha);
     ultFx.update(alpha, now);
+    particles.update(now);
     // An entity's interpolated position and upper-body angle (Lead Storm's strip while channelling).
     // One reused result: callers read it at once.
     const at = (id: number) => {
@@ -543,7 +546,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     timeScale = s;
   }
 
-  return { renderer, camera, focus, capture, addEvents, update, render, setMap, setTimeScale };
+  return { renderer, camera, focus, capture, addEvents, update, render, setMap, setTimeScale, particles };
 }
 
 function lerpAngle(a: number, b: number, t: number) {

@@ -2138,3 +2138,21 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`): one mesh per part, instances match the model's pose, each team has its own parts, off-screen soldiers are skipped, nothing is drawn when none are added, champions and bosses stay out. The fall-back to the normal model lives in `scene.ts`, which needs WebGL, so it is checked in the browser only.
 - Why: after the shadow fit and the puffs, soldiers were the largest remaining source in a fight, at about a third of the main pass.
 - Alternatives: instancing knock-outs too (per-instance fade and a flying helmet for a few calls); merging a soldier's legs and upper body (they turn separately).
+
+## D-102 — GPU particle pool and vfx.json
+- Date: 2026-11-09
+- Source: M5 row 1 (split into parts 1–3); the rest made during development
+- Decision:
+  - **`Particles`** (`src/render/particles.ts`): the CPU writes a particle once, at spawn, and the vertex shader moves, grows, tumbles and fades it from one clock uniform. Replaces D-100's CPU-animated puff mesh, and the Mesh and Material that every blast and level-up created.
+  - **`InstancedBufferGeometry` on a plain `Mesh`,** not the TDD's `InstancedMesh`: the shader does the motion, so an instance matrix would be 16 unused floats each.
+  - **One ring per shape,** oldest reused, so one kind of burst can't evict another. Capacities: star 128, cube 384, ico 640, ball 48, cone 640, ring 32, pillar 16 (1,888, under the TDD's mobile 2,000). Desktop's 4,000 is skipped until desktop looks starved. Only the slots written that frame are uploaded.
+  - **Idle cost:** a shape with nothing live is hidden and its ring restarts, so no draw.
+  - **Clock:** seconds on the render clock, so the HQ's slow motion (D-038) slows these too.
+  - **`data/vfx.json`:** `density`, `wind`, named presets of bursts. Colours are palette names, checked when compiled. Times are render seconds, not ticks. Presets are named after what fires them and called from the existing event sites, which hold the fog and concealment checks; no separate event → preset table as in the TDD.
+  - **Live tuning:** the debug panel replaces the config, so `match.ts` also calls `setVfx`.
+  - **Look:** facet shading from a fixed sun direction, since unlit low-poly spheres read as flat hexagons. Smoke is GDD's drifting icosphere; the fireball is a rounder `ball` (80 tris). The level-up pillar now grows uniformly. Otherwise the old sizes, lives and rise.
+  - **Not in this part:** camera shake goes with the Settings row, which must be able to turn it off. `density` is the one knob that row needs.
+  - **Measured** (seed 11, The Front, 9:16; base, left, right, Crater, trunk at 0:06, 1:02, 2:30): 48–96 calls and up to 94k triangles, except one 130 at the base at 2:30, in a fight with Gamma's flame meshes in view. The same view with no teleports reads 85–86, with particles about 1 of those. Part 3 replaces those meshes. Slow motion checked live: puffs outlive their real-time life at ×0.25.
+  - **Tests** (`tests/render-perf.test.ts`, replacing D-100's): capacity under budget, every colour resolves, no new objects or materials however many fire, hidden after the longest life, ring reuse, density, live edits.
+- Why: the TDD's particle design, no allocation per effect, and a data file for the effects the next two parts add.
+- Alternatives: keeping CPU animation (D-100), which costs per puff per frame; one shared ring for all shapes (muzzle flashes would evict explosions).
