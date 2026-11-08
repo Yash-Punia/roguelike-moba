@@ -677,6 +677,7 @@
   ],
   "dressing": {
     "poleLanes": ["left"], "poleSpacing": 11, "revetmentEvery": 3,
+    "edgeSpacing": 4,
     "craters": 48, "trees": 28, "stumps": 12, "rubble": 14,
     "middleBandY": 15, "wire": 8, "traps": 6, "scorch": 6,
     "placed": [

@@ -8,7 +8,7 @@ import { Team } from '../src/sim/sim';
 const load = (lanes: 2 | 3) => parseConfig({ ...rawConfig, map: maps[lanes] }).map;
 
 /** Over 1.2 m, so it must stay off the lanes (EN-01). Flags are bare poles and stand by the pad as EN-01 draws them. */
-const TALL: readonly string[] = ['tent', 'searchlight', 'pole', 'tree', 'biplane'];
+const TALL: readonly string[] = ['tent', 'searchlight', 'pole', 'tree', 'biplane', 'ruinWall'];
 
 function ownerAt(map: MapConfig, x: number, y: number) {
   const r = rasterise(map);
@@ -46,8 +46,20 @@ describe.each([3, 2] as const)('dressing on the %i-lane map', (lanes) => {
   });
 
   it('keeps wire, traps and scorch in the middle band', () => {
+    const { minX, maxX, minY, maxY } = map.bounds;
     for (const p of plan) {
-      if (p.kind === 'wire' || p.kind === 'traps' || p.kind === 'scorch') expect(Math.abs(p.y)).toBeLessThanOrEqual(map.dressing.middleBandY);
+      const atEdge = Math.min(p.x - minX, maxX - p.x, p.y - minY, maxY - p.y) < 2; // the edge has its own tank traps
+      if (p.kind === 'wire' || (p.kind === 'traps' && !atEdge) || p.kind === 'scorch') expect(Math.abs(p.y)).toBeLessThanOrEqual(map.dressing.middleBandY);
+    }
+  });
+
+  it('rings the map edge with ruins on raised ground, clear of the caves', () => {
+    const { minX, maxX, minY, maxY } = map.bounds;
+    const edge = plan.filter((p) => Math.min(p.x - minX, maxX - p.x, p.y - minY, maxY - p.y) < 2 && ['ruinWall', 'sandbagWall', 'tree', 'traps'].includes(p.kind));
+    expect(edge.length).toBeGreaterThan(((maxX - minX + maxY - minY) * 2 * 0.6) / map.dressing.edgeSpacing);
+    for (const p of edge) {
+      expect(ownerAt(map, p.x, p.y).shape, `${p.kind} at ${p.x}, ${p.y}`).toBeUndefined();
+      for (const c of map.caves) expect(Math.hypot(c.x - p.x, c.y - p.y)).toBeGreaterThanOrEqual(5);
     }
   });
 

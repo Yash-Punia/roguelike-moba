@@ -167,7 +167,7 @@ const WalkShape = z.discriminatedUnion('shape', [
 const TeamName = z.enum(['blue', 'red']);
 const StructureKind = z.enum(['subBase', 'hq']);
 
-const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall', 'pole', 'revetment', 'wire', 'traps', 'biplane', 'tree', 'stump', 'rubble']);
+const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall', 'pole', 'revetment', 'wire', 'traps', 'biplane', 'tree', 'stump', 'rubble', 'ruinWall']);
 
 /** Map scenery (map spec "Dressing", PR-01, PR-02). Render only: the sim never reads it (D-097). */
 const Dressing = z.object({
@@ -189,6 +189,8 @@ const Dressing = z.object({
   wire: z.number().int().nonnegative().default(0),
   traps: z.number().int().nonnegative().default(0),
   scorch: z.number().int().nonnegative().default(0),
+  /** Metres between ruins, trees, sandbags and tank traps along the map edge; 0 = none. */
+  edgeSpacing: nonneg().default(0),
 });
 
 const MapConfig = z.object({

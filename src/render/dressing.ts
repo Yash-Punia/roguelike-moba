@@ -33,6 +33,10 @@ const DECAL_SIDES = 8;
 const DECAL_LIFT = 0.05;
 /** Metres kept clear of the map edge by the scatter, for the edge ruins. */
 const EDGE_CLEAR = 4;
+/** Edge pieces stand this far inside the bounds, on the embankment. */
+const EDGE_INSET = 1.2;
+/** Edge pieces stay this far from a wave cave's mouth. */
+const CAVE_CLEAR = 5;
 /** Clearance from any walkable ground: past the 0.6 m slope, so props stand on the top. */
 const SLOPE_CLEAR = 1.3;
 
@@ -152,6 +156,12 @@ const PROPS: Record<PropKind, (root: THREE.Object3D, team: Team) => void> = {
     part(root, cyl(0.2, 0.28, 0.42, 6), palette.craterFloor, 0, 0.21, 0);
     part(root, cyl(0.2, 0.2, 0.02, 6), palette.wood, 0, 0.43, 0);
   },
+  ruinWall(root) {
+    part(root, box(0.42, 1.5, 1.1), palette.concrete, 0, 0.75, -0.95);
+    part(root, box(0.42, 1.05, 0.9), palette.concreteShadow, 0, 0.52, 0.05);
+    part(root, box(0.42, 0.6, 0.9), palette.concrete, 0, 0.3, 0.92);
+    part(root, box(0.46, 0.14, 2.9), palette.smoke, 0, 0.07, 0);
+  },
   rubble(root) {
     part(root, new THREE.IcosahedronGeometry(0.34, 0), palette.concreteShadow, 0, 0.18, 0);
     part(root, new THREE.IcosahedronGeometry(0.24, 0), palette.smoke, 0.42, 0.12, 0.15);
@@ -226,7 +236,9 @@ export function planDressing(map: MapConfig): Placement[] {
         const reach = shape.width / 2 + (revetment ? 0.9 : 1.2);
         const x = ax + tx * along - ty * side * reach;
         const y = ay + ty * along + tx * side * reach;
-        if (raised(x, y, 0.4) && free(x, y, 0.5)) add(revetment ? 'revetment' : 'pole', x, y, Math.atan2(tx, -ty)); // local z runs along the lane
+        if (!raised(x, y, 0.4) || !free(x, y, 0.5)) continue;
+        add(revetment ? 'revetment' : 'pole', x, y, Math.atan2(tx, -ty)); // local z runs along the lane
+        taken.push({ x, y, r: 0.8 });
       }
       walked += step;
     }
@@ -257,6 +269,20 @@ export function planDressing(map: MapConfig): Placement[] {
   scatter('tree', d.trees, 1, near);
   scatter('stump', d.stumps, 0.8, near);
   scatter('rubble', d.rubble, 0.8, near);
+
+  // The map edge (map spec): one of four pieces every `edgeSpacing` m, on the embankment. Each side's Blue half; twins fill the rest.
+  if (d.edgeSpacing > 0) {
+    const pieces: readonly PropKind[] = ['ruinWall', 'tree', 'sandbagWall', 'traps'];
+    const edge = (x: number, y: number, along: number) => {
+      const clear = !map.caves.some((c) => Math.hypot(c.x - x, c.y - y) < CAVE_CLEAR);
+      if (clear && raised(x, y, 0.5) && free(x, y, 1)) add(pieces[Math.floor(rng() * pieces.length)]!, x, y, along + (rng() - 0.5) * 0.4);
+    };
+    for (let x = minX + EDGE_INSET; x <= maxX - EDGE_INSET; x += d.edgeSpacing) edge(x, minY + EDGE_INSET, Math.PI / 2);
+    for (let y = minY + EDGE_INSET + d.edgeSpacing; y < 0; y += d.edgeSpacing) {
+      edge(minX + EDGE_INSET, y, Math.PI);
+      edge(maxX - EDGE_INSET, y, Math.PI);
+    }
+  }
   return out;
 }
 

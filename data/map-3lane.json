@@ -280,6 +280,7 @@
   "caves": [{ "team": "blue", "x": 0, "y": -81 }, { "team": "red", "x": 0, "y": 81 }],
   "dressing": {
     "poleLanes": ["left"], "poleSpacing": 11, "revetmentEvery": 3,
+    "edgeSpacing": 4,
     "craters": 60, "trees": 34, "stumps": 14, "rubble": 16,
     "middleBandY": 15, "wire": 10, "traps": 8, "scorch": 8,
     "placed": [
