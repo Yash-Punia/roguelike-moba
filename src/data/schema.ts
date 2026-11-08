@@ -507,6 +507,8 @@ const BotTier = z.object({
   dodgeChancePct: pct(),
   /** It drafts at random among its best this many cards. */
   draftTop: z.number().int().min(1),
+  /** The chance it takes a gank it could make (D-096). */
+  gankChancePct: pct(),
 });
 export type Difficulty = 'easy' | 'normal' | 'hard';
 const secsRange = () => z.tuple([z.number().nonnegative(), z.number().nonnegative()]).refine(([a, b]) => a <= b, 'min must not exceed max');
@@ -625,6 +627,17 @@ const Bots = z.object({
   difficulty: z.object({ easy: BotTier, normal: BotTier, hard: BotTier }),
   /** Regrouping (TDD §7, D-094): once a Sub-base has fallen, a team's bots play the lane with the most allies, chosen again this often. */
   regroup: z.object({ recheckSeconds: secs() }),
+  /** Ganking (TDD §7, D-096): a champion with Light Feet goes for a weak enemy champion in the next lane. */
+  gank: z.object({
+    desire: nonneg(),
+    /** A target below this much HP; the gank is off if it heals past `healedHpPct`. */
+    hpPct: pct(),
+    healedHpPct: pct(),
+    /** That lane is at most this far to walk (m). */
+    maxTravel: positive(),
+    maxSeconds: secs(),
+    cooldownSeconds: secs(),
+  }),
   /** Contesting bosses (TDD §7, D-095). Per boss kind: how many bots go together, and the level each needs. */
   boss: z.object({
     squad: z.record(z.string(), z.number().int().min(2)),

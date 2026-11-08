@@ -26,11 +26,12 @@
   "defend": { "maxDefenders": 2, "maxTravel": 60, "minHpPct": 50, "releaseSeconds": 4, "margin": 2 },
   "outnumbered": { "radius": 12, "margin": 1, "desire": 0.92 },
   "difficulty": {
-    "easy": { "decisionSeconds": 0.4, "reactionSeconds": 0.6, "retreatHpPct": [18, 30], "dodgeChancePct": 25, "draftTop": 2 },
-    "normal": { "decisionSeconds": 0.2, "reactionSeconds": 0.35, "retreatHpPct": [18, 30], "dodgeChancePct": 60, "draftTop": 1 },
-    "hard": { "decisionSeconds": 0.1, "reactionSeconds": 0.2, "retreatHpPct": [18, 30], "dodgeChancePct": 90, "draftTop": 1 }
+    "easy": { "decisionSeconds": 0.4, "reactionSeconds": 0.6, "retreatHpPct": [18, 30], "dodgeChancePct": 25, "draftTop": 2, "gankChancePct": 0 },
+    "normal": { "decisionSeconds": 0.2, "reactionSeconds": 0.35, "retreatHpPct": [18, 30], "dodgeChancePct": 60, "draftTop": 1, "gankChancePct": 50 },
+    "hard": { "decisionSeconds": 0.1, "reactionSeconds": 0.2, "retreatHpPct": [18, 30], "dodgeChancePct": 90, "draftTop": 1, "gankChancePct": 100 }
   },
   "regroup": { "recheckSeconds": 20 },
+  "gank": { "desire": 0.8, "hpPct": 50, "healedHpPct": 60, "maxTravel": 40, "maxSeconds": 12, "cooldownSeconds": 20 },
   "boss": {
     "squad": { "fieldGun": 2, "halftrack": 2, "behemoth": 3 },
     "minLevel": { "fieldGun": 6, "halftrack": 6, "behemoth": 12 },

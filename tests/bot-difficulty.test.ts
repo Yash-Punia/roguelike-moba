@@ -32,6 +32,7 @@ describe('difficulty tiers (TDD §7, D-086)', () => {
     expect(TIERS.map((t) => d[t].dodgeChancePct)).toEqual([0.25, 0.6, 0.9]);
     expect(TIERS.map((t) => d[t].retreatHpPct)).toEqual([[0.18, 0.3], [0.18, 0.3], [0.18, 0.3]]);
     expect(TIERS.map((t) => d[t].draftTop)).toEqual([2, 1, 1]);
+    expect(TIERS.map((t) => d[t].gankChancePct)).toEqual([0, 0.5, 1]);
     expect(d.easy.reactionSeconds).toBe(18);
     expect(d.hard.reactionSeconds).toBe(6);
   });

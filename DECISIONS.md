@@ -2031,3 +2031,29 @@ From TDD §13:
 - **Tests** (`tests/bot-boss.test.ts`, The Front): a pair gathers, wakes the Field Gun together and clears it; one bot of the level doesn't start; an enemy at an idle boss blocks; a healthy fought boss doesn't draw a steal and one below half does; the Behemoth waits for three. `tests/bosses.test.ts` keeps its "no bot wakes a boss" check with contests turned off.
 - Why: TDD §7, and bosses are the map's objectives; until now only humans ever took them.
 - Alternatives: a separate boss plan type (it would repeat the farm plan's lifecycle); a radius instead of the floor for gathering (ramps and lanes run close to the arenas).
+
+## D-096 — Beta ganks
+- Date: 2026-11-08
+- Source: M4 row "Utility bot AI", last goal; TDD §7. The rest was decided during development.
+- Decision:
+  - **When:** a champion with Light Feet active, calm in its own lane, with no farm plan or call to defend, on its decision beat.
+  - **Target:** the weakest visible enemy champion below `gank.hpPct` (50%) whose lane is next to this bot's in `map.lanes`, with that lane within `maxTravel` (40 m).
+  - **Movement:** it plays the target's lane for the gank (D-083's lane switching), walking the trenches while off-lane, then heads straight at the target. The all-in takes over in range.
+  - **Off when:** the target is down, healed past `healedHpPct` (60%), unseen, or back under its own tower; after `maxSeconds` (12); or when the bot retreats, is called to defend or joins a plan. Then `cooldownSeconds` (20).
+  - **Difficulty:** `gankChancePct` Easy 0, Normal 50, Hard 100 fills in TDD §7's column left open in D-086. One roll per chance; a no waits out the cooldown.
+- **Measured** (all-bot, all-Normal 3v3, 30 seeds per map, against D-095):
+
+  | | The Front | The Bridgehead |
+  | --- | --- | --- |
+  | Median match | 4.20 → 4.27 min | 3.77 → 3.32 min |
+  | Range | 2.68–9.32 | 2.06–6.58 |
+  | Ganks started | 108 | 58 |
+  | Kills while ganking | 4 | 2 |
+
+  - None went past 12 minutes.
+  - **Ganks rarely finish the job:** 6 kills from 166. A weak target usually heals, retreats or reaches its tower first. Left as is.
+  - The Bridgehead median is under the 3.5-minute guide, but the same seeds with ganks off gave 3.54 min, so that is seed noise rather than ganks. Not tuned.
+  - Chrome, The Front, Hard: Beta left its lane for the trenches towards a weak target, and called it off to retreat; no console errors.
+- **Tests** (`tests/bot-gank.test.ts`): goes for a weak enemy in the next lane and reaches it; only with Light Feet; not for a healthy enemy or a lane two away; never on Easy; off when the target heals, then home and a cooldown; off on time-out.
+- Why: TDD §7's last goal, and Beta's role in the GDD: the best roamer between lanes.
+- Alternatives: a flow field to the target's exact position (one Dijkstra per moving target; the lane field plus a straight line gets there).

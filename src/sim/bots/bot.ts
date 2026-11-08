@@ -24,8 +24,8 @@ import type { Defence, FarmPlan, Squad } from './squad';
  * - `trade`: harass the enemy champion; `allin`: chase it down for the kill;
  * - `farm`: take a neutral camp for its XP with an allied bot (D-075).
  */
-export type BotMode = 'retreat' | 'backoff' | 'defend' | 'freeze' | 'contest' | 'push' | 'siege' | 'trade' | 'allin' | 'farm' | 'dead';
-const MODES: readonly Exclude<BotMode, 'dead'>[] = ['retreat', 'backoff', 'defend', 'freeze', 'contest', 'push', 'siege', 'trade', 'allin', 'farm'];
+export type BotMode = 'retreat' | 'backoff' | 'defend' | 'freeze' | 'contest' | 'push' | 'siege' | 'trade' | 'allin' | 'farm' | 'gank' | 'dead';
+const MODES: readonly Exclude<BotMode, 'dead'>[] = ['retreat', 'backoff', 'defend', 'freeze', 'contest', 'push', 'siege', 'trade', 'allin', 'farm', 'gank'];
 /** Lane modes in which a bot may leave its lane to farm. */
 const CALM = new Set<BotMode>(['contest', 'push', 'freeze', 'backoff', 'siege']);
 /** Camp units this far from their camp's centre count as that camp's (m; the leash is 10). */
@@ -72,7 +72,7 @@ export function createBot(
 ) {
   const personality: Personality = rollPersonality(getConfig().bots.personality, getConfig().bots.difficulty[difficulty].retreatHpPct, rng);
   const desires: Record<Exclude<BotMode, 'dead'>, number> = {
-    retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0, farm: 0,
+    retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0, farm: 0, gank: 0,
   };
   const side = team === Team.Blue ? 1 : -1;
   const state = {
@@ -86,6 +86,7 @@ export function createBot(
     lastTowerHp: -1,
     lastTower: 0 as Entity,
     lastTick: 0,
+    gankNext: 0,
     retreatSince: -1,
   };
   /** The lane it plays now: its own, or one it was sent to defend (D-083). */
@@ -93,6 +94,8 @@ export function createBot(
   let track: LaneTrack | undefined;
   let trackFrom: Float64Array | undefined;
   const read: LaneRead = emptyRead();
+  /** The gank under way (D-096). */
+  let gank: { target: Entity; lane: string; until: number } | undefined;
   const dodge = { danger: false, will: false, since: 0, active: false };
   const exitNear = { x: 0, y: 0 };
   const exitFar = { x: 0, y: 0 };
@@ -239,21 +242,67 @@ export function createBot(
     const counts = lanes.map(() => 0);
     for (let i = 0; i < snap.entities.length; i++) {
       const e = snap.entities[i]!;
-      if (e.kind !== Kind.Champion || e.team !== team || e.hp <= 0) continue;
-      let nearest = 0;
-      let cost = Infinity;
-      for (let k = 0; k < lanes.length; k++) {
-        const c = metres(nav, laneField(nav, lanes[k]!.id), e.x, e.y);
-        if (c < cost) {
-          cost = c;
-          nearest = k;
-        }
-      }
-      counts[nearest]!++;
+      if (e.kind === Kind.Champion && e.team === team && e.hp > 0) counts[nearestLane(nav, e.x, e.y)]!++;
     }
     let best = lanes.findIndex((l) => l.id === squad!.regroupLane);
     for (let k = 0; k < lanes.length; k++) if (best < 0 || counts[k]! > counts[best]!) best = k;
     squad!.regroupLane = lanes[best]?.id;
+  }
+
+  /** The lane a point is on: the cheapest walk over the lane fields. */
+  function nearestLane(nav: Nav, x: number, y: number): number {
+    const lanes = getLanes();
+    let nearest = 0;
+    let cost = Infinity;
+    for (let k = 0; k < lanes.length; k++) {
+      const c = metres(nav, laneField(nav, lanes[k]!.id), x, y);
+      if (c < cost) {
+        cost = c;
+        nearest = k;
+      }
+    }
+    return nearest;
+  }
+
+  /**
+   * Ganking (TDD §7, D-096): a champion with Light Feet running, calm in its own lane, goes for
+   * the weakest visible enemy champion below `gank.hpPct` in the next lane. One roll per chance:
+   * a no waits out the cooldown.
+   */
+  function tryGank(cfg: Config, snap: Snapshot, nav: Nav, me: EntitySnapshot, tick: number) {
+    const g = cfg.bots.gank;
+    if (!me.traitActive || cfg.champions.find((c) => c.id === me.modelId)?.trait?.id !== 'lightFeet') return;
+    if (read.ownTowerThreatened || enemyNear(snap, me.x, me.y, cfg.bots.lane.threatRadius)) return;
+    const lanes = getLanes();
+    const mine = lanes.findIndex((l) => l.id === laneId);
+    let target: EntitySnapshot | undefined;
+    let share = g.hpPct;
+    let lane = '';
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind !== Kind.Champion || e.team === team || e.hp <= 0 || (e.visibleMask & (1 << team)) === 0 || e.hp / e.maxHp >= share) continue;
+      const k = nearestLane(nav, e.x, e.y);
+      if (Math.abs(k - mine) !== 1 || metres(nav, laneField(nav, lanes[k]!.id), me.x, me.y) > g.maxTravel) continue;
+      target = e;
+      share = e.hp / e.maxHp;
+      lane = lanes[k]!.id;
+    }
+    if (!target) return;
+    if (rng() >= cfg.bots.difficulty[difficulty].gankChancePct) {
+      state.gankNext = tick + g.cooldownSeconds;
+      return;
+    }
+    gank = { target: target.id, lane, until: tick + g.maxSeconds };
+    state.mode = 'gank';
+    state.committedUntil = tick + personality.patience;
+  }
+
+  /** Off when the target is down, healed, unseen or back under its tower, on time-out, or when the bot has something better to do. */
+  function gankOver(cfg: Config, snap: Snapshot, me: EntitySnapshot, busy: boolean, tick: number): boolean {
+    const t = byId(snap, gank!.target);
+    if (busy || state.mode === 'retreat' || tick >= gank!.until || !t || t.hp <= 0 || (t.visibleMask & (1 << team)) === 0) return true;
+    if (t.hp / t.maxHp > cfg.bots.gank.healedHpPct) return true;
+    return read.enemy?.id === t.id && read.enemyUnderTower;
   }
 
   /** The lane to defend a structure from: a Sub-base's own; for the HQ, the lane its nearest attacking minion came down, else one whose own Sub-base is down. */
@@ -614,6 +663,10 @@ export function createBot(
     get confidence() {
       return state.confidence;
     },
+    /** The champion it is ganking, 0 if none (D-096). */
+    get gankTarget() {
+      return gank?.target ?? 0;
+    },
     /** Tick its current hesitation ends (D-086). */
     get pauseUntil() {
       return state.pauseUntil;
@@ -635,7 +688,7 @@ export function createBot(
       cmd.ult = false;
       cmd.draftPick = -1;
       const defence = squad?.defenceOf(self);
-      laneId = defence?.lane ?? squad?.regroupLane ?? homeLane;
+      laneId = defence?.lane ?? gank?.lane ?? squad?.regroupLane ?? homeLane;
       if (snap.match.phase === 'ended' || !laneTrack()) return cmd;
       readLane(read, snap, self, team, track!, cfg, laneId);
       const me = read.me;
@@ -662,6 +715,11 @@ export function createBot(
       // Decide: on the beat, or at once when retreat fires.
       score(cfg, snap, hpMe);
       desires.farm = plan ? b.farm.desire : 0;
+      if (gank && gankOver(cfg, snap, me, defence !== undefined || plan !== undefined, tick)) {
+        gank = undefined;
+        state.gankNext = tick + b.gank.cooldownSeconds;
+      }
+      desires.gank = gank ? b.gank.desire : 0;
       // A new need to retreat is answered only after its reaction time (D-086).
       if (desires.retreat < 1) state.retreatSince = -1;
       else if (state.mode !== 'retreat') {
@@ -688,6 +746,7 @@ export function createBot(
         if (squad && nav) {
           callDefenders(cfg, snap, nav, tick);
           updateRegroup(cfg, snap, nav, tick);
+          if (!gank && tick >= state.gankNext && !plan && !defence && CALM.has(state.mode)) tryGank(cfg, snap, nav, me, tick);
           plan = squad.planOf(self); // a bot sent to defend stops farming
         }
         // Now and then it hesitates, like a human (never while retreating).
@@ -712,6 +771,7 @@ export function createBot(
         if (plan && state.mode === 'farm') squad.seen(plan, self, tick);
       }
       if (state.mode === 'farm' && !plan) state.mode = 'contest';
+      if (state.mode === 'gank' && !gank) state.mode = 'contest';
       if (tick < state.pauseUntil && state.mode !== 'retreat') return cmd;
 
       // Where to go.
@@ -735,6 +795,8 @@ export function createBot(
         const fPad = team === Team.Blue ? along : track!.length - along;
         aim = read.fMe > fPad + LOOKAHEAD ? track!.pointAt(fromForward(read.fMe - LOOKAHEAD), p) : pad;
         if (len(pad.x - me.x, pad.y - me.y) < 0.6) aim = undefined; // on the pad: heal
+      } else if (mode === 'gank' && gank && byId(snap, gank.target)) {
+        aim = byId(snap, gank.target); // on the lane now: straight at it
       } else if ((mode === 'trade' || mode === 'allin') && enemy && enemy.hp > 0) {
         const dx = me.x - enemy.x;
         const dy = me.y - enemy.y;
