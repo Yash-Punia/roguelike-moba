@@ -252,7 +252,7 @@ body {
 .hud-surrender {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 13cqw);
-  right: 2cqw;
+  left: 2cqw;
   padding: 0.6cqw 2cqw;
   border: 1px solid #e9ddd0;
   border-radius: 4px;
@@ -294,7 +294,7 @@ body {
 .hud-kill {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 27cqw);
-  left: 50%;
+  left: 41cqw; /* centred in the space left of the minimap */
   transform: translateX(-50%);
   padding: 1cqw 3.6cqw 1.2cqw;
   border-radius: 0.8cqw;
@@ -334,7 +334,7 @@ body {
 .hud-notice {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 43cqw);
-  left: 50%;
+  left: 41cqw; /* centred in the space left of the minimap */
   transform: translateX(-50%);
   padding: 1cqw 3.2cqw;
   border-left: 1cqw solid var(--hud-brass);
@@ -418,7 +418,60 @@ body {
   background: var(--hud-red);
 }
 
+/* The minimap (ui/minimap.ts, D-090): a narrow strip, the map's aspect. Takes its own pointer input. */
+.hud-minimap {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14cqw);
+  right: 2cqw;
+  width: 16cqw;
+  aspect-ratio: 68 / 164;
+  border: max(1px, 0.3cqw) solid var(--hud-dark);
+  border-radius: 0.8cqw;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.hud-ping-picker {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14cqw);
+  right: 19cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 1cqw;
+  pointer-events: auto;
+}
+
+.hud-ping-picker[hidden] {
+  display: none;
+}
+
+.hud-ping-picker button {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 0 2cqw;
+  border: 0;
+  border-left: 1cqw solid currentcolor;
+  border-radius: 0.8cqw;
+  background: var(--hud-panel);
+  font-size: max(14px, 3.2cqw);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hud-ping-picker .attack {
+  color: #ee857d;
+}
+
+.hud-ping-picker .defend {
+  color: #7fa8ee;
+}
+
+.hud-ping-picker .danger {
+  color: #ffd24a;
+}
+
 .hud-board {
+  z-index: 2;
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 27cqw);
   left: 3cqw;

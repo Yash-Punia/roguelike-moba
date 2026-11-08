@@ -117,10 +117,10 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[~]` | Utility bot AI: all goals in TDD §7, A* on obstacle grid; done so far: "take camp" in pairs from 0:00 and when the lane is quiet, trench navigation by flow fields on the obstacle grid (D-075); defending another lane's Sub-base or the HQ through a squad board, and backing off when outnumbered (D-083) | aec2e81, f601b3a |
 | `[p]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard): dodging and draft picks (D-085), the Ultimate rules were already in place; tiers, hesitation per second, one retreat range (D-086); Hard only clearly ahead of Easy on The Bridgehead | e7d99f9, c5bd862 |
 | `[p]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | feee8ce |
-| `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
+| `[c]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings (D-090) | |
 | `[p]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | 4f66ba4 |
 | `[p]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | fc78ed0 |
-| `[c]` | Base under attack: a sim event for the later voice line, a banner for your side, a pulsing top-bar icon (user, D-089) | |
+| `[p]` | Base under attack: a sim event for the later voice line, a banner for your side, a pulsing top-bar icon (user, D-089) | 56bda99 |
 | `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.

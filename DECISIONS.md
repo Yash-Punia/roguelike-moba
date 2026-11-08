@@ -1918,3 +1918,25 @@ From TDD §13:
 - Alternatives:
   - Detecting it in the HUD from damage events: the voice line would need it again, and it would need its own cooldown.
   - Champion hits only: a lone wave could then take a tower without a word.
+
+## D-090 — Minimap and pings
+- Date: 2026-11-08
+- Source: M4 row "Minimap", picked by the user. The rest was decided during development.
+- Decision:
+  - **A canvas strip**, `ui/minimap.ts`, top right below the top strip, redrawn at 10 Hz with the rest of the HUD (TDD §10). It is DOM, so it adds no draw calls. The map's own shape (68 × 164), 16% of the frame's width.
+  - **Ground** is drawn once to an offscreen canvas and redrawn only on a resize: the map's walkable shapes by surface, then the lanes.
+  - **On top:** structures (grey when destroyed; a flashing red frame while `underAttack`), bosses while up (a brass diamond), minions and champions, the local champion larger with a brass ring. Your team is drawn Blue, as everywhere (D-039).
+  - **Enemies only when your team can see them** (D-010): the snapshot's `visibleMask`. Allies always. Structures always, since their places are known.
+  - **Fog:** with `combat.fog.enabled`, cells your team can't see are darkened from `snap.vision`, an image the size of the vision grid scaled up. Fog is off by default in data; `?fog` turns it on.
+  - **A Red viewer's map turns round**, like its camera, so your base is always at the bottom.
+  - **Pings** (GDD §3, TDD §8): Attack, Defend, Danger, for 4 s. Long-press the map for a three-button picker; Alt + click pings Attack; Alt + Shift + click pings Danger. Your own structures under attack also ping themselves as Danger (D-089).
+    - **Local to this viewer, not sim state.** The sim only takes Commands, and there's no way yet to tell teammates. Bots don't react to them.
+    - The icons are simple drawn shapes rather than the GDD's stamped art: a cross, a shield outline, a triangle.
+  - **Layout:** the Surrender button moves to the left, and the kill and notice banners centre in the space left of the map. The scoreboard covers it while open.
+  - A plain module rather than a Preact component: it has one element and draws imperatively, like the Ultimate gauge.
+- **Measured** (Chrome, The Front, 540 × 960): lanes, structures, units, and all three ping paths drawn; picker buttons 86 × 44 px; a Red viewer with `?fog` saw its base at the bottom, the enemy half dark and no enemy units; no console errors. Draw calls are unaffected by this change: 98 to 134, depending on the scene (see the open draw-call task).
+- **Tests** (`tests/minimap.test.ts`): world to map for both viewers, and back; allies always and enemies only when seen; the dead left off; a ping's expiry. Drawing is checked in the browser.
+- Why: the map is long and three lanes wide, and the camera shows only part of one.
+- Alternatives:
+  - A WebGL minimap: more draw calls, against a budget that's already tight.
+  - Pings as sim commands: nothing would read them until bots can answer or multiplayer exists.
