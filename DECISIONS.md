@@ -2113,3 +2113,27 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`): puffs from several blasts are one mesh, they and the flash are gone after their life, and the pool reuses the oldest.
 - Why: the cheapest fight-time saving, and it removes per-puff allocation.
 - Alternatives: fading by scale alone with no alpha attribute (a visible change); a pool per colour (one draw each, for no gain).
+
+## D-101 — Live soldiers instanced
+- Date: 2026-11-08
+- Source: user request (draw-call task); the option left open in D-044; the rest made during development
+- Decision:
+  - **`SoldierInstances`** (`src/render/soldier-instances.ts`): soldiers and camp units draw as one `InstancedMesh` per baked part of each model and team, keyed by the geometry the templates already share. A soldier was 3 calls; a whole model and team in view is now 3 together.
+  - **Hybrid:** a live soldier hides its own model, which stays in the scene and keeps being posed, and its parts' world matrices become the instances. Anything in `fades` or `knockouts` isn't added, so those show the normal model and the knock-out, flying helmet and Trench fade code is unchanged.
+  - **Camera test per soldier** before adding it (`InstancedMesh` would otherwise draw every soldier on the map, up to about 36k extra triangles). Filled in `render()`, since the rig moves after `update()`.
+  - Champions and bosses keep their own meshes: they cast real shadows and there are few of them.
+  - **Measured** (D-099's method; base, left, right, Crater, trunk at 0:06, 1:02 and 2:30), all three levers against the start of this work:
+
+    | | Worst sample before | Worst sample after |
+    | --- | --- | --- |
+    | The Front, Blue | 155 | 118 |
+    | The Front, Red | 148 | 115 |
+    | The Bridgehead, Blue | not sampled | 96 |
+    | Triangles | 107k | 89k |
+
+    Every one of the 45 samples is within the 120 budget. Views without a fight are about 50–95.
+  - **Screenshots** of lanes, base and a fight on both sides, a soldier knock-out and a `?fog` match look the same as before; no console errors.
+  - **Not covered:** the samples are fixed views of one seed. An HQ's fall with Lead Storm and Gamma's flames on screen together could still exceed 120: streaks (12) and flame blobs (9) are still a mesh each. Calls were counted in software GL, so this says nothing about a phone's frame rate.
+  - **Tests** (`tests/render-perf.test.ts`): one mesh per part, instances match the model's pose, each team has its own parts, off-screen soldiers are skipped, nothing is drawn when none are added, champions and bosses stay out. The fall-back to the normal model lives in `scene.ts`, which needs WebGL, so it is checked in the browser only.
+- Why: after the shadow fit and the puffs, soldiers were the largest remaining source in a fight, at about a third of the main pass.
+- Alternatives: instancing knock-outs too (per-instance fade and a flying helmet for a few calls); merging a soldier's legs and upper body (they turn separately).

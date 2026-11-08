@@ -110,10 +110,13 @@ export function createModel(kind: Kind, modelId: string, team: Team): THREE.Obje
   } satisfies ModelParts);
   // Real shadows for champions, structures and mini-bosses; soldiers and camp units get a cheap ground blob instead (D-044).
   const casts = (kind !== Kind.Minion && kind !== Kind.Neutral) || BOSS_MODELS.has(modelId);
+  const baked: THREE.Mesh[] = [];
   root.traverse((o) => {
     o.castShadow = casts;
     o.receiveShadow = true;
+    if (o instanceof THREE.Mesh) baked.push(o);
   });
+  if (!casts) partsOf(root).baked = baked; // drawn instanced while alive (D-101)
   const { shield, traitRing } = partsOf(root);
   if (shield) shield.castShadow = shield.receiveShadow = false;
   if (traitRing) traitRing.castShadow = traitRing.receiveShadow = false;
@@ -136,6 +139,8 @@ export interface ModelParts {
   shield?: THREE.Object3D;
   /** Rolls on treads: no marching bob. */
   tracked?: boolean;
+  /** Soldiers and camp units: the baked meshes that `SoldierInstances` draws while the unit is alive (D-101). */
+  baked?: THREE.Mesh[];
 }
 export const partsOf = (root: THREE.Object3D) => root.userData as ModelParts;
 

@@ -6,6 +6,7 @@ import { createModel, partsOf } from '../src/render/models';
 import { buildTerrain } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
 import { HpBars } from '../src/render/hp-bars';
+import { SoldierInstances } from '../src/render/soldier-instances';
 import { UltFx } from '../src/render/ult-fx';
 import { Kind, Team } from '../src/sim/sim';
 
@@ -117,6 +118,54 @@ describe('terrain tiles (D-044)', () => {
       expect(box.max.x - box.min.x).toBeLessThan(12 + 3); // a tile plus the triangles straddling its edge
       expect(box.max.z - box.min.z).toBeLessThan(12 + 3);
     }
+  });
+});
+
+describe('soldier instancing (D-101)', () => {
+  const camera = new THREE.PerspectiveCamera(35, 0.5, 1, 300);
+  camera.position.set(0, 40, 20);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  const soldier = (x: number, z: number, team = Team.Blue) => {
+    const m = createModel(Kind.Minion, 'mgSoldier', team);
+    m.position.set(x, 0, z);
+    return m;
+  };
+  const counts = (s: SoldierInstances) => (s.group.children as THREE.InstancedMesh[]).map((m) => m.count);
+
+  it('draws soldiers of one model and team as one mesh per part, each hidden and posed', () => {
+    const s = new SoldierInstances();
+    const units = [soldier(0, 0), soldier(2, 0), soldier(-2, 1)];
+    for (const u of units) s.add(u);
+    units[1]!.rotation.y = 1;
+    s.draw(camera);
+    expect(counts(s)).toEqual([3, 3, 3]);
+    expect(units.every((u) => !u.visible)).toBe(true);
+    const m = new THREE.Matrix4();
+    const layers = s.group.children as THREE.InstancedMesh[];
+    layers[0]!.getMatrixAt(1, m);
+    expect(m.elements[12]).toBeCloseTo(2);
+    partsOf(units[1]!).baked![0]!.matrixWorld.elements.forEach((v, i) => expect(m.elements[i]).toBeCloseTo(v));
+  });
+
+  it('gives each team its own parts, and skips what the camera cannot see', () => {
+    const s = new SoldierInstances();
+    s.add(soldier(0, 0));
+    s.add(soldier(0, 0, Team.Red));
+    s.add(soldier(500, 0));
+    s.draw(camera);
+    expect(counts(s)).toEqual([1, 1, 1, 1, 1, 1]);
+  });
+
+  it('draws nothing once no soldier is added, and leaves champions and bosses out', () => {
+    const s = new SoldierInstances();
+    s.add(soldier(0, 0));
+    s.draw(camera);
+    s.draw(camera);
+    expect(counts(s)).toEqual([0, 0, 0]);
+    expect(s.group.children.every((c) => !c.visible)).toBe(true);
+    expect(partsOf(createModel(Kind.Champion, 'alpha', Team.Blue)).baked).toBeUndefined();
+    expect(partsOf(createModel(Kind.Neutral, 'fieldGun', Team.Neutral)).baked).toBeUndefined();
   });
 });
 

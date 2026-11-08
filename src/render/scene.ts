@@ -13,6 +13,7 @@ import { BOSS_MODELS, createArena, createCampfire, createCave, createMedkit, cre
 import { buildLanes } from '../data/map-geometry';
 import { UltFx } from './ult-fx';
 import { Knockouts } from './knockout';
+import { SoldierInstances } from './soldier-instances';
 import { TargetLine } from './target-line';
 import { Telegraphs } from './telegraphs';
 import { Tracers } from './tracers';
@@ -137,6 +138,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   blobs.renderOrder = 1;
   scene.add(blobs);
   const blobMatrix = new THREE.Matrix4();
+  const soldiers = new SoldierInstances();
+  scene.add(soldiers.group);
   // Sniper aim lines (NT-01): thin danger red from each sniper to its target, all in one draw.
   const MAX_AIM_LINES = 8;
   const aimLines = new THREE.LineSegments(
@@ -415,11 +418,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       // structures stay put and turn only their guns.
       const aim = lerpAngle(s.pf, s.f, alpha);
       const facing = lerpAngle(s.pl, s.l, alpha);
-      const { upper, aimParts } = partsOf(mesh);
+      const { upper, aimParts, baked } = partsOf(mesh);
       mesh.rotation.y = upper || aimParts ? facing : aim;
       if (upper) upper.rotation.y = aim - facing;
       if (s.kind === Kind.Champion) ultFx.placeChampion(id, x, y, aim, now);
       if (aimParts && s.fellAt === 0) for (const g of aimParts) g.rotation.y = aim - facing;
+      if (baked && !fades.has(id) && !knockouts.has(id)) soldiers.add(mesh);
       if (s.fellAt > 0) {
         const t = Math.min(1, (now - s.fellAt) / COLLAPSE_MS);
         mesh.scale.y = 1 - (1 - RUBBLE_HEIGHT) * t * t;
@@ -509,6 +513,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     // Bars face the camera; done here because the camera rig moves after update().
     barLayer.update(camera);
     fitShadowBox(sun, sunOffset, camera);
+    soldiers.draw(camera);
     renderer.render(scene, camera);
     damageNumbers.update(camera, container.clientWidth, container.clientHeight, clock);
   }
