@@ -176,7 +176,7 @@ export class Particles {
     const ground = this.heightAt(x, y) + lift;
     for (let b = 0; b < compiled.length; b++) {
       const { burst, from, to } = compiled[b]!;
-      const n = Math.floor(burst.count * this.density + Math.random());
+      const n = this.countOf(burst);
       const phase = Math.random() * TAU;
       for (let i = 0; i < n; i++) {
         const a = phase + (i / n) * TAU;
@@ -201,13 +201,19 @@ export class Particles {
     const ground = this.heightAt(x, y) + lift;
     for (let b = 0; b < compiled.length; b++) {
       const { burst, from, to } = compiled[b]!;
-      const n = Math.floor(burst.count * this.density + Math.random());
+      const n = this.countOf(burst);
       for (let i = 0; i < n; i++) {
         const a = angle + (Math.random() * 2 - 1) * halfAngle;
         const speed = reach / burst.life;
         this.write(burst, from ?? NO_TINT, to ?? NO_TINT, x, ground + burst.lift, -y, Math.cos(a) * speed, burst.rise * this.jitter(), -Math.sin(a) * speed, 1);
       }
     }
+  }
+
+  /** A fractional count is a chance; density never drops a burst of one or more to nothing. */
+  private countOf(burst: VfxBurst) {
+    const n = Math.floor(burst.count * this.density + Math.random());
+    return burst.count >= 1 ? Math.max(1, n) : n;
   }
 
   private jitter() {

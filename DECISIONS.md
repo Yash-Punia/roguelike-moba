@@ -2180,12 +2180,20 @@ From TDD §13:
   - **Debris:** dark cubes with gravity in the explosion; concrete chunks, a dust ring and a smoke column when a structure falls.
   - **The rates are read at emit time** from the live config, so debug panel edits reach them.
   - **Not in this feature:** Lead Storm's streaks stay as they are.
-  - **Measured** (seed 11, The Front, D-099's five views at 0:06, 1:02, 2:30; 2 runs):
-    - 9:16: 52–98 calls in 14 of 15 samples; 9:21: 60–120.
-    - **The gate in the plan was not met:** the base at 2:30 reads 134 (9:16) and 140 (9:21), against D-101's 118 and 125. In that sample the enemy had pushed to Blue's base (the probe's champion leaves the lane): 25 soldiers, 4 tanks, 4 champions, 15 fading knock-out models, 3 fire pools. Particles were 5 of those calls. D-101's samples never held a fight like it, so the two aren't directly comparable.
-    - Triangles: up to 111k (budget 150k).
+  - **Measured, before and after** (one probe on `4d5cbe0` and on this code: seed 11, D-099's five views at 0:06, 1:02, 2:30, the champion teleported to each):
+
+    | Worst calls | Before | After |
+    | --- | --- | --- |
+    | The Front, 9:16 | 129, 130 | 134 |
+    | The Front, 9:21 | 148 | 140 |
+    | The Bridgehead, 9:16 | 93 | 96 |
+    | Triangles | up to 100k | up to 111k |
+
+    - **Not a saving overall, and the 120 budget is still broken in that fight, as it was before.** The worst sample is always the base at 2:30, where the probe's champion leaving its lane lets the enemy push in: 25 soldiers, 4 tanks, 4 champions, 15 fading knock-out models, 3 fire pools. Particles were 5 of those calls. D-101's 118 and 125 used a sample without such a fight, so they aren't comparable with this probe.
+    - The pool costs up to 7 draws while its shapes are live, so views with no Gamma or fire on screen read 2–8 calls higher; views with them read lower.
     - Stress (6 champions in one fight, Mortar Support and Airstrike Beacon, Ultimates refilled about every second): 455 live particles at most, 7 particle draws. Calls peak at 275, in frames with 31 telegraphs (2 draws each) and 29 grenades in flight (a mesh and a shadow each); most frames read 60–100. Those are the markers D-078 left to instance if needed.
     - Live: telegraphs draw over smoke; a `density` edit in the debug panel applies; no console errors.
-  - **Tests** (`tests/render-perf.test.ts`): flames and pools add no meshes, decals stay at 64 and recycle the oldest.
+  - **Follow-up fixes:** cone weapons draw no bullet impacts (amends D-103: 37 flame hits in 2.5 s were spawning puffs). `density` no longer drops a burst of one or more to nothing, so a reduced-effects shot keeps its flash and a level-up its ring (amends D-102); fractional counts, like embers, stay a chance.
+  - **Tests** (`tests/render-perf.test.ts`): flames and pools add no meshes, decals stay at 64 and recycle the oldest, density keeps single-particle bursts.
 - Why: the largest per-effect draw-call costs left, and the fire, debris and scorch the GDD's VFX table asks for.
 - Alternatives: instancing the old cones and blobs where they stood (keeps per-frame CPU matrices, no embers or data file).

@@ -290,6 +290,13 @@ describe('GPU particles (D-102)', () => {
     expect(p.live).toBe(5);
   });
 
+  it('density never drops a single-particle burst', () => {
+    const p = started({ ...pinned('cube', 1), density: 0.25 });
+    for (let i = 0; i < 40; i++) p.emit('p', 0, 0);
+    p.update(16);
+    expect(p.live).toBe(40);
+  });
+
   it('a live edit reaches the next emit', () => {
     const p = started(pinned('cube', 2));
     p.setVfx(pinned('cube', 7));

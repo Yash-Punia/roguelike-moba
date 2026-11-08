@@ -85,6 +85,8 @@ interface Interp {
   kind: Kind;
   /** Metal or concrete: bullets strike sparks, not mud. */
   armoured: boolean;
+  /** Fires a cone: its flames are the effect, so its hits draw no impact. */
+  cone: boolean;
   /** Structures: when it fell (ms), for the collapse; 0 while standing. */
   fellAt: number;
 }
@@ -207,7 +209,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       seen.add(e.id);
       let s = interp.get(e.id);
       if (!s) {
-        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, armoured: e.kind === Kind.SubBase || e.kind === Kind.HQ || e.modelId === 'bazookaTank' || BOSS_MODELS.has(e.modelId), fellAt: 0 };
+        s = { px: e.x, py: e.y, pf: e.aim, pl: e.facing, x: e.x, y: e.y, f: e.aim, l: e.facing, vx: 0, vy: 0, ix: e.x, iy: e.y, targetId: 0, radius: e.radius, kind: e.kind, armoured: e.kind === Kind.SubBase || e.kind === Kind.HQ || e.modelId === 'bazookaTank' || BOSS_MODELS.has(e.modelId), cone: config.champions.find((c) => c.id === e.modelId)?.weapon.kind === 'cone', fellAt: 0 };
         interp.set(e.id, s);
         teams.set(e.id, e.team);
         const root = createModel(e.kind, e.modelId, side(e.team));
@@ -384,9 +386,9 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
       const s = interp.get(ev.target);
       if (!s || fades.get(ev.target)?.hidden) continue; // splash on a hidden unit doesn't give it away
       const lift = bars.get(ev.target)?.lift ?? 2;
-      if (ev.weapon && shotFxShown(s.x, s.y)) {
+      const from = interp.get(ev.source);
+      if (ev.weapon && !from?.cone && shotFxShown(s.x, s.y)) {
         // ponytail: hits only; a bullet that misses has no sim event, so it leaves no puff.
-        const from = interp.get(ev.source);
         const a = from ? Math.atan2(from.y - s.y, from.x - s.x) : 0;
         const reach = from ? s.radius : 0; // on the side facing the shooter
         const tint = tracers.colours[side(teams.get(ev.source) ?? Team.Neutral)];
