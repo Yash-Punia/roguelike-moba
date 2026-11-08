@@ -24,6 +24,27 @@ const flameOuterMat = new THREE.MeshBasicMaterial({ color: palette.fire });
 const flameInnerMat = new THREE.MeshBasicMaterial({ color: palette.muzzle });
 const flashGeo = new THREE.IcosahedronGeometry(1, 1);
 const smokeGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+/** Live smoke puffs across the map; past this the oldest is reused (D-100). */
+const MAX_PUFFS = 128;
+const PUFF_OPACITY = 0.8;
+const puffAlpha = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PUFFS), 1);
+puffAlpha.setUsage(THREE.DynamicDrawUsage);
+smokeGeo.setAttribute('instanceAlpha', puffAlpha);
+// Every puff in one draw (D-100): colour per instance, and the fade as one more instance attribute.
+const smokeMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+smokeMat.onBeforeCompile = (shader) => {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float instanceAlpha;\nvarying float vInstanceAlpha;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvInstanceAlpha = instanceAlpha;');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vInstanceAlpha;')
+    .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vInstanceAlpha;');
+};
+const puffMatrix = new THREE.Matrix4();
+const puffPosition = new THREE.Vector3();
+const puffRotation = new THREE.Quaternion();
+const puffEuler = new THREE.Euler();
+const puffScale = new THREE.Vector3();
 const pillarGeo = new THREE.CylinderGeometry(0.55, 0.7, 2.4, 16, 1, true).translate(0, 1.2, 0);
 const LEVEL_FLASH_MS = 600;
 // Lead Storm: bright streaks flying down the strip (the strip itself is a telegraph, D-078).
@@ -68,9 +89,17 @@ interface Pool {
   elapsed: number;
   total: number;
 }
+interface Puff {
+  /** Render clock (ms) it was made; dead once `SMOKE_MS` old. */
+  born: number;
+  x: number;
+  y: number;
+  z: number;
+  angle: number;
+  colour: THREE.Color;
+}
 interface Blast {
-  flash: THREE.Mesh | undefined;
-  smoke: THREE.Mesh[];
+  flash: THREE.Mesh;
   born: number;
   radius: number;
 }
@@ -89,10 +118,20 @@ export class UltFx {
   private readonly flames = new Map<number, Flames>();
   private readonly waves = new Map<number, THREE.Group>();
   private blasts: Blast[] = [];
+  private readonly smokeMesh = new THREE.InstancedMesh(smokeGeo, smokeMat, MAX_PUFFS);
+  private readonly smokePuffs: Puff[] = Array.from({ length: MAX_PUFFS }, () => ({ born: -Infinity, x: 0, y: 0, z: 0, angle: 0, colour: new THREE.Color() }));
+  private nextPuff = 0;
   private flashes: { ring: THREE.Mesh; pillar: THREE.Mesh; born: number }[] = [];
   private readonly seen = new Set<number>();
 
-  constructor(private readonly heightAt: HeightAt) {}
+  constructor(private readonly heightAt: HeightAt) {
+    this.smokeMesh.count = 0;
+    this.smokeMesh.visible = false;
+    this.smokeMesh.frustumCulled = false;
+    this.smokeMesh.renderOrder = 3; // over the blobs: one object can't be depth-sorted per puff
+    this.smokeMesh.setColorAt(0, this.smokePuffs[0]!.colour); // allocates the colour buffer
+    this.group.add(this.smokeMesh);
+  }
 
   /** `shown`: fog of war; a grenade shows only if its landing spot is seen, a fire pool if its centre is. */
   capture(lobs: readonly LobSnapshot[], zones: readonly ZoneSnapshot[], shown?: (x: number, y: number) => boolean) {
@@ -233,26 +272,24 @@ export class UltFx {
     const flash = new THREE.Mesh(flashGeo, basic(palette.fire, 0.9));
     flash.position.set(x, this.heightAt(x, y) + 0.4, -y);
     this.group.add(flash);
-    this.puffs(x, y, radius, palette.smoke, 5, now, flash);
+    this.blasts.push({ flash, born: now, radius });
+    this.smoke(x, y, radius, palette.smoke, 5, now);
   }
 
   /** A ring of rising, fading puffs at sim (x, y): knock-out dust, respawn smoke. */
   smoke(x: number, y: number, radius: number, colour: number, count: number, now: number) {
-    this.puffs(x, y, radius, colour, count, now, undefined);
-  }
-
-  private puffs(x: number, y: number, radius: number, colour: number, count: number, now: number, flash: THREE.Mesh | undefined) {
     const h = this.heightAt(x, y);
-    const smoke: THREE.Mesh[] = [];
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2;
-      const puff = new THREE.Mesh(smokeGeo, basic(colour, 0.8));
-      puff.position.set(x + Math.cos(a) * radius * 0.35, h + 0.4, -y + Math.sin(a) * radius * 0.35);
-      puff.rotation.set(a, a * 0.7, 0);
-      smoke.push(puff);
+      const puff = this.smokePuffs[this.nextPuff]!;
+      this.nextPuff = (this.nextPuff + 1) % MAX_PUFFS;
+      puff.born = now;
+      puff.x = x + Math.cos(a) * radius * 0.35;
+      puff.y = h + 0.4;
+      puff.z = -y + Math.sin(a) * radius * 0.35;
+      puff.angle = a;
+      puff.colour.set(colour);
     }
-    this.group.add(...smoke);
-    this.blasts.push({ flash, smoke, born: now, radius });
   }
 
   /** Level-up flash (GDD §10) at sim (x, y): a brass ring spreading at the feet and a rising pillar of light. */
@@ -307,34 +344,40 @@ export class UltFx {
 
     const keep: Blast[] = [];
     for (const b of this.blasts) {
-      const age = now - b.born;
-      const tf = age / FLASH_MS;
-      const ts = age / SMOKE_MS;
-      if (!b.flash) {
-        // smoke only
-      } else if (tf < 1) {
+      const tf = (now - b.born) / FLASH_MS;
+      if (tf < 1) {
         b.flash.scale.setScalar(b.radius * (0.3 + 0.7 * Math.sqrt(tf)));
         (b.flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - tf);
-      } else {
-        b.flash.visible = false;
-      }
-      for (const puff of b.smoke) {
-        puff.scale.setScalar(0.6 + ts * 1.4);
-        puff.position.y += 0.012;
-        (puff.material as THREE.MeshBasicMaterial).opacity = 0.8 * Math.max(0, 1 - ts);
-      }
-      if (ts < 1) {
         keep.push(b);
       } else {
-        if (b.flash) {
-          this.group.remove(b.flash);
-          (b.flash.material as THREE.Material).dispose();
-        }
-        this.group.remove(...b.smoke);
-        for (const puff of b.smoke) (puff.material as THREE.Material).dispose();
+        this.group.remove(b.flash);
+        (b.flash.material as THREE.Material).dispose();
       }
     }
     this.blasts = keep;
+    this.drawSmoke(now);
+  }
+
+  /** Writes every live puff to the one instanced mesh. */
+  private drawSmoke(now: number) {
+    let n = 0;
+    for (const p of this.smokePuffs) {
+      const t = (now - p.born) / SMOKE_MS;
+      if (t >= 1) continue;
+      p.y += 0.012;
+      puffPosition.set(p.x, p.y, p.z);
+      puffRotation.setFromEuler(puffEuler.set(p.angle, p.angle * 0.7, 0));
+      puffScale.setScalar(0.6 + t * 1.4);
+      this.smokeMesh.setMatrixAt(n, puffMatrix.compose(puffPosition, puffRotation, puffScale));
+      this.smokeMesh.setColorAt(n, p.colour);
+      puffAlpha.setX(n, PUFF_OPACITY * (1 - t));
+      n++;
+    }
+    this.smokeMesh.count = n;
+    this.smokeMesh.visible = n > 0;
+    this.smokeMesh.instanceMatrix.needsUpdate = true;
+    this.smokeMesh.instanceColor!.needsUpdate = true;
+    puffAlpha.needsUpdate = true;
   }
 
   private addPool(z: ZoneSnapshot): Pool {

@@ -6,6 +6,7 @@ import { createModel, partsOf } from '../src/render/models';
 import { buildTerrain } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
 import { HpBars } from '../src/render/hp-bars';
+import { UltFx } from '../src/render/ult-fx';
 import { Kind, Team } from '../src/sim/sim';
 
 const stats = (o: THREE.Object3D) => {
@@ -116,6 +117,32 @@ describe('terrain tiles (D-044)', () => {
       expect(box.max.x - box.min.x).toBeLessThan(12 + 3); // a tile plus the triangles straddling its edge
       expect(box.max.z - box.min.z).toBeLessThan(12 + 3);
     }
+  });
+});
+
+describe('smoke puffs (D-100)', () => {
+  const instanced = (fx: UltFx) => fx.group.children.filter((c): c is THREE.InstancedMesh => c instanceof THREE.InstancedMesh);
+
+  it('from several blasts draw as one mesh, and are gone after their life', () => {
+    const fx = new UltFx(() => 0);
+    fx.smoke(0, 0, 1, 0xff0000, 6, 0);
+    fx.explode(4, 4, 2, 0); // 5 more, and a flash of its own
+    fx.update(0, 100);
+    const [smoke, ...others] = instanced(fx);
+    expect(others).toHaveLength(0);
+    expect(smoke!.count).toBe(11);
+    expect(smoke!.visible).toBe(true);
+    fx.update(0, 2000);
+    expect(smoke!.count).toBe(0);
+    expect(smoke!.visible).toBe(false);
+    expect(fx.group.children).toHaveLength(1); // the flash went too
+  });
+
+  it('reuse the oldest past the pool', () => {
+    const fx = new UltFx(() => 0);
+    for (let i = 0; i < 40; i++) fx.smoke(0, 0, 1, 0xffffff, 5, 0);
+    fx.update(0, 1);
+    expect(instanced(fx)[0]!.count).toBe(128);
   });
 });
 

@@ -2102,3 +2102,14 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`): the box holds the whole ground view for a Blue and a Red camera and a 9:21 frame, and is smaller than the old square.
 - Why: it is the largest single source of calls, costs no visible quality and improves shadow resolution.
 - Alternatives: coarser terrain tiles for the shadow pass (Three.js has no shadow-only draw without also drawing in the main pass); a fixed smaller box (breaks for the Red camera, tall frames and live tuning).
+
+## D-100 — Smoke puffs in one draw
+- Date: 2026-11-08
+- Source: user request (draw-call task); pulls the smoke part of M5's particle pool forward; the rest made during development
+- Decision:
+  - **One `InstancedMesh` for every puff** (`src/render/ult-fx.ts`): 128 pre-made puffs reused oldest first, colour per instance, and the fade as a per-instance `instanceAlpha` attribute patched into the basic material. Each puff used to be a mesh with a new material, which also broke CLAUDE.md's no-allocations rule on every knock-out and blast.
+  - **Same look:** same box, sizes, rise, life and fade. The flash stays its own mesh. Puffs now draw after the ground blobs (render order 3), since one object can't be depth-sorted per puff.
+  - **Measured** (D-099's method): the 5–11 puff calls in a fight become 1, and an HQ's fall (about 40 puffs) is also 1. Over the 30 samples the rest of the frame varies by more than this saves: the worst trunk view read 149–155 afterwards, from soldiers and Gamma's flames.
+  - **Tests** (`tests/render-perf.test.ts`): puffs from several blasts are one mesh, they and the flash are gone after their life, and the pool reuses the oldest.
+- Why: the cheapest fight-time saving, and it removes per-puff allocation.
+- Alternatives: fading by scale alone with no alpha attribute (a visible change); a pool per colour (one draw each, for no gain).
