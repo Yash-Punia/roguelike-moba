@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MapConfig, SurfaceKind } from '../data/schema';
+import type { DressingTris } from './dressing';
 import { patchFog } from './fog';
 import { palette } from './palette';
 import { buildTerrainGeometry, EDGE_HEIGHT, TAG_SLOPE } from './terrain-mesh';
@@ -35,25 +36,33 @@ patchFog(terrainMaterial); // fogged ground is drawn darker (D-010)
 /**
  * Faceted terrain (D-018 heights are render-only; D-026 contour-cut edges), split into
  * `TERRAIN_TILE` square tiles by triangle centroid. Triangles are unchanged, only regrouped,
- * so tiles meet without seams.
+ * so tiles meet without seams. `dressing` adds map props to the same tiles, so they cost no draw
+ * calls of their own (D-097).
  */
-export function buildTerrain(map: MapConfig): Terrain {
+export function buildTerrain(map: MapConfig, dressing?: (heightAt: Terrain['heightAt']) => DressingTris): Terrain {
   const { triangles, tags, heightAt } = buildTerrainGeometry(map);
   const surfaces = map.walkable.map((s) => new THREE.Color(surfaceColour[s.surface]));
   const top = new THREE.Color(palette.jungle);
   const slope = new THREE.Color(slopeColour);
   const { minX, minY, maxX } = map.bounds;
   const cols = Math.max(1, Math.ceil((maxX - minX) / TERRAIN_TILE));
+  const tileAt = (cx: number, cy: number) => Math.max(0, Math.floor((cy - minY) / TERRAIN_TILE)) * cols + Math.min(cols - 1, Math.max(0, Math.floor((cx - minX) / TERRAIN_TILE)));
   const tileOf = (t: number) => {
     const cx = (triangles[t * 9]! + triangles[t * 9 + 3]! + triangles[t * 9 + 6]!) / 3;
     const cy = (triangles[t * 9 + 1]! + triangles[t * 9 + 4]! + triangles[t * 9 + 7]!) / 3;
-    const col = Math.min(cols - 1, Math.max(0, Math.floor((cx - minX) / TERRAIN_TILE)));
-    const row = Math.max(0, Math.floor((cy - minY) / TERRAIN_TILE));
-    return row * cols + col;
+    return tileAt(cx, cy);
+  };
+  const extra = dressing?.(heightAt);
+  // Dressing is already in world space: x, height, −y.
+  const extraCount = extra ? extra.positions.length / 9 : 0;
+  const extraTile = (t: number) => {
+    const p = extra!.positions;
+    return tileAt((p[t * 9]! + p[t * 9 + 3]! + p[t * 9 + 6]!) / 3, -(p[t * 9 + 2]! + p[t * 9 + 5]! + p[t * 9 + 8]!) / 3);
   };
   // Count triangles per tile, then fill each tile's buffers.
   const counts = new Map<number, number>();
   for (let t = 0; t < tags.length; t++) counts.set(tileOf(t), (counts.get(tileOf(t)) ?? 0) + 1);
+  for (let t = 0; t < extraCount; t++) counts.set(extraTile(t), (counts.get(extraTile(t)) ?? 0) + 1);
   const buffers = new Map<number, { positions: Float32Array; colours: Float32Array; used: number }>();
   for (const [tile, n] of counts) buffers.set(tile, { positions: new Float32Array(n * 9), colours: new Float32Array(n * 9), used: 0 });
   for (let t = 0; t < tags.length; t++) {
@@ -72,6 +81,12 @@ export function buildTerrain(map: MapConfig): Terrain {
       b.colours[o + 2] = colour.b;
       b.used++;
     }
+  }
+  for (let t = 0; t < extraCount; t++) {
+    const b = buffers.get(extraTile(t))!;
+    b.positions.set(extra!.positions.subarray(t * 9, t * 9 + 9), b.used * 3);
+    b.colours.set(extra!.colours.subarray(t * 9, t * 9 + 9), b.used * 3);
+    b.used += 3;
   }
   const group = new THREE.Group();
   for (const tile of [...buffers.keys()].sort((a, b) => a - b)) {

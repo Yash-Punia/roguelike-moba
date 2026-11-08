@@ -675,6 +675,18 @@
       "h": 12
     }
   ],
+  "dressing": {
+    "placed": [
+      { "kind": "tent", "x": -17, "y": -66, "rot": -80 }, { "kind": "tent", "x": -12, "y": -69.5, "rot": -100 },
+      { "kind": "tent", "x": 12, "y": -69.5, "rot": -80 }, { "kind": "tent", "x": 17, "y": -65.5, "rot": -100 },
+      { "kind": "flag", "x": -4.4, "y": -56.5 }, { "kind": "flag", "x": 4.4, "y": -56.5 },
+      { "kind": "searchlight", "x": -9.6, "y": -67, "rot": 100 }, { "kind": "searchlight", "x": 9.6, "y": -67, "rot": 80 },
+      { "kind": "crates", "x": -10, "y": -72.5, "rot": 20 }, { "kind": "crates", "x": 15.5, "y": -62, "rot": -15 },
+      { "kind": "drums", "x": 9.5, "y": -72.5, "rot": 110 },
+      { "kind": "sandbagWall", "x": -10, "y": -51.3, "rot": 140 }, { "kind": "sandbagWall", "x": -18, "y": -60.7, "rot": 140 },
+      { "kind": "sandbagWall", "x": 10.4, "y": -51.9, "rot": 221 }, { "kind": "sandbagWall", "x": 18.6, "y": -61.2, "rot": 221 }
+    ]
+  },
   "caves": [
     {
       "team": "blue",

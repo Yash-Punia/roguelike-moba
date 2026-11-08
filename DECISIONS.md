@@ -2057,3 +2057,17 @@ From TDD §13:
 - **Tests** (`tests/bot-gank.test.ts`): goes for a weak enemy in the next lane and reaches it; only with Light Feet; not for a healthy enemy or a lane two away; never on Easy; off when the target heals, then home and a cooldown; off on time-out.
 - Why: TDD §7's last goal, and Beta's role in the GDD: the best roamer between lanes.
 - Alternatives: a flow field to the target's exact position (one Dijkstra per moving target; the lane field plus a straight line gets there).
+
+## D-097 — Environment dressing
+- Date: 2026-11-08
+- Source: M4 row "Environment dressing"; the rest made during development
+- Decision:
+  - **Merged into the terrain tiles:** dressing triangles go into the same 12 m tile buffers as the ground, so they add no draw calls and are culled and shadowed with their tile. They also darken in the fog, as the ground does. TDD §491 suggests instancing repeated props; that would add calls, and busy views are already at the budget.
+  - **Measured before dressing (seed 11, The Front, 0:57):** 96–120 draw calls and 63–86k triangles across the base, left lane, right lane, Crater and Blue trunk; 133 calls at the base at 0:06.
+  - **Decoration only (D-061):** no obstacle-grid change, so nothing reaches the sim. A champion can walk through a base prop; hand placement keeps props off the routes.
+  - **Placement data:** `map.dressing` holds the numbers; `placed` lists hand-set props on the Blue half, each twinned at (−x, −y) for Red.
+  - **Flags stand on the apron** in front of the spawn pad as EN-01 draws them, so they are exempt from EN-01's own 1.2 m rule: a bare pole hides nothing.
+  - **Searchlight lens** is a flat bright colour, not an emissive material (as Gamma's lenses are), to avoid another draw call.
+  - **Tests:** tall props stay off lane paths, every prop has a twin, the plan is repeatable, every template is within the 500-triangle prop budget (GDD §12).
+- Why: the sheets call for hundreds of props, and draw calls are the limit that is already reached.
+- Alternatives: a separate dressing group on coarser tiles (still adds calls in both passes); instancing per prop kind (one call per kind in view, in both passes).

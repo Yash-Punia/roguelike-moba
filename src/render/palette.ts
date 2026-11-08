@@ -21,6 +21,7 @@ export const palette = {
   concreteShadow: 0x7b776f,
   sandbag: 0xbca67a,
   sandbagShadow: 0xa58e64,
+  sandbagLight: 0xcbb68a, // PR-01's third sand tone
   camoNet: 0x66713a,
   wood: 0x8c5a33,
   mud: 0x6b5540,

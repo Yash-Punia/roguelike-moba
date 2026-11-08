@@ -18,19 +18,19 @@ function mat(color: number): THREE.MeshLambertMaterial {
   return m;
 }
 
-const teamColour = (team: Team) => (team === Team.Blue ? palette.blue : team === Team.Red ? palette.red : palette.olive);
+export const teamColour = (team: Team) => (team === Team.Blue ? palette.blue : team === Team.Red ? palette.red : palette.olive);
 const teamShade = (team: Team) => (team === Team.Blue ? palette.blueShade : team === Team.Red ? palette.redShade : palette.olive);
 
 /** Adds a mesh at (x, y, z) to a parent and returns it, for terse model building. */
-function part(parent: THREE.Object3D, geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number) {
+export function part(parent: THREE.Object3D, geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number) {
   const m = new THREE.Mesh(geo, mat(color));
   m.position.set(x, y, z);
   parent.add(m);
   return m;
 }
 
-const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-const cyl = (top: number, bottom: number, h: number, sides: number) => new THREE.CylinderGeometry(top, bottom, h, sides);
+export const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
+export const cyl = (top: number, bottom: number, h: number, sides: number) => new THREE.CylinderGeometry(top, bottom, h, sides);
 
 /** Baked templates, one per model and team; instances are clones that share geometry (D-044). */
 const templates = new Map<string, { root: THREE.Object3D; names: PartNames }>();
@@ -721,7 +721,7 @@ function behemoth(root: THREE.Object3D) {
 }
 
 /** Crossed girders: a tank trap (Czech hedgehog), cover dressing in the Behemoth's arena. */
-function tankTrap(root: THREE.Object3D, x: number, z: number, turn: number) {
+export function tankTrap(root: THREE.Object3D, x: number, z: number, turn: number) {
   for (const [rx, ry, rz] of [[0.6, 0, 0.6], [-0.6, 0, 0.6], [0, Math.PI / 2, 0.9]] as const) {
     const g = part(root, box(1.1, 0.1, 0.1), palette.iron, x, 0.4, z);
     g.rotation.set(rx, ry + turn, rz);

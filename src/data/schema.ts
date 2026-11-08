@@ -167,6 +167,14 @@ const WalkShape = z.discriminatedUnion('shape', [
 const TeamName = z.enum(['blue', 'red']);
 const StructureKind = z.enum(['subBase', 'hq']);
 
+const PropKind = z.enum(['tent', 'flag', 'searchlight', 'crates', 'drums', 'sandbagWall']);
+
+/** Map scenery (map spec "Dressing", PR-01, PR-02). Render only: the sim never reads it (D-097). */
+const Dressing = z.object({
+  /** Hand-placed props on the Blue half; each gets a twin at (−x, −y) for Red. */
+  placed: z.array(z.object({ kind: PropKind, x: z.number(), y: z.number(), rot: deg().default(0) })).default([]),
+});
+
 const MapConfig = z.object({
   id: z.string(),
   bounds: z.object({ minX: z.number(), maxX: z.number(), minY: z.number(), maxY: z.number() }),
@@ -193,6 +201,7 @@ const MapConfig = z.object({
   camps: z.array(z.object({ id: z.string(), kind: z.enum(['deserter', 'sniper', 'fieldGun', 'halftrack', 'behemoth']), x: z.number(), y: z.number(), count: z.number().int().min(1).default(1) })).default([]),
   /** Units on a `ford` cell move this much slower (The Bridgehead, D-069). `river` cells block movement but not shots or sight. */
   fordSlowPct: pct().default(0),
+  dressing: Dressing.default(Dressing.parse({})),
 });
 
 // Footprint is stamped into the obstacle grid (units walk round it); `radius` is the
@@ -785,6 +794,7 @@ export type RawConfig = z.input<typeof ConfigSchema>;
 export type Config = z.output<typeof ConfigSchema>;
 export type MapConfig = Config['map'];
 export type WalkShape = MapConfig['walkable'][number];
+export type PropKind = z.output<typeof PropKind>;
 export type SurfaceKind = z.output<typeof Surface>;
 export type StructureKind = z.output<typeof StructureKind>;
 export type StructureDef = z.output<typeof StructureDef>;

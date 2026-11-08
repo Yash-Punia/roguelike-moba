@@ -278,6 +278,18 @@
     }
   ],
   "caves": [{ "team": "blue", "x": 0, "y": -81 }, { "team": "red", "x": 0, "y": 81 }],
+  "dressing": {
+    "placed": [
+      { "kind": "tent", "x": -19, "y": -72, "rot": -80 }, { "kind": "tent", "x": -13, "y": -75, "rot": -100 },
+      { "kind": "tent", "x": 13, "y": -75, "rot": -80 }, { "kind": "tent", "x": 19, "y": -71.5, "rot": -100 },
+      { "kind": "flag", "x": -4.6, "y": -62.5 }, { "kind": "flag", "x": 4.6, "y": -62.5 },
+      { "kind": "searchlight", "x": -9.6, "y": -73, "rot": 100 }, { "kind": "searchlight", "x": 9.6, "y": -73, "rot": 80 },
+      { "kind": "crates", "x": 11, "y": -79, "rot": 20 }, { "kind": "crates", "x": 16.5, "y": -66, "rot": -15 },
+      { "kind": "drums", "x": -16, "y": -78.5, "rot": 30 }, { "kind": "drums", "x": 16, "y": -77, "rot": 110 },
+      { "kind": "sandbagWall", "x": -12.5, "y": -56.5, "rot": 148 }, { "kind": "sandbagWall", "x": -19.5, "y": -67.5, "rot": 148 },
+      { "kind": "sandbagWall", "x": 10.5, "y": -56.2, "rot": 227 }, { "kind": "sandbagWall", "x": 19.5, "y": -64.8, "rot": 227 }
+    ]
+  },
   "medkits": [{ "x": -9, "y": -56 }, { "x": 8, "y": -24 }, { "x": -8, "y": 24 }, { "x": 9, "y": 56 }],
   "camps": [
     { "id": "C1", "kind": "deserter", "x": -14, "y": -44, "count": 4 },

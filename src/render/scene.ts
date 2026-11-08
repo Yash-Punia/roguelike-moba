@@ -4,6 +4,7 @@ import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
 import { DamageNumbers, damageColours } from './damage-numbers';
+import { buildDressing } from './dressing';
 import { EpicFx } from './epic-fx';
 import { Fog } from './fog';
 import { bossBar, HpBars, type HpBar } from './hp-bars';
@@ -548,7 +549,7 @@ function lerpAngle(a: number, b: number, t: number) {
 /** Static map: terrain, the area outside the bounds, spawn pads, caves and medkit crates. */
 function buildArena(map: MapConfig, side: (t: Team) => Team) {
   const group = new THREE.Group();
-  const terrain = buildTerrain(map);
+  const terrain = buildTerrain(map, (heightAt) => buildDressing(map, heightAt, side));
   group.add(terrain.mesh, buildSurround(map));
 
   for (const team of [Team.Blue, Team.Red]) {
