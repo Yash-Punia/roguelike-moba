@@ -3,7 +3,7 @@ import type { Entity, Store } from './ecs';
 import { DamageLog, HitFlag } from './damage-log';
 import type { DamageEvent, SimEvent } from './events';
 import type { HitQueue } from './hits';
-import { Kind, type Health, type Structure } from './sim';
+import { Kind, type Champion, type Health, type Structure } from './sim';
 import { Stat, stat, type Stats } from './stats';
 
 /** True while a unit takes no damage and can't be targeted: a permanent flag (HQ) or a timed window (lethal save). */
@@ -12,6 +12,7 @@ export function isInvulnerable(h: Health, tick: number): boolean {
 }
 
 export interface DamageContext {
+  champions: Store<Champion>;
   hits: HitQueue;
   log: DamageLog;
   healths: Store<Health>;
@@ -48,7 +49,7 @@ const eventPool: DamageEvent[] = [];
  * float (small damage-over-time ticks would vanish if rounded); only the display rounds.
  */
 export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage'], tick: number, backdoorPct = 0) {
-  const { hits, log, healths, stats, kinds, events } = ctx;
+  const { champions, hits, log, healths, stats, kinds, events } = ctx;
   log.windowTicks = cfg.logSeconds;
   let pooled = 0;
 
@@ -108,6 +109,8 @@ export function damageSystem(ctx: DamageContext, cfg: Config['combat']['damage']
 
     // 7. Log and announce.
     const dealt = absorbed + toHp;
+    const dealer = champions.get(source); // the Results screen's damage column (D-093)
+    if (dealer) dealer.damageDealt += dealt;
     log.push(tick, source, target, dealt, absorbed, flags);
     const ev = (eventPool[pooled++] ??= { type: 'damage', source: 0, target: 0, amount: 0, absorbed: 0, critical: false, lethal: false, saved: false, weapon: false });
     ev.source = source;

@@ -152,6 +152,8 @@ export interface Champion {
   assists: number;
   /** Takedowns (kills and assists) since it was last knocked out: its bounty (GDD §9, D-084). */
   streak: number;
+  /** Damage it has dealt this match (D-093). */
+  damageDealt: number;
   /** Redeploy sprint: the move speed pct it has applied right now (0 = none), and the tick it last respawned. */
   sprintPct: number;
   respawnTick: number;
@@ -327,6 +329,8 @@ export interface EntitySnapshot {
   deaths: number;
   /** Champions: takedowns since it was last knocked out (its bounty, D-084). */
   streak: number;
+  /** Champions: damage dealt this match (D-093). */
+  damageDealt: number;
   /** Champions: takedowns assisted, and whether the Redeploy sprint is on. */
   assists: number;
   sprinting: boolean;
@@ -602,7 +606,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, streak: 0, sprintPct: 0, respawnTick: 0, supplyTicks: 0, supplyDamagePct: 0, supplySpeedPct: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, streak: 0, damageDealt: 0, sprintPct: 0, respawnTick: 0, supplyTicks: 0, supplyDamagePct: 0, supplySpeedPct: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -690,7 +694,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     onStatsChanged: (e) => applyChampion(e, champions.get(e)!.def, true),
   };
   const lifeContext: LifeContext = { champions, transforms, motions, healths, weapons, targetings, teams, events, stats };
-  const damageContext: DamageContext = { hits, log: damageLog, healths, stats, kinds, events, structures,
+  const damageContext: DamageContext = { champions, hits, log: damageLog, healths, stats, kinds, events, structures,
     structureTakenMult: () => (match.phase === 'suddenDeath' ? 1 + config.match.suddenDeath.structureDamageTakenPct : 1),
     markOf: (t) => {
     const s = statuses.get(t);
@@ -929,7 +933,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         const t = transforms.data[i]!;
         const m = motions.get(e);
         const s = (snap.entities[i] ??= {
-          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, underAttack: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, streak: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
+          id: 0, kind: Kind.Champion, modelId: '', team: Team.Neutral, lane: '', x: 0, y: 0, facing: 0, vx: 0, vy: 0, radius: 0, hp: 0, maxHp: 0, shield: 0, invulnerable: false, destroyed: false, underAttack: false, targetId: 0, aim: 0, level: 0, xp: 0, xpLevelStart: 0, xpLevelEnd: 0, respawnTicks: 0, killer: 0, kills: 0, deaths: 0, streak: 0, damageDealt: 0, assists: 0, sprinting: false, supply: false, draftCards: noCards, draftTicksLeft: 0, draftRecommended: 0, draftQueued: 0, draftRerolls: 0, powers: noPowers, ultCharge: 0, ultTargetable: false, ultTargetId: 0, traitActive: false, channel: 0, channelAngle: 0, slowed: false, aura: 0, firing: false, auraRadius: 0, visibleMask: SEEN_BY_ALL,
         });
         s.id = e;
         s.kind = kinds.get(e) ?? Kind.Champion;
@@ -968,6 +972,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         s.kills = c?.kills ?? 0;
         s.deaths = c?.deaths ?? 0;
         s.streak = c?.streak ?? 0;
+        s.damageDealt = c?.damageDealt ?? 0;
         s.assists = c?.assists ?? 0;
         s.sprinting = (c?.sprintPct ?? 0) > 0;
         s.supply = (c?.supplyTicks ?? 0) > 0;

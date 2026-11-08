@@ -305,7 +305,7 @@ body {
   color: #e9ddd0;
 }
 
-/* Minimal end-of-match banner (app/end-banner.ts, D-038) until the M4 Results screen. */
+/* The Results screen's banner (ui/hud.tsx, D-038, D-093). */
 .end-banner {
   position: absolute;
   inset: 0;
@@ -351,17 +351,6 @@ body {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.04em;
-}
-
-.end-again {
-  padding: 10px 26px;
-  border: none;
-  border-radius: 4px;
-  background: #3c4147;
-  color: #fff;
-  font: 800 16px/1 system-ui, sans-serif;
-  letter-spacing: 0.06em;
-  cursor: pointer;
 }
 
 @keyframes end-in {
@@ -711,6 +700,45 @@ body {
   background: rgb(27 26 23 / 0.88);
   font-size: max(14px, 3.2cqw);
   font-variant-numeric: tabular-nums;
+}
+
+/* The Results screen (D-093). The table is the scoreboard's. */
+.hud-results {
+  z-index: 3;
+  padding: 0 3cqw;
+  background: rgb(27 26 23 / 0.82);
+  pointer-events: auto;
+}
+
+.hud-board.static {
+  position: static;
+  align-self: stretch;
+}
+
+.hud-results-actions {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 1.6cqw;
+  margin: 2cqw 12cqw 0;
+}
+
+.hud-results-actions button {
+  min-height: 52px;
+  border: 1px solid #5a5140;
+  border-radius: 1cqw;
+  background: #2b2822;
+  color: #e9ddd0;
+  font-family: inherit;
+  font-size: max(16px, 4.6cqw);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.hud-results-actions button.primary {
+  border: 0;
+  background: var(--hud-brass);
+  color: var(--hud-dark);
 }
 
 .hud-board table {

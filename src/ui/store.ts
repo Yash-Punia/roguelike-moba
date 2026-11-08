@@ -54,7 +54,17 @@ export interface BoardRow {
   kills: number;
   deaths: number;
   assists: number;
+  damage: number;
+  xp: number;
   powers: { common: number; rare: number; epic: number };
+}
+
+/** The end of a match (TDD §10, D-093). */
+export interface ResultsView {
+  result: 'won' | 'lost' | 'draw';
+  reason: 'hq' | 'timeout' | 'surrender';
+  seconds: number;
+  rows: BoardRow[];
 }
 
 export interface StructureView {
@@ -107,6 +117,8 @@ export const hud = {
   /** The scoreboard: open (Tab or the score), and its rows, filled only while open. */
   boardOpen: signal(false),
   board: signal<BoardRow[]>([]),
+  /** The match is over and its Results screen is up. */
+  results: signal<ResultsView | null>(null),
 };
 
 /** How long each banner stays, and the most waiting behind it (older ones drop). UI timing, in sim ticks. */
@@ -209,7 +221,6 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
   let ours = 0;
   let theirs = 0;
   let respawn: RespawnView | null = null;
-  const board: BoardRow[] = [];
   const mine: StructureView[] = [];
   const enemy: StructureView[] = [];
   for (const e of snap.entities) {
@@ -217,7 +228,6 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
     if (e.kind === Kind.Champion) {
       if (side === Team.Blue) ours += e.kills;
       else if (side === Team.Red) theirs += e.kills;
-      if (hud.boardOpen.value) board.push(boardRow(e, localId, localTeam, powers, champions));
       if (e.id === localId && e.respawnTicks > 0) respawn = { seconds: Math.ceil(e.respawnTicks / TICK_HZ), killerName: notices.killerName, killerSide: notices.killerSide };
       if (e.id === localId) {
         hud.hp.value = Math.max(0, Math.round(e.hp));
@@ -244,13 +254,39 @@ export function updateHud(snap: Snapshot, localId: Entity | undefined, localTeam
   const r = respawn as RespawnView | null;
   const shown = hud.respawn.value;
   if (r?.seconds !== shown?.seconds || r?.killerName !== shown?.killerName) hud.respawn.value = r;
-  if (hud.boardOpen.value) hud.board.value = board.sort((a, b) => Number(b.side === 'ours') - Number(a.side === 'ours') || a.id - b.id);
+  if (hud.boardOpen.value) hud.board.value = boardRows(snap, localId, localTeam, powers, champions);
   const s = hud.score.value;
   if (s.ours !== ours || s.theirs !== theirs) hud.score.value = { ours, theirs };
   mine.sort(order);
   enemy.sort(order);
   if (!same(hud.ours.value, mine)) hud.ours.value = mine;
   if (!same(hud.theirs.value, enemy)) hud.theirs.value = enemy;
+}
+
+/** Every champion, your side first. */
+export function boardRows(snap: Snapshot, localId: Entity | undefined, localTeam: Team, powers?: Config['powers'], champions?: Config['champions']): BoardRow[] {
+  const rows: BoardRow[] = [];
+  for (const e of snap.entities) if (e.kind === Kind.Champion) rows.push(boardRow(e, localId, localTeam, powers, champions));
+  return rows.sort((a, b) => Number(b.side === 'ours') - Number(a.side === 'ours') || a.id - b.id);
+}
+
+/** The Results screen's contents, read from the final snapshot. */
+export function resultsView(snap: Snapshot, winner: Team | undefined, reason: ResultsView['reason'], localId: Entity | undefined, localTeam: Team, powers?: Config['powers'], champions?: Config['champions']): ResultsView {
+  return {
+    result: winner === undefined ? 'draw' : winner === localTeam ? 'won' : 'lost',
+    reason,
+    seconds: snap.match.endTick / TICK_HZ,
+    rows: boardRows(snap, localId, localTeam, powers, champions),
+  };
+}
+
+const RESULT_TITLE = { won: 'VICTORY', lost: 'DEFEAT', draw: 'DRAW' } as const;
+const RESULT_REASON = { hq: '', timeout: 'Time-out · ', surrender: 'Surrendered · ' } as const;
+
+/** The Results heading: who won, how it ended and how long it took. */
+export function resultsHeading(v: ResultsView) {
+  const s = Math.floor(v.seconds);
+  return { title: RESULT_TITLE[v.result], line: `${RESULT_REASON[v.reason]}${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` };
 }
 
 function boardRow(e: EntitySnapshot, localId: Entity | undefined, localTeam: Team, powers?: Config['powers'], champions?: Config['champions']): BoardRow {
@@ -266,6 +302,8 @@ function boardRow(e: EntitySnapshot, localId: Entity | undefined, localTeam: Tea
     kills: e.kills,
     deaths: e.deaths,
     assists: e.assists,
+    damage: e.damageDealt,
+    xp: e.xp,
     powers: count,
   };
 }

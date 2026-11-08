@@ -1968,3 +1968,16 @@ From TDD §13:
 - **Tests** (`tests/pause.test.ts`, on a stubbed frame loop): held stops stepping and releasing carries on; a held match stays held when the tab is hidden and shown again.
 - Why: a match couldn't be stopped, and D-068 left Surrender on the HUD only until this menu existed.
 - Alternatives: sharing `paused` and re-checking the menu in the visibility handler (the loop would need to know about the menu).
+
+## D-093 — Results screen
+- Date: 2026-11-08
+- Source: M4 row "Menus", third commit. The rest was decided during development.
+- Decision:
+  - **Replaces the D-038 end banner**, keeping its pennant and torn-flag titles. After the 1 s of slow motion it shows Victory, Defeat or Draw, how the match ended and how long it took, and one row per champion.
+  - **Rows:** your side first and you highlighted; level, takedowns, deaths, assists, damage, XP and powers per rarity. `boardRows` is shared with the scoreboard, and the table reuses its CSS.
+  - **Damage:** `Champion.damageDealt`, added in the damage pipeline when the source is a champion, and on the snapshot. War Dogs and other summons aren't credited to their owner yet.
+  - **Buttons:** Play again reloads the page, so the same settings and a new seed unless one was set. Main menu goes to the title.
+  - **Not built:** Export telemetry and Save replay (their own M5 rows).
+- **Tests** (`tests/results.test.ts`): damage adds up to what was dealt, and a structure's hits credit no champion; rows' order and values; won, lost and draw for both viewers; each ending's wording and the match time.
+- Why: the match had no end screen beyond a line of the local player's numbers.
+- Alternatives: damage counted in the HUD from events (telemetry will want it from the sim too).

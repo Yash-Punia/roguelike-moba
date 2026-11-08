@@ -4,17 +4,16 @@ import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
 import { createInput } from '../input';
 import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot } from '../sim/sim';
-import { TICK_HZ, type Difficulty } from '../data/schema';
+import type { Difficulty } from '../data/schema';
 import { effect } from '@preact/signals';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
 import { Squad } from '../sim/bots/squad';
 import { matchSlots, type Slot } from '../sim/match-setup';
-import { showEndBanner } from './end-banner';
 import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
 import { mountMinimap } from '../ui/minimap';
-import { hud, pushNotices, updateHud } from '../ui/store';
+import { hud, pushNotices, resultsView, updateHud } from '../ui/store';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -90,9 +89,7 @@ function endMatch(winner: Team | undefined, reason: 'hq' | 'timeout' | 'surrende
   view.setTimeScale(SLOW_MOTION_SCALE);
   setTimeout(() => {
     view.setTimeScale(1);
-    const me = sim.snapshot().entities.find((e) => e.id === localEntity);
-    const result = winner === undefined ? 'draw' : winner === localTeam ? 'won' : 'lost';
-    showEndBanner(container, result, reason, sim.match.endTick / TICK_HZ, me?.level ?? 1, me?.kills ?? 0, me?.deaths ?? 0, me?.assists ?? 0);
+    hud.results.value = resultsView(sim.snapshot(), winner, reason, localEntity, localTeam, config.powers, config.champions);
   }, SLOW_MOTION_MS);
 }
 

@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { useSignal } from '@preact/signals';
-import { hud, type StructureView } from './store';
+import { hud, resultsHeading, type StructureView } from './store';
 import { DraftTray } from './draft-tray';
 
 /** HP per segment on the HUD bar, the same rule as the world bars (GDD §11). */
@@ -231,6 +231,63 @@ function Scoreboard() {
   );
 }
 
+const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n)));
+
+/** The end of the match (TDD §10, D-093): who won, every champion's numbers, and where to go next. */
+function Results() {
+  const v = hud.results.value;
+  if (!v) return null;
+  const { title, line } = resultsHeading(v);
+  return (
+    <div class={`end-banner ${v.result} hud-results`} onPointerDown={(e) => e.stopPropagation()}>
+      <div class="end-title">{title}</div>
+      <div class="end-line">{line}</div>
+      <div class="hud-board static">
+        <table>
+          <thead>
+            <tr>
+              <th>Champion</th>
+              <th>Lv</th>
+              <th>K</th>
+              <th>D</th>
+              <th>A</th>
+              <th>Dmg</th>
+              <th>XP</th>
+              <th>Powers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.rows.map((r) => (
+              <tr key={r.id} class={`${r.side}${r.me ? ' me' : ''}`}>
+                <td>{r.name}</td>
+                <td>{r.level}</td>
+                <td>{r.kills}</td>
+                <td>{r.deaths}</td>
+                <td>{r.assists}</td>
+                <td>{short(r.damage)}</td>
+                <td>{short(r.xp)}</td>
+                <td class="hud-board-powers">
+                  <span class="common">{r.powers.common}</span>
+                  <span class="rare">{r.powers.rare}</span>
+                  <span class="epic">{r.powers.epic}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div class="hud-results-actions">
+        <button type="button" class="primary" onClick={() => location.reload()}>
+          Play again
+        </button>
+        <button type="button" onClick={() => (location.href = location.pathname)}>
+          Main menu
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void }) {
   return (
     <>
@@ -243,6 +300,7 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
       <PauseMenu onSurrender={onSurrender} />
+      <Results />
     </>
   );
 }
