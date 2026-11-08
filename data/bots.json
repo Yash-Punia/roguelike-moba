@@ -24,5 +24,7 @@
   "hesitation": { "chance": 0.02, "minSeconds": 0.3, "maxSeconds": 0.6 },
   "lane": { "clashWindow": 12, "aheadOfWave": 4, "holdAhead": 4, "callForHelpRadius": 6, "allInSeconds": 2.5, "branchReach": 6, "threatRadius": 18 },
   "ult": { "minionCluster": 3, "clusterRadius": 3 },
-  "farm": { "desire": 0.85, "minHpPct": 60, "maxTravel": 45, "enemyHalfPenalty": 20, "contestRadius": 12, "gatherSlack": 3, "maxSeconds": 45, "cooldownSeconds": 20, "staleSeconds": 1.5, "finishHpPct": 35, "offLane": 3, "clearance": 0.6, "bossAvoidRadius": 9, "bossAvoidCost": 40 }
+  "farm": { "desire": 0.85, "minHpPct": 60, "maxTravel": 45, "enemyHalfPenalty": 20, "contestRadius": 12, "gatherSlack": 3, "maxSeconds": 45, "cooldownSeconds": 20, "staleSeconds": 1.5, "finishHpPct": 35, "offLane": 3, "clearance": 0.6, "bossAvoidRadius": 9, "bossAvoidCost": 40 },
+  "defend": { "maxDefenders": 2, "maxTravel": 60, "minHpPct": 50, "releaseSeconds": 4, "margin": 2 },
+  "outnumbered": { "radius": 12, "margin": 1, "desire": 0.92 }
 }

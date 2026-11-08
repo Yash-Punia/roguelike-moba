@@ -2,7 +2,10 @@
   {
     "id": "alpha",
     "name": "Alpha",
-    "weaponTags": ["projectile", "crit"],
+    "weaponTags": [
+      "projectile",
+      "crit"
+    ],
     "maxHp": 1000,
     "moveSpeed": 5,
     "radius": 0.5,
@@ -51,7 +54,10 @@
   {
     "id": "beta",
     "name": "Beta",
-    "weaponTags": ["projectile", "speed"],
+    "weaponTags": [
+      "projectile",
+      "speed"
+    ],
     "maxHp": 750,
     "moveSpeed": 5.7,
     "radius": 0.45,
@@ -62,7 +68,7 @@
     },
     "weapon": {
       "kind": "bullet",
-      "damage": 24,
+      "damage": 36,
       "interval": 0.85,
       "range": 6,
       "projectileSpeed": 25,
@@ -104,7 +110,9 @@
   {
     "id": "gamma",
     "name": "Gamma",
-    "weaponTags": ["burn"],
+    "weaponTags": [
+      "burn"
+    ],
     "maxHp": 1500,
     "moveSpeed": 4.3,
     "radius": 0.6,

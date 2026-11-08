@@ -10,7 +10,7 @@ import { LaneTrack } from './lane';
 import { emptyRead, readLane, type LaneRead } from './lane-read';
 import { FAR, navFor, type Nav } from './nav';
 import { rollPersonality, type Personality } from './personality';
-import type { FarmPlan, Squad } from './squad';
+import type { Defence, FarmPlan, Squad } from './squad';
 
 /**
  * Bot modes (D-043), after Dota 2's desire-scored bot modes and MOBA wave play:
@@ -37,6 +37,10 @@ const ARRIVED = 0.4;
 /** Clearance kept from structure footprints while steering (m). */
 const AVOID_MARGIN = 0.25;
 
+/** Scratch for `countChampions` and `assess`. */
+const near = { own: 0, enemy: 0 };
+const threat = { on: false, need: 0 };
+
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const quantise = (v: number) => Math.sign(v) * Math.min(127, Math.round(Math.abs(v) * 127)) || 0;
 
@@ -56,7 +60,7 @@ export function createBot(
   getLanes: () => readonly LanePath[],
   rng: Rng,
   /** The lane it plays (`map.lanes` id); falls back to the first lane if the map has none by that id. */
-  laneId = 'centre',
+  homeLane = 'centre',
   /** Its team's farming board and the sim's obstacle grid: without them it never farms camps (D-075). */
   squad?: Squad,
   getGrid?: () => ObstacleGrid,
@@ -78,6 +82,8 @@ export function createBot(
     lastTower: 0 as Entity,
     lastTick: 0,
   };
+  /** The lane it plays now: its own, or one it was sent to defend (D-083). */
+  let laneId = homeLane;
   let track: LaneTrack | undefined;
   let trackFrom: Float64Array | undefined;
   const read: LaneRead = emptyRead();
@@ -120,7 +126,7 @@ export function createBot(
   }
 
   /** Scores every mode from the lane read (0–1; higher wins). */
-  function score(cfg: Config, hpMe: number) {
+  function score(cfg: Config, snap: Snapshot, hpMe: number) {
     const r = read;
     const pers = personality;
     const aggr = clamp01(pers.aggression + state.confidence);
@@ -166,6 +172,103 @@ export function createBot(
     const twoShots = enemyAlive && enemy.hp <= 2 * 95 * (1 + 0.04 * Math.max(0, r.me!.level - 1));
     const diveOk = !r.enemyUnderTower || (pers.riskTolerance >= 0.6 && hpMe >= 0.6 && twoShots);
     desires.allin = enemyAlive && dist <= cfg.bots.tradeRange + 3 && (quickKill || weak) && diveOk ? clamp01(0.7 + 0.3 * aggr) : 0;
+
+    // Outnumbered (D-083): no trades, drop back behind its wave or tower. Not while an enemy
+    // champion is under its own tower: the tower is on its side there.
+    const o = cfg.bots.outnumbered;
+    countChampions(snap, r.me!.x, r.me!.y, o.radius);
+    if (!r.enemyAtOwnTower && near.enemy >= near.own + o.margin) {
+      desires.trade = desires.allin = 0;
+      desires.backoff = Math.max(desires.backoff, o.desire);
+    }
+  }
+
+  /** Own and visible enemy champions alive within `r` of (x, y), into `near`; `skip` (a defence's bots) isn't counted as own. */
+  function countChampions(snap: Snapshot, x: number, y: number, r: number, skip?: readonly Entity[], minusRadius = false) {
+    near.own = near.enemy = 0;
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind !== Kind.Champion || e.hp <= 0 || len(e.x - x, e.y - y) - (minusRadius ? e.radius : 0) > r) continue;
+      if (e.team === team) {
+        if (!skip || !skip.includes(e.id)) near.own++;
+      } else if ((e.visibleMask & (1 << team)) !== 0) near.enemy++;
+    }
+  }
+
+  /**
+   * An own structure under attack (D-083): a visible enemy champion at it, or it is shooting
+   * something. Sets `threat.on`, and `threat.need`: the defenders it still wants, one per enemy
+   * champion there (one for minions alone, up to `maxDefenders`), less the own champions at it
+   * and the bots already sent.
+   */
+  function assess(cfg: Config, snap: Snapshot, s: EntitySnapshot, d: Defence | undefined) {
+    threat.on = false;
+    threat.need = 0;
+    if (s.destroyed || s.hp <= 0 || s.invulnerable) return;
+    const def = cfg.bots.defend;
+    const reach = cfg.structures[s.kind === Kind.HQ ? 'hq' : 'subBase'].weapon.range + def.margin;
+    countChampions(snap, s.x, s.y, reach, d?.bots, true);
+    threat.on = near.enemy > 0 || s.targetId !== 0;
+    if (threat.on) threat.need = Math.min(def.maxDefenders, Math.max(1, near.enemy)) - near.own - (d ? d.bots.length : 0);
+  }
+
+  /** The lane to defend a structure from: a Sub-base's own; for the HQ, the lane its nearest attacking minion came down, else one whose own Sub-base is down. */
+  function defenceLane(snap: Snapshot, s: EntitySnapshot, reach: number): string {
+    if (s.kind === Kind.SubBase) return s.lane;
+    let lane = '';
+    let best = Infinity;
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind !== Kind.Minion || e.team === team || e.hp <= 0 || (e.visibleMask & (1 << team)) === 0) continue;
+      const d = len(e.x - s.x, e.y - s.y);
+      if (d < best) {
+        best = d;
+        lane = e.lane;
+      }
+    }
+    if (best <= reach) return lane;
+    // ponytail: the first fallen Sub-base's lane in id order, not the one nearest the attacker; fine with 2–3 lanes.
+    for (let i = 0; i < snap.entities.length; i++) {
+      const e = snap.entities[i]!;
+      if (e.kind === Kind.SubBase && e.team === team && e.destroyed) return e.lane;
+    }
+    return homeLane;
+  }
+
+  /**
+   * Sends the nearest available bots of its squad (by walk) to every own structure that wants
+   * defenders (D-083). Any bot runs it on its beat; the board makes the result the same whoever does.
+   */
+  function callDefenders(cfg: Config, snap: Snapshot, nav: Nav, tick: number) {
+    const def = cfg.bots.defend;
+    for (let i = 0; i < snap.entities.length; i++) {
+      const s = snap.entities[i]!;
+      if ((s.kind !== Kind.SubBase && s.kind !== Kind.HQ) || s.team !== team) continue;
+      const d = squad!.defenceAt(s.id);
+      assess(cfg, snap, s, d);
+      if (!threat.on) continue;
+      if (d) d.lastThreat = tick;
+      let need = threat.need;
+      if (need <= 0) continue;
+      const field = nav.field(`struct:${s.id}`, () => nav.disc(s.x, s.y, s.radius + 2));
+      const lane = defenceLane(snap, s, cfg.structures.hq.weapon.range + def.margin);
+      while (need > 0) {
+        let pick: Entity = 0;
+        let pd = Infinity;
+        for (let k = 0; k < squad!.ids.length; k++) {
+          const o = squad!.ids[k]!;
+          if (!squad!.isAvailable(o, tick)) continue;
+          const m = metres(nav, field, squad!.xs[k]!, squad!.ys[k]!);
+          if (m <= def.maxTravel && m < pd) {
+            pd = m;
+            pick = o;
+          }
+        }
+        if (pick === 0) break;
+        squad!.defend(s.id, lane, pick, tick);
+        need--;
+      }
+    }
   }
 
   /** Lane progress it should stand at for the lane modes. */
@@ -340,6 +443,10 @@ export function createBot(
     get confidence() {
       return state.confidence;
     },
+    /** The lane it plays now (its own, or one it defends). */
+    get lane() {
+      return laneId;
+    },
 
     command(snap: Snapshot, tick: number, self: Entity): Command {
       const cfg = getConfig();
@@ -347,11 +454,18 @@ export function createBot(
       cmd.tick = tick;
       cmd.moveX = cmd.moveY = 0;
       cmd.ult = false;
+      const defence = squad?.defenceOf(self);
+      laneId = defence ? defence.lane : homeLane;
       if (snap.match.phase === 'ended' || !laneTrack()) return cmd;
       readLane(read, snap, self, team, track!, cfg, laneId);
       const me = read.me;
       if (!me) return cmd;
       updateConfidence(cfg, me, tick);
+      // Home once the structure is safe or gone, or when it must heal (D-083).
+      if (defence) {
+        const s = byId(snap, defence.structure);
+        if (!s || s.destroyed || me.hp <= 0 || state.mode === 'retreat' || tick - defence.lastThreat > b.defend.releaseSeconds) squad!.release(self);
+      }
       if (me.hp <= 0) {
         state.mode = 'dead';
         return cmd;
@@ -365,7 +479,7 @@ export function createBot(
       }
 
       // Decide: on the beat, or at once when retreat fires.
-      score(cfg, hpMe);
+      score(cfg, snap, hpMe);
       desires.farm = plan ? b.farm.desire : 0;
       const urgent = desires.retreat >= 1 && state.mode !== 'retreat';
       if (tick >= state.nextDecision || urgent || state.mode === 'dead') {
@@ -384,6 +498,10 @@ export function createBot(
           state.mode = best;
           state.committedUntil = tick + personality.patience;
         }
+        if (squad && nav) {
+          callDefenders(cfg, snap, nav, tick);
+          plan = squad.planOf(self); // a bot sent to defend stops farming
+        }
         // Now and then it hesitates, like a human (never while retreating).
         if (best !== 'retreat' && rng() < b.hesitation.chance) {
           state.pauseUntil = tick + Math.round((b.hesitation.minSeconds + (b.hesitation.maxSeconds - b.hesitation.minSeconds) * rng()) * 30);
@@ -391,8 +509,11 @@ export function createBot(
       }
       // Farming (D-075): report whether it is free; a free bot pairs up for a camp at once.
       if (squad && nav) {
-        const free = !plan && hpMe >= b.farm.minHpPct && CALM.has(state.mode) && !read.ownTowerThreatened && !enemyNear(snap, me.x, me.y, b.lane.threatRadius);
-        squad.report(self, free, me.x, me.y, tick);
+        const calm = !read.ownTowerThreatened && !enemyNear(snap, me.x, me.y, b.lane.threatRadius);
+        const defending = !!squad.defenceOf(self);
+        const free = !plan && !defending && hpMe >= b.farm.minHpPct && CALM.has(state.mode) && calm;
+        const available = !defending && calm && hpMe >= b.defend.minHpPct && state.mode !== 'retreat';
+        squad.report(self, free, me.x, me.y, tick, available);
         if (free) {
           plan = tryForm(cfg, snap, nav, me, tick);
           if (plan) {

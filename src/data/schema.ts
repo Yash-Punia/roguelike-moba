@@ -567,6 +567,30 @@ const Bots = z.object({
     bossAvoidRadius: nonneg().default(0),
     bossAvoidCost: nonneg().default(0),
   }),
+  /**
+   * Defending another lane or the HQ (D-083): a team's bots answer an own structure under
+   * attack that has fewer of its champions at it than the enemy champions there (one for
+   * minions alone).
+   */
+  defend: z.object({
+    /** At most this many bots are sent to one structure. */
+    maxDefenders: z.number().int().min(1),
+    /** A bot walks at most this far to defend (m). */
+    maxTravel: positive(),
+    /** Only bots at this much HP or more are sent. */
+    minHpPct: pct(),
+    /** Released home once the structure has been safe this long. */
+    releaseSeconds: secs(),
+    /** Enemies and champions this far past a structure's weapon range still count as at it (m). */
+    margin: nonneg(),
+  }),
+  /** Backing off when outnumbered (D-083): this many more enemy champions than allies within `radius`. */
+  outnumbered: z.object({
+    radius: positive(),
+    margin: z.number().int().min(1),
+    /** The back-off desire then; trades and all-ins are off. */
+    desire: nonneg(),
+  }),
 });
 
 /** Minion waves (GDD §5, TDD §6.6). */

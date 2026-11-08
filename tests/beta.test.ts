@@ -48,14 +48,14 @@ function field(enemies: { x: number; y: number; armed?: boolean }[], seed = 1) {
 }
 
 describe('Burst SMG', () => {
-  it('fires bursts of 4 bullets 2 ticks apart every 0.85 s, 96 damage each at point blank', () => {
+  it('fires bursts of 4 bullets 2 ticks apart every 0.85 s, 4 × weapon damage a burst at point blank', () => {
     const f = field([{ x: 0, y: 3 }]);
     f.run(80);
     const first = f.shots.slice(0, 8);
     expect(first.slice(1, 4).map((t, i) => t - first[i]!)).toEqual([2, 2, 2]);
     expect(first[4]! - first[0]!).toBe(f.def.weapon.interval); // 0.85 s → 26 ticks
     const burst = f.hits.filter((h) => h.source === f.beta && h.tick < first[4]!);
-    expect(burst.reduce((s, h) => s + h.amount, 0)).toBe(96);
+    expect(burst.reduce((s, h) => s + h.amount, 0)).toBe(4 * f.def.weapon.damage);
   });
 
   it('spreads each bullet within ±4°, the same way for the same seed', () => {

@@ -1676,3 +1676,59 @@ From TDD §13:
   - the GDD capture and centre-lane push (dropped by the user);
   - a third pattern kind (it shares the Field Gun's volley, so an optional blast was smaller);
   - invincibility through a separate flag that keeps champions targetable (more code; the user tests this first).
+
+## D-083 — Bots defend other lanes and the HQ; back off when outnumbered
+- Date: 2026-11-08
+- Source: M4 row "Utility bot AI", second slice; the user chose this scope (defend + outnumbered). The rest was decided during development.
+- Decision:
+  - **Mutable lane:** a bot keeps its `homeLane` and plays `laneId`, which is either its home lane or a lane it was sent to defend. The rest of the bot already works from `laneId`: the lane read, the lane track, and the off-lane trench walk with boss avoidance (D-075, D-081). Sending a bot to defend only changes `laneId`. The existing `defend` mode takes over once it reaches the lane.
+  - **Defence board:** `Squad.defences` sits next to the farm plans. Bots report in ascending player order, so the result is deterministic. Only bots with a squad and a grid can be sent, never humans.
+    - **When a bot is available to defend:**
+      - it isn't already defending;
+      - its HP is at least `defend.minHpPct` (50%);
+      - it isn't retreating;
+      - its own lane is calm: its tower isn't threatened and no visible enemy champion is within `threatRadius`.
+    - **When a structure counts as threatened:** it is an own Sub-base, or the HQ once it can be damaged, and either a visible enemy champion is within its weapon range + `defend.margin` (2 m), or it is shooting something.
+    - **How many defenders it wants:** one per enemy champion there, or one when only minions are attacking, up to `maxDefenders` (2). Own champions already within reach count against this, and so do bots already sent.
+    - **How defenders are chosen:** on its decision beat, any bot sends the nearest available squad bots. Distance is measured along a `struct:<id>` flow field, and only bots within `maxTravel` (60 m) can be sent. A bot that is farming stops.
+    - **Which lane a defender plays:** the Sub-base's own lane. For the HQ, it is the lane of the nearest visible enemy minion within the HQ's reach; failing that, the first lane whose own Sub-base has fallen. In that lane `readLane` sees the HQ as the bot's own tower.
+    - **When a defender goes home:** the structure has been safe for `releaseSeconds` (4 s), or it fell, or the bot is retreating or dead.
+  - **Outnumbered:** a bot backs off when, within `outnumbered.radius` (12 m), there are at least `margin` (1) more visible enemy champions than allied ones (counting itself). It then drops trades and all-ins, and its `backoff` desire is at least 0.92.
+    - This is `backoff` rather than the full retreat TDD §7 lists, so the bot holds its wave or tower instead of walking home.
+    - The rule doesn't apply while an enemy champion is under the bot's own tower, since the tower is on its side there.
+  - **Config:** `bots.defend` and `bots.outnumbered` in `data/bots.json`.
+  - **Folded in (user):** Beta's Burst SMG damage goes from 24 to 36 per bullet (`data/champions.json`; the user's change, with its arrays reformatted). `beta.test` now expects 4 × the configured damage per burst instead of a fixed 96.
+- **Measured** (all-bot 3v3, 30 seeds per map; the same seeds before and after, both with Beta at 36):
+  - **Match length did not move:**
+
+    | | Median before | Median after | Range after |
+    | --- | --- | --- | --- |
+    | The Front | 4.74 min | 4.84 min | 2.32–8.20 |
+    | The Bridgehead | 4.03 min | 3.78 min | 2.17–5.80 |
+
+    Before, one Front seed ran to the 13:00 time-out; after, none did. Bot boss wakes stayed at 0.
+  - **Ablation on The Front:**
+
+    | Setup | Median |
+    | --- | --- |
+    | Both on | 4.84 min |
+    | Outnumbered off | 5.44 min |
+    | Defend off | 5.18 min |
+
+    Neither half lengthens matches, and the differences are within seed noise.
+  - **Why so little effect:** 2 to 7 defences form per match. A bot facing its lane opponent is never available, so defenders come mostly from bots whose opponent has left. Undefended lanes weren't the real gap: about 70% of structures fell with an own champion within 14 m in their last 10 s, both before and after.
+  - **The real pattern is a snowball:** one team loses its Sub-bases one after another from about 2:30, and its HQ falls 40–100 s after the last one. That belongs to the comeback row (bounties, level catch-up, underdog charge, HQ last line) or to structure tuning, not to bot movement.
+- **Live check** (Chrome, The Front):
+  - a bot sent to defend took the other lane and was released when the Sub-base fell;
+  - 180 fps, 110 draw calls;
+  - no console errors besides the missing favicon.
+- **Tests** (`tests/bot-defend.test.ts`, The Front, no waves or camps):
+  - Two Red champions at the Blue left Sub-base, with the left bot already there: one more bot is sent. It is the centre bot, which is nearer than the right one. It walks there through the trenches and goes home once the threat is gone.
+  - The HQ, while it can't be damaged, calls no one.
+  - Two enemy champions in reach of a lone bot: it backs off and drops trades. Against one, it still trades.
+  - Two enemy champions at its own tower: it defends rather than backing off.
+- Why: these are TDD §7's Defend goal and its "outnumbered 2v1" retreat. They were the missing goals that might have stopped lanes and the HQ falling undefended. The probe shows that wasn't what decides matches.
+- Alternatives:
+  - A per-bot decision without a board: two bots would answer the same call, or neither would.
+  - Full retreat when outnumbered: it gives up the wave and the tower.
+  - Raising structure HP to reach 8–10 minute matches: tuning, left to the user and the comeback row.
