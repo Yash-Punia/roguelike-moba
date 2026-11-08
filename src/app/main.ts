@@ -4,7 +4,7 @@ import { createCameraRig } from '../render/camera';
 import { createScene } from '../render/scene';
 import { createInput } from '../input';
 import { createSim, Team, type EntitySnapshot, type PlayerSetup, type Snapshot } from '../sim/sim';
-import { TICK_HZ } from '../data/schema';
+import { TICK_HZ, type Difficulty } from '../data/schema';
 import { startLoop } from './loop';
 import { createBot } from '../sim/bots/bot';
 import { Squad } from '../sim/bots/squad';
@@ -56,7 +56,9 @@ const sim = createSim(config, seed, players);
 // Created and asked in ascending player id: they share the `ai` stream (D-048).
 // Each team's bots share a farming board, to take camps in pairs (D-075).
 const squads = [new Squad(), new Squad()];
-const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, squads[s.team], () => sim.grid), entity: sim.entityOf(i + 1)! }));
+const difficultyParam = params.get('difficulty');
+const difficulty: Difficulty = difficultyParam === 'easy' || difficultyParam === 'hard' ? difficultyParam : 'normal';
+const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, squads[s.team], () => sim.grid, difficulty), entity: sim.entityOf(i + 1)! }));
 const bot = bots[0]?.bot; // the enemy in your lane, shown in the debug panel
 let lastSnap = sim.snapshot();
 

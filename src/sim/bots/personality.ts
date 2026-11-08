@@ -20,11 +20,11 @@ export interface Personality {
 const roll = (rng: Rng, [a, b]: readonly [number, number]) => a + (b - a) * rng();
 
 /** Rolls a personality inside the configured ranges (each trait independent). */
-export function rollPersonality(cfg: Config['bots']['personality'], rng: Rng): Personality {
+export function rollPersonality(cfg: Config['bots']['personality'], retreatHpPct: readonly [number, number], rng: Rng): Personality {
   return {
     aggression: roll(rng, cfg.aggression),
     riskTolerance: roll(rng, cfg.riskTolerance),
-    retreatHp: roll(rng, cfg.retreatHpPct),
+    retreatHp: roll(rng, retreatHpPct),
     returnHp: roll(rng, cfg.returnHpPct),
     spacing: roll(rng, cfg.spacingPct),
     weaveAmplitude: roll(rng, cfg.weaveAmplitude),

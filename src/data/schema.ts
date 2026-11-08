@@ -486,6 +486,20 @@ const Powers = z.object({
 
 const range = () => z.tuple([z.number(), z.number()]).refine(([a, b]) => a <= b, 'min must not exceed max');
 const pctRange = () => z.tuple([pct(), pct()]).refine(([a, b]) => a <= b, 'min must not exceed max');
+/** One bot difficulty (TDD §7, D-086). */
+const BotTier = z.object({
+  /** How often it re-scores its modes. */
+  decisionSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
+  /** Delay before it answers a new threat: stepping out of a marker, or breaking off to retreat. */
+  reactionSeconds: secs(),
+  /** Its personal retreat threshold is rolled in this range. */
+  retreatHpPct: pctRange(),
+  /** The chance it tries to dodge a marker. */
+  dodgeChancePct: pct(),
+  /** It drafts at random among its best this many cards. */
+  draftTop: z.number().int().min(1),
+});
+export type Difficulty = 'easy' | 'normal' | 'hard';
 const secsRange = () => z.tuple([z.number().nonnegative(), z.number().nonnegative()]).refine(([a, b]) => a <= b, 'min must not exceed max');
 
 /**
@@ -493,8 +507,6 @@ const secsRange = () => z.tuple([z.number().nonnegative(), z.number().nonnegativ
  * per match from these ranges, and a confidence that shifts with kills and deaths.
  */
 const Bots = z.object({
-  /** How often it re-scores its modes. */
-  decisionSeconds: secs().refine((t) => t >= 1, 'at least one tick'),
   /** Added to the current mode's desire while its patience lasts (hysteresis). */
   commitBonus: z.number().nonnegative(),
   /** Considers fighting an enemy champion this close (m). */
@@ -506,7 +518,6 @@ const Bots = z.object({
     aggression: range(),
     /** Accepts worse fights and near-certain tower dives. */
     riskTolerance: range(),
-    retreatHpPct: pctRange(),
     returnHpPct: pctRange(),
     /** Preferred share of its weapon range to fight at. */
     spacingPct: pctRange(),
@@ -526,7 +537,8 @@ const Bots = z.object({
     max: z.number(),
   }),
   /** Now and then it stops briefly, like a human hesitating. */
-  hesitation: z.object({ chance: z.number().min(0).max(1), minSeconds: z.number().nonnegative(), maxSeconds: z.number().nonnegative() }),
+  /** Pauses like a human: this often per second, whatever its decision pace (D-086). */
+  hesitation: z.object({ chancePerSecond: z.number().nonnegative(), minSeconds: z.number().nonnegative(), maxSeconds: z.number().nonnegative() }),
   lane: z.object({
     /** Minions this close to the clash count towards wave advantage (m). */
     clashWindow: positive(),
@@ -600,13 +612,10 @@ const Bots = z.object({
     /** The back-off desire then; trades and all-ins are off. */
     desire: nonneg(),
   }),
-  /**
-   * Dodging telegraphs (TDD §7, D-085): on stepping into an enemy or boss marker, a bot rolls
-   * `chancePct` once; on a hit it steps out after `reactionSeconds`, if it can before impact.
-   */
+  /** Difficulty tiers (TDD §7, D-086). */
+  difficulty: z.object({ easy: BotTier, normal: BotTier, hard: BotTier }),
+  /** Dodging telegraphs (TDD §7, D-085); the chance and reaction are per tier. */
   dodge: z.object({
-    chancePct: pct(),
-    reactionSeconds: secs(),
     /** Extra clearance past the marker's edge (m). */
     margin: nonneg(),
   }),

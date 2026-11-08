@@ -69,18 +69,19 @@ describe('lane track', () => {
 
 describe('personality (D-043)', () => {
   const cfg = fixtureConfig().bots.personality;
+  const retreat = fixtureConfig().bots.difficulty.normal.retreatHpPct;
 
   it('stays inside its ranges, repeats for a seed and differs between seeds', () => {
     for (let seed = 1; seed <= 20; seed++) {
-      const p = rollPersonality(cfg, mulberry32(seed));
+      const p = rollPersonality(cfg, retreat, mulberry32(seed));
       expect(p.aggression).toBeGreaterThanOrEqual(cfg.aggression[0]);
       expect(p.aggression).toBeLessThanOrEqual(cfg.aggression[1]);
-      expect(p.retreatHp).toBeGreaterThanOrEqual(cfg.retreatHpPct[0]);
-      expect(p.retreatHp).toBeLessThanOrEqual(cfg.retreatHpPct[1]);
+      expect(p.retreatHp).toBeGreaterThanOrEqual(retreat[0]);
+      expect(p.retreatHp).toBeLessThanOrEqual(retreat[1]);
       expect(p.returnHp).toBeGreaterThan(p.retreatHp);
     }
-    expect(rollPersonality(cfg, mulberry32(7))).toEqual(rollPersonality(cfg, mulberry32(7)));
-    expect(rollPersonality(cfg, mulberry32(7)).aggression).not.toBe(rollPersonality(cfg, mulberry32(8)).aggression);
+    expect(rollPersonality(cfg, retreat, mulberry32(7))).toEqual(rollPersonality(cfg, retreat, mulberry32(7)));
+    expect(rollPersonality(cfg, retreat, mulberry32(7)).aggression).not.toBe(rollPersonality(cfg, retreat, mulberry32(8)).aggression);
   });
 });
 
@@ -136,7 +137,7 @@ describe('fighting', () => {
     const m = match({ bots: [1], blueAt: { x: 16, y: -50 } });
     m.place(m.red, -8, 0);
     m.sim.stores.healths.get(m.red)!.hp = 120;
-    m.run(2);
+    m.run(2 + m.config.bots.difficulty.normal.reactionSeconds); // answers after its reaction time (D-086)
     expect(m.bot().mode).toBe('retreat');
     let back = -1;
     for (let i = 0; i < 1800 && back < 0; i++) {

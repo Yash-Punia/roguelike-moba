@@ -13,7 +13,7 @@ function front() {
   const config = parseConfig({ ...rawConfig, map: maps[3] });
   config.waves.enabled = false;
   config.map.camps = [];
-  config.bots.hesitation.chance = 0;
+  config.bots.hesitation.chancePerSecond = 0;
   Object.assign(config.bots.defend, { maxDefenders: 2, maxTravel: 60, minHpPct: 0.5, releaseSeconds: 120, margin: 2 });
   Object.assign(config.bots.outnumbered, { radius: 12, margin: 1, desire: 0.92 });
   const slots = matchSlots(config, { teamSize: 3, localTeam: Team.Blue });

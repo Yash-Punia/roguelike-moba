@@ -1,11 +1,11 @@
-import type { Config } from '../../data/schema';
+import type { Config, Difficulty } from '../../data/schema';
 import type { LanePath } from '../../data/map-geometry';
 import type { Entity } from '../ecs';
 import { rayBlocked, type ObstacleGrid } from '../grid';
 import { len, sin } from '../math';
 import type { Rng } from '../rng';
 import { Kind, Team, type Command, type EntitySnapshot, type PlayerId, type Snapshot, type TelegraphSnapshot } from '../sim';
-import { bestCard } from '../systems/draft';
+import { rankCards } from '../systems/draft';
 import { steerAround } from '../systems/minions';
 import { inTelegraph } from '../telegraph-shape';
 import { exits } from './dodge';
@@ -67,8 +67,10 @@ export function createBot(
   /** Its team's farming board and the sim's obstacle grid: without them it never farms camps (D-075). */
   squad?: Squad,
   getGrid?: () => ObstacleGrid,
+  /** How well it plays (TDD §7, D-086). */
+  difficulty: Difficulty = 'normal',
 ) {
-  const personality: Personality = rollPersonality(getConfig().bots.personality, rng);
+  const personality: Personality = rollPersonality(getConfig().bots.personality, getConfig().bots.difficulty[difficulty].retreatHpPct, rng);
   const desires: Record<Exclude<BotMode, 'dead'>, number> = {
     retreat: 0, backoff: 0, defend: 0, freeze: 0, contest: 0, push: 0, siege: 0, trade: 0, allin: 0, farm: 0,
   };
@@ -84,6 +86,7 @@ export function createBot(
     lastTowerHp: -1,
     lastTower: 0 as Entity,
     lastTick: 0,
+    retreatSince: -1,
   };
   /** The lane it plays now: its own, or one it was sent to defend (D-083). */
   let laneId = homeLane;
@@ -317,7 +320,7 @@ export function createBot(
 
   /**
    * Dodging (TDD §7, D-085): the soonest enemy or boss marker it stands in (live areas last).
-   * On stepping into danger it rolls `dodge.chancePct` once, and keeps that result until it is
+   * On stepping into danger it rolls its tier's `dodgeChancePct` once, and keeps that result until it is
    * out. On a yes it waits `reactionSeconds`, then heads for the near way out, or the far one if
    * a wall is in the way; only if it can get there before impact (a live area: always).
    */
@@ -343,9 +346,9 @@ export function createBot(
     if (!dodge.danger) {
       dodge.danger = true;
       dodge.since = tick;
-      dodge.will = rng() < dc.chancePct;
+      dodge.will = rng() < cfg.bots.difficulty[difficulty].dodgeChancePct;
     }
-    if (!dodge.will || tick - dodge.since < dc.reactionSeconds) return undefined;
+    if (!dodge.will || tick - dodge.since < cfg.bots.difficulty[difficulty].reactionSeconds) return undefined;
     exits(threat, me.x, me.y, clear, exitNear, exitFar);
     const speed = (cfg.champions.find((c) => c.id === me.modelId)?.moveSpeed ?? 5) / 30;
     const grid = getGrid?.();
@@ -373,7 +376,10 @@ export function createBot(
     }
     if (draft.pickAt < 0 || tick < draft.pickAt) return;
     draft.pickAt = -1;
-    cmd.draftPick = bestCard(cfg.powers, me.powers, cards, d.tagWeights[me.modelId], d.synergy) as Command['draftPick'];
+    const ranked = rankCards(cfg.powers, me.powers, cards, d.tagWeights[me.modelId], d.synergy);
+    const top = Math.min(cfg.bots.difficulty[difficulty].draftTop, ranked.length);
+    // ponytail: Hard drafts like Normal; TDD's "plans for Epic levels" isn't built, add it if Hard feels soft.
+    cmd.draftPick = (top > 1 ? ranked[Math.floor(rng() * top)]! : (ranked[0] ?? 0)) as Command['draftPick'];
   }
 
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
@@ -511,6 +517,10 @@ export function createBot(
     get confidence() {
       return state.confidence;
     },
+    /** Tick its current hesitation ends (D-086). */
+    get pauseUntil() {
+      return state.pauseUntil;
+    },
     /** Stepping out of a marker this tick (D-085). */
     get dodging() {
       return dodge.active;
@@ -555,9 +565,15 @@ export function createBot(
       // Decide: on the beat, or at once when retreat fires.
       score(cfg, snap, hpMe);
       desires.farm = plan ? b.farm.desire : 0;
+      // A new need to retreat is answered only after its reaction time (D-086).
+      if (desires.retreat < 1) state.retreatSince = -1;
+      else if (state.mode !== 'retreat') {
+        if (state.retreatSince < 0) state.retreatSince = tick;
+        if (tick - state.retreatSince < b.difficulty[difficulty].reactionSeconds) desires.retreat = 0;
+      }
       const urgent = desires.retreat >= 1 && state.mode !== 'retreat';
       if (tick >= state.nextDecision || urgent || state.mode === 'dead') {
-        state.nextDecision = tick + b.decisionSeconds;
+        state.nextDecision = tick + b.difficulty[difficulty].decisionSeconds;
         let best: Exclude<BotMode, 'dead'> = 'contest';
         let bestScore = -1;
         for (let mi = 0; mi < MODES.length; mi++) {
@@ -577,7 +593,7 @@ export function createBot(
           plan = squad.planOf(self); // a bot sent to defend stops farming
         }
         // Now and then it hesitates, like a human (never while retreating).
-        if (best !== 'retreat' && rng() < b.hesitation.chance) {
+        if (best !== 'retreat' && rng() < (b.hesitation.chancePerSecond * b.difficulty[difficulty].decisionSeconds) / 30) {
           state.pauseUntil = tick + Math.round((b.hesitation.minSeconds + (b.hesitation.maxSeconds - b.hesitation.minSeconds) * rng()) * 30);
         }
       }

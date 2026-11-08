@@ -1811,3 +1811,50 @@ From TDD §13:
   - A roll per marker: markers have no id, and overlapping ones would roll again.
   - A wider search for a way out with flow fields: straight lines are enough for shapes this small.
   - A copy of the `recommended` scoring in the bot: one scorer stays in step.
+
+## D-086 — Difficulty tiers; hesitation per second; one retreat range
+- Date: 2026-11-08
+- Source: M4 row "Bot dodging, Ultimate and draft logic, difficulty tiers", second part; the user chose to retune after Hard lost to Easy on the TDD §7 numbers. Amends TDD §7's retreat column.
+- Decision:
+  - **Tiers** (`bots.difficulty`, `createBot(..., difficulty)`, `?difficulty=easy|normal|hard`):
+
+    | Setting | Easy | Normal | Hard |
+    | --- | --- | --- | --- |
+    | Decision interval | 12 ticks | 6 ticks | 3 ticks |
+    | Reaction delay | 0.6 s | 0.35 s | 0.2 s |
+    | Retreat threshold | 18–30% HP | 18–30% HP | 18–30% HP |
+    | Dodge chance | 25% | 60% | 90% |
+    | Draft | random among top 2 | best card | best card |
+
+    - The reaction delay applies to stepping out of a marker and to breaking off to retreat: a new need to retreat scores 0 until it has passed.
+    - `rankCards` in `draft.ts` orders the cards. `bestCard` takes the first.
+    - Normal keeps its shipped behaviour (D-085), so default matches and the D-051 pacing don't change.
+  - **Bug found and fixed: hesitation was rolled on every decision beat,** so a faster bot paused more. Before the fix, Hard stood still 6.5% of its time and Easy 1.8%. `hesitation.chance` (2% a beat) is now `chancePerSecond` (0.1), scaled by the tier's beat. Normal is still exactly 2% a beat. All tiers now pause about 3.6% of the time.
+  - **TDD §7's retreat column doesn't work in this sim.** With Hard at 40% and Easy at 20%, Hard leaves fights that Easy stays in and wins. All tiers now share the shipped Normal range, 18–30%.
+  - **Not built:** "plans for Epic levels" (Hard drafts like Normal) and the "uses Trenches to gank" column (ganking isn't built).
+- **Measured** (all-bot 3v3, each seed played twice with the tiers swapped between sides):
+  - **The retune, Hard–Easy, 15 seeds × 2 sides per map:**
+
+    | Round | The Front | The Bridgehead |
+    | --- | --- | --- |
+    | TDD numbers, before the fix | 10–20 | 15–15 |
+    | Hesitation fix | 13–17 | 17–13 |
+    | One retreat range (shipped) | 17–13 | 20–10 |
+    | Also Hard's beat at 5 ticks (not shipped) | 13–17 | 20–10 |
+
+  - **Final numbers, 30 seeds × 2 sides per map:**
+
+    | Pair | The Front | The Bridgehead |
+    | --- | --- | --- |
+    | Hard–Easy | 31–29 | 40–20 |
+    | Normal–Easy | 32–28 | 38–22 |
+    | Hard–Normal | 33–27 | 27–33 |
+
+  - **The target was missed on The Front.** The bar was Hard beating Easy 39 of 60 on both maps. The Bridgehead met it (40); The Front didn't (31). On The Front the tiers are about even, and Hard–Normal on The Bridgehead is slightly inverted, within noise. The planned rounds ended here rather than adding new tier settings.
+  - All-bot differences are a poor proxy for how hard a tier feels to a human: an all-bot match doesn't show a tier's dodging against a player. Needs a playtest.
+  - **All-Normal**, 30 seeds per map: The Front median 5.07 min (2.82–7.86), The Bridgehead 3.96 min (2.28–6.90); none past 12 minutes; 0 bot boss wakes.
+- **Tests** (`tests/bot-difficulty.test.ts`): the table; each tier's retreat roll stays in range; each tier tries to dodge at its chance and only after its reaction time; a retreat waits for the reaction time; Easy drafts among its top 2 while Normal and Hard take the best; every tier hesitates equally often per second.
+- Why: TDD §7 asks for three settings a player can feel. A setting that makes bots worse when labelled Hard is a bug, whatever the table says.
+- Alternatives:
+  - Shipping the TDD table as written: Hard lost 5–25 on The Front.
+  - New tier settings (accuracy, damage): not tried. Stat bonuses would make Hard stronger rather than smarter; the user can ask for them after a playtest.

@@ -9,8 +9,9 @@ const { Blue, Red } = Team;
 
 /** Bot dodge numbers pinned (D-085); the fixture's open lane, no hesitation. */
 function pinDodge(c: Config, chance = 1, reaction = 0) {
-  c.bots.hesitation.chance = 0;
-  c.bots.dodge = { chancePct: chance, reactionSeconds: reaction, margin: 0.3 };
+  c.bots.hesitation.chancePerSecond = 0;
+  c.bots.dodge = { margin: 0.3 };
+  Object.assign(c.bots.difficulty.normal, { dodgeChancePct: chance, reactionSeconds: reaction });
 }
 
 /** A Blue Alpha bot at (0, −30) on the open lane; Red far up the lane. `danger` is added to every snapshot it reads. */

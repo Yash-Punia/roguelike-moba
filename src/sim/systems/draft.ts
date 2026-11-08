@@ -99,28 +99,26 @@ export function recommended(p: Powers, c: Champion, cards: readonly string[]): n
 }
 
 /**
- * The best card's slot: each tag scores its `weights` entry plus `synergy` if a power already
- * owned has it (bots weigh tags per champion, TDD §7, D-085); the rarity only breaks ties (it
- * is worth less than one tag), then the earlier slot.
+ * The cards' slots, best first: each tag scores its `weights` entry plus `synergy` if a power
+ * already owned has it (bots weigh tags per champion, TDD §7, D-085); the rarity only breaks
+ * ties (it is worth less than one tag), then the earlier slot.
  */
-export function bestCard(p: Powers, powers: Readonly<Record<string, number>>, cards: readonly string[], weights: Readonly<Record<string, number>> = {}, synergy = 1): number {
+export function rankCards(p: Powers, powers: Readonly<Record<string, number>>, cards: readonly string[], weights: Readonly<Record<string, number>> = {}, synergy = 1): number[] {
   const owned = new Set<string>();
   for (const x of p.powers) if ((powers[x.id] ?? 0) > 0) for (const t of x.tags) owned.add(t);
-  let best = 0;
-  let bestScore = -Infinity;
-  for (let i = 0; i < cards.length; i++) {
-    const def = powerById(p, cards[i]!);
-    let score = 0;
-    if (def) {
-      for (const t of def.tags) score += (weights[t] ?? 0) + (owned.has(t) ? synergy : 0);
-      score += RANK[def.rarity] / 10;
-    }
-    if (score > bestScore) {
-      best = i;
-      bestScore = score;
-    }
-  }
-  return best;
+  const scores = cards.map((id) => {
+    const def = powerById(p, id);
+    if (!def) return 0;
+    let score = RANK[def.rarity] / 10;
+    for (const t of def.tags) score += (weights[t] ?? 0) + (owned.has(t) ? synergy : 0);
+    return score;
+  });
+  return cards.map((_, i) => i).sort((a, b) => scores[b]! - scores[a]! || a - b);
+}
+
+/** The best card's slot (see `rankCards`). */
+export function bestCard(p: Powers, powers: Readonly<Record<string, number>>, cards: readonly string[], weights: Readonly<Record<string, number>> = {}, synergy = 1): number {
+  return rankCards(p, powers, cards, weights, synergy)[0] ?? 0;
 }
 
 /**
