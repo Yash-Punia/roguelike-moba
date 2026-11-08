@@ -14,6 +14,10 @@ import openMap from './fixtures/map-open.json';
 export function fixtureConfig(): Config {
   const c = parseConfig({ ...rawConfig, map: openMap as RawConfig['map'] });
   c.progression.xpPerLevel = [100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300];
+  // Comeback rules (D-084) off unless a test turns them on, so XP and charge tests keep their numbers.
+  c.progression.bounty = { minStreak: 3, xpPerTakedown: 0, maxXp: 0 };
+  c.progression.catchUp = { pctPerLevel: 0, maxPct: 0 };
+  c.progression.underdogChargePct = 0;
   c.powers.draft.levelsPerOffer = 1;
   Object.assign(c.structures.subBase, { maxHp: 6000 });
   Object.assign(c.structures.subBase.weapon, { damage: 200 });
@@ -80,7 +84,7 @@ export function arena(units: Unit[], tweak?: (c: Config) => void) {
   config.match.respawn = { baseSeconds: 4, perLevelSeconds: 1.2, maxSeconds: 18, sprintPct: 0 }; // no Redeploy sprint unless a test turns it on
   config.match.spawnPad = { radius: 2.3, healPctPerSecond: 0.1 };
   // Structure rules: warm-up as in the GDD; backdoor protection and regen off unless a test turns them on.
-  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpCutEnabled: false, hqHpPerSubBaseLostPct: 0 };
+  config.structures.rules = { warmupPct: 0.25, warmupMaxPct: 1, warmupResetSeconds: 90, backdoorRadius: 10, backdoorPct: 0, regenPctPerSecond: 0, regenClearRadius: 12, hqHpCutEnabled: false, hqHpPerSubBaseLostPct: 0, lastLineHpPct: 0, lastLineFireRatePct: 0 };
   // No draft offers unless a test restores the catalogue (`withPowers`), so level-ups in older tests change only stats.
   config.powers.powers = [];
   // Waves off unless a test turns them on (no tanks or extra troopers); the units pinned to the GDD numbers.

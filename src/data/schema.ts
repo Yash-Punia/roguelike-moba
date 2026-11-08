@@ -223,6 +223,9 @@ const StructureRules = z.object({
   /** When on, an HQ's max HP drops by `hqHpPerSubBaseLostPct` of its base for every Sub-base its team has lost (D-051, toggle D-052); its HP keeps its fraction. */
   hqHpCutEnabled: z.boolean(),
   hqHpPerSubBaseLostPct: pct(),
+  /** HQ last line (GDD §9): once its HP drops below `lastLineHpPct`, its fire rate rises by `lastLineFireRatePct` for the rest of the match. */
+  lastLineHpPct: pct(),
+  lastLineFireRatePct: pct(),
 });
 const Structures = z.object({ subBase: StructureDef, hq: StructureDef, rules: StructureRules });
 
@@ -331,6 +334,12 @@ const Progression = z.object({
   /** Ultimate charge from kills, in points of the 0–100 meter (GDD §8). */
   /** An assist on a takedown: an enemy champion that damaged the victim within this long (GDD §8; D-065, D-067). */
   assistSeconds: secs(),
+  /** Kill streak bounty (GDD §9): a victim with `minStreak`+ takedowns since it last died is worth `xpPerTakedown` more per takedown from `minStreak` on, up to `maxXp`. */
+  bounty: z.object({ minStreak: z.number().int().min(1), xpPerTakedown: nonneg(), maxXp: nonneg() }),
+  /** Level catch-up (GDD §9): takedown XP + `pctPerLevel` per level the victim is above the receiver, up to `maxPct`. */
+  catchUp: z.object({ pctPerLevel: pct(), maxPct: pct() }),
+  /** Underdog charge (GDD §9): the team with fewer standing Sub-bases gains this much more passive Ultimate charge. */
+  underdogChargePct: pct(),
   ultCharge: z.object({
     /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
     minion: perUnit(),

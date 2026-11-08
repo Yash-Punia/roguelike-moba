@@ -216,6 +216,42 @@ export function updateHqGate(ctx: StructureContext) {
   }
 }
 
+/**
+ * Underdog charge (GDD §9, D-084): the team with fewer standing Sub-bases gets `pct` more
+ * passive Ultimate charge; writes each team's multiplier into `mult`.
+ */
+export function underdogCharge(ctx: StructureContext, mult: number[], pct: number) {
+  const { structures, teams } = ctx;
+  let blue = 0;
+  let red = 0;
+  for (let i = 0; i < structures.ids.length; i++) {
+    const st = structures.data[i]!;
+    if (st.kind !== 'subBase' || st.destroyed) continue;
+    if (teams.get(structures.ids[i]!) === Team.Blue) blue++;
+    else red++;
+  }
+  mult[Team.Blue] = blue < red ? 1 + pct : 1;
+  mult[Team.Red] = red < blue ? 1 + pct : 1;
+}
+
+/**
+ * HQ last line (GDD §9, D-084): an HQ that drops below `lastLineHpPct` of its max HP fires
+ * `lastLineFireRatePct` faster for the rest of the match, even if it heals.
+ */
+export function lastLineSystem(ctx: StructureContext, defs: Config['structures']) {
+  const { structures, healths, weapons, teams, events } = ctx;
+  for (let i = 0; i < structures.ids.length; i++) {
+    const st = structures.data[i]!;
+    if (st.kind !== 'hq' || st.lastLine || st.destroyed) continue;
+    const s = structures.ids[i]!;
+    const h = healths.get(s)!;
+    if (h.hp >= h.maxHp * defs.rules.lastLineHpPct) continue;
+    st.lastLine = true;
+    weapons.get(s)!.interval = defs.hq.weapon.interval / (1 + defs.rules.lastLineFireRatePct);
+    events.push({ type: 'hqLastLine', id: s, team: teams.get(s)! });
+  }
+}
+
 /** Regeneration (GDD §5): structures with `regen` heal while no living enemy unit is within `regenClearRadius`. */
 export function structureRegenSystem(ctx: StructureContext, defs: Config['structures']) {
   const { structures, healths, teams, transforms, kinds, spatial } = ctx;

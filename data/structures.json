@@ -44,6 +44,8 @@
     "regenPctPerSecond": 1,
     "regenClearRadius": 12,
     "hqHpCutEnabled": false,
-    "hqHpPerSubBaseLostPct": 25
+    "hqHpPerSubBaseLostPct": 25,
+    "lastLineHpPct": 30,
+    "lastLineFireRatePct": 50
   }
 }

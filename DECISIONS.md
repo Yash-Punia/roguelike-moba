@@ -1732,3 +1732,41 @@ From TDD §13:
   - A per-bot decision without a board: two bots would answer the same call, or neither would.
   - Full retreat when outnumbered: it gives up the wave and the tower.
   - Raising structure HP to reach 8–10 minute matches: tuning, left to the user and the comeback row.
+
+## D-084 — Comeback: bounties, level catch-up, underdog charge, HQ last line
+- Date: 2026-11-08
+- Source: M4 row "Bounties, level catch-up, underdog charge, HQ last line"; user request after D-083. The rules follow GDD §9; the details were decided during development.
+- Decision:
+  - **Kill streak bounty:** each champion has a `streak`, its takedowns (kills and assists) since it was last knocked out.
+    - A victim with a streak of `bounty.minStreak` (3) or more is worth `xpPerTakedown` (100) more per takedown from 3 on, up to `maxXp` (300): 3 → +100, 4 → +200, 5 or more → +300.
+    - The bounty goes to everyone in on the takedown, like the takedown XP (D-067).
+    - The victim's streak resets to 0, and every credited champion's streak goes up by one.
+  - **Level catch-up:** every receiver gets its whole takedown XP (base, killer bonus and bounty) × (1 + `catchUp.pctPerLevel` (15%) × the levels the victim is above it), capped at +`maxPct` (60%).
+    - Each receiver is measured against its own level, so a low-level assist gains more than a high-level killer.
+  - **Underdog charge:** each tick, the team with fewer standing Sub-bases gets ×(1 + `underdogChargePct`) (+20%) passive Ultimate charge. Charge from events is unchanged.
+    - The multiplier is computed from structures right before `ultimateSystem`, into `UltimateContext.passiveMult`.
+  - **HQ last line:** once an HQ drops below `structures.rules.lastLineHpPct` (30%) of its max HP, its weapon interval becomes the base interval ÷ (1 + `lastLineFireRatePct`), 50% faster, for the rest of the match.
+    - It is a one-way flag (`Structure.lastLine`). Live config edits re-apply it.
+    - An `hqLastLine` event is sent for a later HUD notification and voice line.
+    - The GDD's "defensive fire" is read as the HQ's own gun. Its Sub-bases are not included.
+  - **Test fixture:** the open-map fixture turns all four off (no bounty or catch-up XP, no underdog charge, last line at 0%). Without that, a test map with one Red Sub-base made Blue the underdog and broke a charge test. `tests/comeback.test.ts` turns them on.
+- **Measured** (all-bot 3v3, 30 seeds per map, against D-083):
+
+  | Map | Median before | Median after | Range after |
+  | --- | --- | --- | --- |
+  | The Front | 4.84 min | 4.93 min | 2.40–9.55 |
+  | The Bridgehead | 3.78 min | 3.80 min | 2.07–8.20 |
+
+  - None went past 12 minutes.
+  - Chrome, The Front: an HQ set to 25% switched to last line (interval 30 → 20 ticks); 171 fps, 108 draw calls, no console errors.
+- **Correction to D-083:** the target is about 5-minute matches. The user chose that in D-051, with level 25 at about 4:30. The M4 exit criterion's "8–10 minutes" is from before D-051 and is stale. D-083's alternative "raising structure HP to reach 8–10 minute matches" read the stale number. Medians of 4.9 and 3.8 minutes are on or under the D-051 target, and the comeback rules keep them there.
+- **Tests** (`tests/comeback.test.ts`, the arena with the rules at their GDD values):
+  - **Bounty:** streaks 2 / 3 / 4 / 9 add 0 / 100 / 200 / 300 XP to the 175 takedown XP. The killer's streak becomes 1, and the victim's resets to 0.
+  - **Catch-up:** a level 1 killer gets ×1, ×1.3 and ×1.6 for victims at levels 1, 3 and 9 (capped).
+  - **Underdog:** with Red holding the only Sub-base, Blue charges 1.2× the passive rate. With one Sub-base each, both charge at 1×.
+  - **Last line:** an HQ at 31% is unchanged, at 29% it fires 1.5× faster with one `hqLastLine` event, and it stays faster when healed and after a live config edit.
+- Why: GDD §9's light comeback tools, so that a team which falls behind can recover through fights and objectives.
+- Alternatives:
+  - The bounty only to the killer: GDD §8 pays assists the full takedown XP, so the bounty follows it.
+  - Catch-up measured against the killer's level for everyone: it would underpay low-level assists.
+  - Last line for every remaining structure: the GDD names the HQ.

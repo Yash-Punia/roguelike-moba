@@ -40,6 +40,9 @@
     "subBase": 150
   },
   "assistSeconds": 8,
+  "bounty": { "minStreak": 3, "xpPerTakedown": 100, "maxXp": 300 },
+  "catchUp": { "pctPerLevel": 15, "maxPct": 60 },
+  "underdogChargePct": 20,
   "ultCharge": {
     "minion": {
       "mgSoldier": 3,

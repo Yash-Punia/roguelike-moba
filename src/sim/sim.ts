@@ -29,7 +29,7 @@ import {
 } from './systems/minions';
 import { buildLanes, type LanePath } from '../data/map-geometry';
 import {
-  backdoorSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, updateHqGate, warmupShot,
+  backdoorSystem, lastLineSystem, structureDeathSystem, structureRegenSystem, structureTargetingSystem, underdogCharge, updateHqGate, warmupShot,
   type StructureContext,
 } from './systems/structures';
 import { auraRadius, heatWaveMult, heatWaveSystem, leadStormSystem, lobSystem, ultimateSystem, zoneSystem, type UltimateContext } from './systems/ultimate';
@@ -150,6 +150,8 @@ export interface Champion {
   deaths: number;
   /** Takedowns it assisted (damage on the victim within `assistSeconds`, not the last hit). */
   assists: number;
+  /** Takedowns (kills and assists) since it was last knocked out: its bounty (GDD §9, D-084). */
+  streak: number;
   /** Redeploy sprint: the move speed pct it has applied right now (0 = none), and the tick it last respawned. */
   sprintPct: number;
   respawnTick: number;
@@ -268,6 +270,8 @@ export interface Structure {
   secondaryId: Entity;
   /** Fell this match: rubble from now on. */
   destroyed: boolean;
+  /** HQ last line (GDD §9, D-084): fell below its threshold once, so it fires faster for the rest of the match. */
+  lastLine: boolean;
 }
 
 export interface EntitySnapshot {
@@ -591,7 +595,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     targetings.add(e, noTarget());
     targetClasses.add(e, TargetClass.Champion);
     applyChampion(e, def);
-    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, sprintPct: 0, respawnTick: 0, supplyTicks: 0, supplyDamagePct: 0, supplySpeedPct: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
+    champions.add(e, { championId: def.id, player, def, level: 1, xp: 0, ultCharge: 0, ultTargetId: 0, castQueued: false, stillTicks: 0, traitPct: 0, channelTicks: 0, channelAngle: 0, auraTicks: 0, respawnTicks: 0, kills: 0, deaths: 0, assists: 0, streak: 0, sprintPct: 0, respawnTick: 0, supplyTicks: 0, supplyDamagePct: 0, supplySpeedPct: 0, powers: {}, draftQueue: [], pickQueued: -1, rerollQueued: false, rerollsLeft: config.powers.draft.rerolls, lastCombatTick: 0, spawnAt: p.spawnAt ? { ...p.spawnAt } : undefined, lastCastTick: -1, mods: emptyMods(), lowHpReadyAt: 0, dugInApplied: 0, mortarWait: 0, mineWait: 0, teslaHits: 0, dogId: 0, dogRespawnAt: 0 });
     concealments.add(e, { zone: 0, visible: SEEN_BY_ALL });
     statuses.add(e, newStatus());
     kinds.add(e, Kind.Champion);
@@ -608,7 +612,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
     teams.add(e, team);
     kinds.add(e, p.kind === 'hq' ? Kind.HQ : Kind.SubBase);
     models.add(e, p.kind);
-    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane, warmupStacks: 0, warmupTarget: 0, ticksSinceShot: 0, backdoor: true, secondaryId: 0, destroyed: false });
+    structures.add(e, { kind: p.kind, placement: p.id, lane: p.lane, warmupStacks: 0, warmupTarget: 0, ticksSinceShot: 0, backdoor: true, secondaryId: 0, destroyed: false, lastLine: false });
     const def = config.structures[p.kind];
     healths.add(e, newHealth(def.maxHp));
     weapons.add(e, newWeapon(def.weapon, transforms.get(e)!.facing));
@@ -640,6 +644,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
   const traitContext: TraitContext = { champions, motions, stats, healths, transforms, teams, seen };
   const ultimateContext: UltimateContext = {
     champions, transforms, colliders, teams, healths, motions, stats, targetClasses, spatial, lobs, zones, hits, events, seen, clear,
+    passiveMult: [1, 1],
   };
   const minionContext: MinionContext = {
     world, laneAgents, transforms, motions, colliders, teams, healths, weapons, targetings, targetClasses, kinds, models, spatial, events, concealments, statuses, seen, clear,
@@ -861,6 +866,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       bossSystem(campContext, ultimateContext, config.neutrals, tick); // after lobs advance, like casts: a shell's full flight is telegraphed
       leadStormSystem(ultimateContext);
       heatWaveSystem(ultimateContext);
+      underdogCharge(structureContext, ultimateContext.passiveMult, config.progression.underdogChargePct);
       ultimateSystem(ultimateContext, tick);
       damageSystem(damageContext, config.combat.damage, tick, config.structures.rules.backdoorPct);
       damageChargeSystem(progressionContext, config.progression, events);
@@ -882,6 +888,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
       padHealSystem(lifeContext, config.map, config.match.spawnPad);
       medkitSystem(lifeContext, config.map, config.combat.medkit, medkitReadyAt, tick);
       structureDeathSystem(structureContext);
+      lastLineSystem(structureContext, config.structures);
       statusSystem(statusContext, events, tick);
       // Win and lose (GDD §2): the first HQ to fall this tick ends the match.
       let hqFell = false;
@@ -1113,6 +1120,7 @@ export function createSim(initialConfig: Config, seed: number, players: PlayerSe
         colliders.get(e)!.radius = def.radius;
         setMaxHp(healths.get(e)!, def.maxHp);
         Object.assign(weapons.get(e)!, def.weapon);
+        if (st.lastLine) weapons.get(e)!.interval = def.weapon.interval / (1 + next.structures.rules.lastLineFireRatePct);
       }
       updateHqGate(structureContext); // re-cut HQ max HP for fallen Sub-bases (D-051)
       for (let i = 0; i < laneAgents.ids.length; i++) {

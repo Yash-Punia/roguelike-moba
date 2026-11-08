@@ -29,6 +29,8 @@ export interface UltimateContext {
   seen(e: Entity, team: Team): boolean;
   /** Is the line from a to b clear of raised ground (line of sight, D-018)? */
   clear(ax: number, ay: number, bx: number, by: number): boolean;
+  /** Passive charge multiplier per team: the underdog's is higher (GDD §9, D-084). */
+  passiveMult: number[];
 }
 
 // A function, not a table: sim.ts imports this module, so its enums aren't ready at load time.
@@ -111,7 +113,7 @@ export function ultimateSystem(ctx: UltimateContext, tick: number) {
       c.ultTargetId = 0;
       continue;
     }
-    addUltCharge(c, stats.get(e), 100 / Math.max(1, c.def.ultChargeSeconds));
+    addUltCharge(c, stats.get(e), (100 / Math.max(1, c.def.ultChargeSeconds)) * (ctx.passiveMult[teams.get(e)!] ?? 1));
     c.ultTargetId = ultTarget(e, ctx, tick, reach);
     if (!pressed || c.ultCharge < 100 || c.ultTargetId === 0 || c.channelTicks > 0 || c.auraTicks > 0) continue;
 

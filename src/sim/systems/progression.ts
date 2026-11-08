@@ -111,14 +111,21 @@ export function progressionSystem(ctx: ProgressionContext, p: Progression, neutr
       if (victim) {
         // Champion takedown: everyone in on it (the killer and its assists) gets the full XP and the
         // charge; the killer also gets its bonus, the others an assist (D-067).
+        // Comeback (GDD §9, D-084): a victim on a streak carries a bounty, and a takedown on a
+        // higher-level victim pays each receiver more for every level it is behind.
         const k = p.championKill;
+        const b = p.bounty;
+        const bounty = victim.streak >= b.minStreak ? Math.min(b.maxXp, b.xpPerTakedown * (victim.streak - b.minStreak + 1)) : 0;
+        victim.streak = 0;
         const credit = takedownCredit(ctx, ev.id, ev.killer, tick - p.assistSeconds);
         for (let n = 0; n < credit.length; n++) {
           const e = credit[n]!;
           const c = champions.get(e)!;
-          grantXp(ctx, p, e, k.base + k.perVictimLevel * victim.level + (e === ev.killer ? k.killerBonus : 0));
+          const catchUp = 1 + Math.min(p.catchUp.maxPct, p.catchUp.pctPerLevel * Math.max(0, victim.level - c.level));
+          grantXp(ctx, p, e, (k.base + k.perVictimLevel * victim.level + (e === ev.killer ? k.killerBonus : 0) + bounty) * catchUp);
           addUltCharge(c, ctx.stats.get(e), p.ultCharge.championTakedown);
           if (e !== ev.killer) c.assists++;
+          c.streak++;
         }
         continue;
       }

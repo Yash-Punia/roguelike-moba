@@ -47,6 +47,8 @@ export type SimEvent =
   | { type: 'levelUp'; id: Entity; level: number }
   /** A structure fell (it stays as rubble); `killer` landed the last hit. */
   | { type: 'structureDestroyed'; id: Entity; kind: 'subBase' | 'hq'; team: number; killer: Entity; x: number; y: number }
+  /** An HQ dropped below its last-line threshold and fires faster from now on (GDD §9, D-084). */
+  | { type: 'hqLastLine'; id: Entity; team: number }
   /** A minion wave spawned on every wave lane (0 = the first). */
   | { type: 'waveSpawned'; wave: number }
   /** A champion redeployed at (x, y). */
