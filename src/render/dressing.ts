@@ -33,6 +33,8 @@ const DECAL_SIDES = 8;
 const DECAL_LIFT = 0.05;
 /** Metres kept clear of the map edge by the scatter, for the edge ruins. */
 const EDGE_CLEAR = 4;
+/** Reeds stand this far outside the river's edge, on the bank. */
+const REED_BANK = 0.4;
 /** Edge pieces stand this far inside the bounds, on the embankment. */
 const EDGE_INSET = 1.2;
 /** Edge pieces stay this far from a wave cave's mouth. */
@@ -155,6 +157,10 @@ const PROPS: Record<PropKind, (root: THREE.Object3D, team: Team) => void> = {
   stump(root) {
     part(root, cyl(0.2, 0.28, 0.42, 6), palette.craterFloor, 0, 0.21, 0);
     part(root, cyl(0.2, 0.2, 0.02, 6), palette.wood, 0, 0.43, 0);
+  },
+  reeds(root) {
+    const blades = [[0, 0, 0.95, palette.camoNet], [0.14, 0.08, 0.75, palette.grass], [-0.1, 0.12, 0.65, palette.khaki]] as const;
+    for (const [x, z, h, colour] of blades) part(root, cyl(0.015, 0.07, h, 3), colour, x, h / 2, z);
   },
   ruinWall(root) {
     part(root, box(0.42, 1.5, 1.1), palette.concrete, 0, 0.75, -0.95);
@@ -281,6 +287,33 @@ export function planDressing(map: MapConfig): Placement[] {
     for (let y = minY + EDGE_INSET + d.edgeSpacing; y < 0; y += d.edgeSpacing) {
       edge(minX + EDGE_INSET, y, Math.PI);
       edge(maxX - EDGE_INSET, y, Math.PI);
+    }
+  }
+
+  // Reeds on both river banks wherever the bank is raised ground (map spec); the west half, twins fill the east.
+  const riverIndex = map.walkable.findIndex((s) => s.surface === 'river');
+  const river = map.walkable[riverIndex];
+  const riverPts = raster.samples[riverIndex];
+  if (d.reedSpacing > 0 && river?.shape === 'path' && riverPts) {
+    const reach = river.width / 2 + REED_BANK;
+    let next = 0;
+    let walked = 0;
+    for (let k = 0; k + 3 < riverPts.length && riverPts[k]! < 0; k += 2) {
+      const ax = riverPts[k]!;
+      const ay = riverPts[k + 1]!;
+      const dx = riverPts[k + 2]! - ax;
+      const dy = riverPts[k + 3]! - ay;
+      const step = Math.hypot(dx, dy);
+      for (; next <= walked + step; next += d.reedSpacing) {
+        const along = (next - walked) / step;
+        if (ax + dx * along >= 0) continue; // the twin covers x > 0
+        for (const bank of [-1, 1]) {
+          const x = ax + dx * along - (dy / step) * bank * reach;
+          const y = ay + dy * along + (dx / step) * bank * reach;
+          if (raised(x, y)) add('reeds', x, y, rng() * Math.PI * 2);
+        }
+      }
+      walked += step;
     }
   }
   return out;

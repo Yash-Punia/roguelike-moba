@@ -74,6 +74,19 @@ describe.each([3, 2] as const)('dressing on the %i-lane map', (lanes) => {
   });
 });
 
+describe('river reeds', () => {
+  it('line the banks of The Bridgehead on raised ground only', () => {
+    const map = load(2);
+    const reeds = planDressing(map).filter((p) => p.kind === 'reeds');
+    expect(reeds.length).toBeGreaterThan(30);
+    for (const p of reeds) expect(ownerAt(map, p.x, p.y).shape, `reeds at ${p.x}, ${p.y}`).toBeUndefined();
+  });
+
+  it('stay off The Front, which has no river', () => {
+    expect(planDressing(load(3)).some((p) => p.kind === 'reeds')).toBe(false);
+  });
+});
+
 describe('prop templates', () => {
   it('stay within the SG-01 prop budget', () => {
     for (const kind of propKinds) {

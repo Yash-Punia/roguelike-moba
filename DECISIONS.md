@@ -2064,6 +2064,7 @@ From TDD §13:
 - Decision:
   - **Merged into the terrain tiles:** dressing triangles go into the same 12 m tile buffers as the ground, so they add no draw calls and are culled and shadowed with their tile. They also darken in the fog, as the ground does. TDD §491 suggests instancing repeated props; that would add calls, and busy views are already at the budget.
   - **Measured before dressing (seed 11, The Front, 0:57):** 96–120 draw calls and 63–86k triangles across the base, left lane, right lane, Crater and Blue trunk; 133 calls at the base at 0:06.
+  - **Measured after (same match, dressing toggled live through `setMap`, 30-frame means, seed 11, The Front, about 1:05):** base 115 calls with / 113 without, left 87 / 87, right 98 / 98, Crater 100 / 104, trunk 142 / 141; triangles 74–100k with, 64–87k without. So 0–2 calls of frame noise and +10–14k triangles. The trunk's 141 is a fight in view and is over the 120 budget with or without dressing.
   - **Decoration only (D-061):** no obstacle-grid change, so nothing reaches the sim. A champion can walk through a base prop; hand placement keeps props off the routes.
   - **Placement data:** `map.dressing` holds the numbers; `placed` lists hand-set props on the Blue half, each twinned at (−x, −y) for Red.
   - **Flags stand on the apron** in front of the spawn pad as EN-01 draws them, so they are exempt from EN-01's own 1.2 m rule: a bare pole hides nothing.
