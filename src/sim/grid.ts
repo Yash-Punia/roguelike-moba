@@ -81,10 +81,10 @@ export function zoneAt(g: ObstacleGrid, x: number, y: number): number {
 }
 
 /**
- * Grid ray march (DDA) from a to b against raised ground: the 0..1 position along ab where it
+ * Grid ray march (DDA) from a to b against raised ground (or `cells`, e.g. `blocked` for walking): the 0..1 position along ab where it
  * first enters a ground cell (0 if a is inside one), or −1 if clear.
  */
-export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, by: number): number {
+export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, by: number, cells: Uint8Array = g.ground): number {
   const fx = (ax - g.minX) / g.cell;
   const fy = (ay - g.minY) / g.cell;
   const dx = (bx - ax) / g.cell;
@@ -99,7 +99,7 @@ export function rayBlocked(g: ObstacleGrid, ax: number, ay: number, bx: number, 
   let ty = dy !== 0 ? (dy > 0 ? row + 1 - fy : fy - row) * tdy : Infinity;
   let t = 0;
   while (t <= 1) {
-    if (col >= 0 && row >= 0 && col < g.cols && row < g.rows && g.ground[row * g.cols + col] === 1) return t;
+    if (col >= 0 && row >= 0 && col < g.cols && row < g.rows && cells[row * g.cols + col] === 1) return t;
     if (tx < ty) {
       t = tx;
       tx += tdx;

@@ -26,5 +26,16 @@
   "ult": { "minionCluster": 3, "clusterRadius": 3 },
   "farm": { "desire": 0.85, "minHpPct": 60, "maxTravel": 45, "enemyHalfPenalty": 20, "contestRadius": 12, "gatherSlack": 3, "maxSeconds": 45, "cooldownSeconds": 20, "staleSeconds": 1.5, "finishHpPct": 35, "offLane": 3, "clearance": 0.6, "bossAvoidRadius": 9, "bossAvoidCost": 40 },
   "defend": { "maxDefenders": 2, "maxTravel": 60, "minHpPct": 50, "releaseSeconds": 4, "margin": 2 },
-  "outnumbered": { "radius": 12, "margin": 1, "desire": 0.92 }
+  "outnumbered": { "radius": 12, "margin": 1, "desire": 0.92 },
+  "dodge": { "chancePct": 60, "reactionSeconds": 0.35, "margin": 0.3 },
+  "draft": {
+    "minDelaySeconds": 1,
+    "maxDelaySeconds": 3,
+    "synergy": 1,
+    "tagWeights": {
+      "alpha": { "damage": 2, "crit": 2, "champions": 1.5, "projectile": 1.5, "fireRate": 1 },
+      "beta": { "speed": 2, "fireRate": 2, "projectile": 1.5, "damage": 1 },
+      "gamma": { "hp": 2, "defence": 2, "sustain": 1.5, "team": 1.5, "burn": 1.5, "damage": 0.5 }
+    }
+  }
 }

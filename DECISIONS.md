@@ -1770,3 +1770,44 @@ From TDD §13:
   - The bounty only to the killer: GDD §8 pays assists the full takedown XP, so the bounty follows it.
   - Catch-up measured against the killer's level for everyone: it would underpay low-level assists.
   - Last line for every remaining structure: the GDD names the HQ.
+
+## D-085 — Bots dodge telegraphs and pick their own draft cards
+- Date: 2026-11-08
+- Source: M4 row "Bot dodging, Ultimate and draft logic, difficulty tiers", first commit; plan approved by the user. The numbers were made during development.
+- Decision:
+  - **Dodging** (`dodgeExit` in `bot.ts`, shapes in `src/sim/bots/dodge.ts`), every tick:
+    - **Danger:** the soonest marker in `snap.telegraphs` from another team (enemy champions or bosses) that the bot stands in, using `inTelegraph` with its radius + `dodge.margin` (0.3 m). Live areas come last.
+    - **One roll per episode:** on going from no danger to danger, it rolls `dodge.chancePct` (60%) once and keeps the result until it is out of danger. This keeps the `ai` stream deterministic and stops per-tick re-rolls.
+    - **Reaction:** on a yes, it waits `reactionSeconds` (0.35 s) from first seeing the marker.
+    - **The way out:** a circle's is along the line from its centre; a strip's and a cone's are square to the axis. The near side comes first, then the far side. A way out needs a clear walk and enough time before impact (a live area always has enough time). With neither, the bot keeps fighting.
+    - While it steps out, the exit replaces its aim and the weave stops. Its mode doesn't change. A hesitation pause also delays a dodge.
+  - **`rayBlocked` gets a `cells` layer** (default `ground`). Dodging checks `blocked`. The test for a wall in the way found that `ground` leaves out structure footprints, so a bot could have picked a way out through a Sub-base.
+  - **Draft:** a new offer is answered after a random 1–3 s (`draft.minDelaySeconds`, `maxDelaySeconds`), dead or alive.
+    - The card scores the sum of the champion's `tagWeights` plus `synergy` (1) per tag shared with powers it owns; rarity only breaks ties.
+    - `bestCard` in `draft.ts` is shared with `recommended`, which is `bestCard` with no weights, so the timer's pick doesn't change.
+    - Before this, bots never picked: every offer waited out the 10 s timer.
+  - **Ultimate:** no change. The rules in `bot.ts` already match TDD §7.
+- **Measured** (all-bot 3v3, 30 seeds per map, before and after; the code had the `ground` check, before the `blocked` change):
+
+  | Map | Median before | Median after | Range after | Non-weapon damage to champions per minute | Deaths per minute |
+  | --- | --- | --- | --- | --- | --- |
+  | The Front | 4.93 min | 4.74 min | 2.61–10.69 | 2,538 → 2,712 | 2.62 → 2.54 |
+  | The Bridgehead | 3.80 min | 3.38 min | 2.25–5.27 | 3,585 → 3,329 | 3.18 → 3.29 |
+
+  - None went past 12 minutes; 0 bot boss wakes.
+  - **Dodging shows no clear effect at match scale.** The damage figure moved in opposite directions on the two maps. It is a loose measure: it also counts burns and fire pools.
+  - **Likely reason, not measured:** with a 0.35 s reaction, little time is left on short flights. A Frag Grenade lands in 0.6 s and a Field Gun shell in 0.8 s, so at 5 m/s only a bot already near the edge gets out. Boss windups and Lead Storm leave more time.
+  - **Chrome**, The Front, with chance 100% and no reaction delay: bots dodged and drafted their own cards, no console errors. The overlay read 136 draw calls at one moment of a 4× speed match, over the 120 budget. This change doesn't touch render. Not investigated.
+- **Tests** (`tests/bot-dodge.test.ts`):
+  - steps out of a circle away from its centre, and sideways out of a strip and a cone;
+  - waits its reaction time, and gives up a dodge it can't finish;
+  - a wall on the near way out sends it the far way;
+  - ignores its own team's markers, and never dodges at 0%;
+  - Field Gun shells: at 100% with no reaction delay it takes 0 over 4 volleys, and at 0% the same setup takes at least 720;
+  - Alpha takes the damage card and Gamma the HP card, and owned powers pull the choice;
+  - a real offer is picked 1–3 s later, not by the timer.
+- Why: TDD §7. Dodging is what keeps the danger markers honest against bots, and bots contesting bosses depends on it (D-079). Draft picks stop bots losing 10 s per offer and fit powers to the champion.
+- Alternatives:
+  - A roll per marker: markers have no id, and overlapping ones would roll again.
+  - A wider search for a way out with flow fields: straight lines are enough for shapes this small.
+  - A copy of the `recommended` scoring in the bot: one scorer stays in step.

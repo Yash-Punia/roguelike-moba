@@ -4,8 +4,11 @@ import type { Entity } from '../ecs';
 import { rayBlocked, type ObstacleGrid } from '../grid';
 import { len, sin } from '../math';
 import type { Rng } from '../rng';
-import { Kind, Team, type Command, type EntitySnapshot, type PlayerId, type Snapshot } from '../sim';
+import { Kind, Team, type Command, type EntitySnapshot, type PlayerId, type Snapshot, type TelegraphSnapshot } from '../sim';
+import { bestCard } from '../systems/draft';
 import { steerAround } from '../systems/minions';
+import { inTelegraph } from '../telegraph-shape';
+import { exits } from './dodge';
 import { LaneTrack } from './lane';
 import { emptyRead, readLane, type LaneRead } from './lane-read';
 import { FAR, navFor, type Nav } from './nav';
@@ -87,6 +90,10 @@ export function createBot(
   let track: LaneTrack | undefined;
   let trackFrom: Float64Array | undefined;
   const read: LaneRead = emptyRead();
+  const dodge = { danger: false, will: false, since: 0, active: false };
+  const exitNear = { x: 0, y: 0 };
+  const exitFar = { x: 0, y: 0 };
+  const draft = { cards: undefined as readonly string[] | undefined, pickAt: -1 };
   const p = { x: 0, y: 0 };
   const steer = { x: 0, y: 0 };
   const cmd: Command = { tick: 0, player, moveX: 0, moveY: 0, ult: false, draftPick: -1, reroll: false };
@@ -308,6 +315,67 @@ export function createBot(
     }
   }
 
+  /**
+   * Dodging (TDD §7, D-085): the soonest enemy or boss marker it stands in (live areas last).
+   * On stepping into danger it rolls `dodge.chancePct` once, and keeps that result until it is
+   * out. On a yes it waits `reactionSeconds`, then heads for the near way out, or the far one if
+   * a wall is in the way; only if it can get there before impact (a live area: always).
+   */
+  function dodgeExit(cfg: Config, snap: Snapshot, me: EntitySnapshot, tick: number): { x: number; y: number } | undefined {
+    const dc = cfg.bots.dodge;
+    const clear = me.radius + dc.margin;
+    let threat: TelegraphSnapshot | undefined;
+    let left = Infinity;
+    for (let i = 0; i < snap.telegraphs.length; i++) {
+      const t = snap.telegraphs[i]!;
+      if (t.team === team || !inTelegraph(t, me.x, me.y, clear)) continue;
+      const l = t.elapsed >= t.total ? Infinity : t.total - t.elapsed;
+      if (!threat || l < left) {
+        threat = t;
+        left = l;
+      }
+    }
+    dodge.active = false;
+    if (!threat) {
+      dodge.danger = false;
+      return undefined;
+    }
+    if (!dodge.danger) {
+      dodge.danger = true;
+      dodge.since = tick;
+      dodge.will = rng() < dc.chancePct;
+    }
+    if (!dodge.will || tick - dodge.since < dc.reactionSeconds) return undefined;
+    exits(threat, me.x, me.y, clear, exitNear, exitFar);
+    const speed = (cfg.champions.find((c) => c.id === me.modelId)?.moveSpeed ?? 5) / 30;
+    const grid = getGrid?.();
+    const ok = (e: { x: number; y: number }) => len(e.x - me.x, e.y - me.y) / speed <= left && (!grid || rayBlocked(grid, me.x, me.y, e.x, e.y, grid.blocked) < 0);
+    const exit = ok(exitNear) ? exitNear : ok(exitFar) ? exitFar : undefined;
+    dodge.active = !!exit;
+    return exit;
+  }
+
+  /**
+   * Drafting (TDD §7, D-085): a new offer is answered after a random 1–3 s, with the card its
+   * champion's tag weights and owned powers score highest.
+   */
+  function pickCard(cfg: Config, me: EntitySnapshot, tick: number) {
+    const cards = me.draftCards;
+    if (cards.length === 0) {
+      draft.cards = undefined;
+      return;
+    }
+    const d = cfg.bots.draft;
+    if (cards !== draft.cards) {
+      draft.cards = cards;
+      draft.pickAt = tick + Math.round(d.minDelaySeconds + (d.maxDelaySeconds - d.minDelaySeconds) * rng());
+      return;
+    }
+    if (draft.pickAt < 0 || tick < draft.pickAt) return;
+    draft.pickAt = -1;
+    cmd.draftPick = bestCard(cfg.powers, me.powers, cards, d.tagWeights[me.modelId], d.synergy) as Command['draftPick'];
+  }
+
   /** Flow fields: to camp i, to its own lane, to its spawn pad. */
   const campField = (nav: Nav, cfg: Config, i: number) => nav.field(`camp:${i}`, () => nav.disc(cfg.map.camps[i]!.x, cfg.map.camps[i]!.y, 1.5));
   const laneField = (nav: Nav) =>
@@ -443,6 +511,10 @@ export function createBot(
     get confidence() {
       return state.confidence;
     },
+    /** Stepping out of a marker this tick (D-085). */
+    get dodging() {
+      return dodge.active;
+    },
     /** The lane it plays now (its own, or one it defends). */
     get lane() {
       return laneId;
@@ -454,6 +526,7 @@ export function createBot(
       cmd.tick = tick;
       cmd.moveX = cmd.moveY = 0;
       cmd.ult = false;
+      cmd.draftPick = -1;
       const defence = squad?.defenceOf(self);
       laneId = defence ? defence.lane : homeLane;
       if (snap.match.phase === 'ended' || !laneTrack()) return cmd;
@@ -461,6 +534,7 @@ export function createBot(
       const me = read.me;
       if (!me) return cmd;
       updateConfidence(cfg, me, tick);
+      pickCard(cfg, me, tick); // dead or alive
       // Home once the structure is safe or gone, or when it must heal (D-083).
       if (defence) {
         const s = byId(snap, defence.structure);
@@ -561,14 +635,17 @@ export function createBot(
         if (Math.abs(delta) > ARRIVED) aim = track!.pointAt(fromForward(read.fMe + Math.sign(delta) * Math.min(Math.abs(delta), LOOKAHEAD)), p);
       }
 
-      // Weave sideways while fighting (dodges lead-aimed bullets).
+      // Out of an enemy or boss marker first (D-085); otherwise weave sideways while fighting
+      // (dodges lead-aimed bullets).
+      const out = dodgeExit(cfg, snap, me, tick);
+      if (out) aim = out;
       let dx = 0;
       let dy = 0;
       if (aim) {
         dx = aim.x - me.x;
         dy = aim.y - me.y;
       }
-      if (FIGHTING.has(mode) && personality.weaveAmplitude > 0) {
+      if (!out && FIGHTING.has(mode) && personality.weaveAmplitude > 0) {
         const ref = enemy && enemy.hp > 0 ? enemy : read.enemyTower;
         if (ref) {
           const ux = ref.x - me.x;

@@ -600,6 +600,27 @@ const Bots = z.object({
     /** The back-off desire then; trades and all-ins are off. */
     desire: nonneg(),
   }),
+  /**
+   * Dodging telegraphs (TDD §7, D-085): on stepping into an enemy or boss marker, a bot rolls
+   * `chancePct` once; on a hit it steps out after `reactionSeconds`, if it can before impact.
+   */
+  dodge: z.object({
+    chancePct: pct(),
+    reactionSeconds: secs(),
+    /** Extra clearance past the marker's edge (m). */
+    margin: nonneg(),
+  }),
+  /**
+   * Drafting (TDD §7, D-085): a bot picks `minDelaySeconds`–`maxDelaySeconds` after an offer, the card
+   * with the highest sum of its champion's tag weights, plus `synergy` per tag shared with powers it owns.
+   */
+  draft: z.object({
+    minDelaySeconds: secs(),
+    maxDelaySeconds: secs(),
+    synergy: nonneg(),
+    /** Per champion id, per power tag. */
+    tagWeights: z.record(z.string(), z.record(z.string(), z.number())),
+  }),
 });
 
 /** Minion waves (GDD §5, TDD §6.6). */

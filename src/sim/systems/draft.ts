@@ -95,14 +95,26 @@ const RANK = { common: 0, rare: 1, epic: 2 } as const;
  * owned; ties go to the higher rarity, then the earlier slot. It is also what the timer picks.
  */
 export function recommended(p: Powers, c: Champion, cards: readonly string[]): number {
+  return bestCard(p, c.powers, cards);
+}
+
+/**
+ * The best card's slot: each tag scores its `weights` entry plus `synergy` if a power already
+ * owned has it (bots weigh tags per champion, TDD §7, D-085); the rarity only breaks ties (it
+ * is worth less than one tag), then the earlier slot.
+ */
+export function bestCard(p: Powers, powers: Readonly<Record<string, number>>, cards: readonly string[], weights: Readonly<Record<string, number>> = {}, synergy = 1): number {
   const owned = new Set<string>();
-  for (const x of p.powers) if ((c.powers[x.id] ?? 0) > 0) for (const t of x.tags) owned.add(t);
+  for (const x of p.powers) if ((powers[x.id] ?? 0) > 0) for (const t of x.tags) owned.add(t);
   let best = 0;
-  let bestScore = -1;
+  let bestScore = -Infinity;
   for (let i = 0; i < cards.length; i++) {
     const def = powerById(p, cards[i]!);
-    // Shared tags first; the rarity only breaks ties (it is worth less than one tag).
-    const score = def ? def.tags.filter((t) => owned.has(t)).length + RANK[def.rarity] / 10 : 0;
+    let score = 0;
+    if (def) {
+      for (const t of def.tags) score += (weights[t] ?? 0) + (owned.has(t) ? synergy : 0);
+      score += RANK[def.rarity] / 10;
+    }
     if (score > bestScore) {
       best = i;
       bestScore = score;
