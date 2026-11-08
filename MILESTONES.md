@@ -118,7 +118,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Bot dodging, Ultimate and draft logic, difficulty tiers (Easy/Normal/Hard): dodging and draft picks (D-085), the Ultimate rules were already in place; tiers, hesitation per second, one retreat range (D-086); Hard only clearly ahead of Easy on The Bridgehead | e7d99f9, c5bd862 |
 | `[p]` | Bounties, level catch-up, underdog charge, HQ last line (D-084) | feee8ce |
 | `[ ]` | Minimap (LoL style): lanes, structures, allied units, visible enemies only, fogged areas dimmed, pings | |
-| `[c]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | |
+| `[p]` | HUD: top bar structures (D-039), scoreboard, notifications, respawn overlay (D-087) | 4f66ba4 |
+| `[c]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | |
 | `[ ]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed), pause, results | |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.

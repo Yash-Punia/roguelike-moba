@@ -290,9 +290,50 @@ body {
 }
 
 /* Notices, the respawn overlay and the scoreboard (D-087). */
-.hud-notice {
+/* Kill banners (D-088): above the notices, each in its own slot. */
+.hud-kill {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 27cqw);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1cqw 3.6cqw 1.2cqw;
+  border-radius: 0.8cqw;
+  background: var(--hud-panel);
+  text-align: center;
+  white-space: nowrap;
+  animation: hud-notice-in 0.18s ease-out;
+}
+
+.hud-kill-headline {
+  color: var(--hud-brass);
+  font-size: max(18px, 5cqw);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.hud-kill-line {
+  font-size: max(14px, 3.4cqw);
+  font-weight: 600;
+}
+
+.hud-kill-line .ours {
+  color: #7fa8ee;
+  font-weight: 800;
+}
+
+.hud-kill-line .theirs {
+  color: #ee857d;
+  font-weight: 800;
+}
+
+.hud-kill-line .neutral {
+  color: var(--hud-brass);
+  font-weight: 800;
+}
+
+.hud-notice {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 43cqw);
   left: 50%;
   transform: translateX(-50%);
   padding: 1cqw 3.2cqw;
@@ -321,7 +362,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hud-notice {
+  .hud-notice,
+  .hud-kill {
     animation: none;
   }
 }

@@ -340,6 +340,8 @@ const Progression = z.object({
   catchUp: z.object({ pctPerLevel: pct(), maxPct: pct() }),
   /** Underdog charge (GDD §9): the team with fewer standing Sub-bases gains this much more passive Ultimate charge. */
   underdogChargePct: pct(),
+  /** Kill banners (D-088): a next kill within `multiKillSeconds` chains a multi-kill; a victim on `shutdownKills` kills without dying is a shutdown. */
+  announcer: z.object({ multiKillSeconds: secs(), shutdownKills: z.number().int().min(1) }),
   ultCharge: z.object({
     /** Each living enemy champion within `minionRadius` of a dying minion gains this (not split). */
     minion: perUnit(),

@@ -2,8 +2,8 @@ import { signal } from '@preact/signals';
 import { TICK_HZ, type Config } from '../data/schema';
 import { displayTeam } from '../sim/sides';
 import type { Entity } from '../sim/ecs';
-import type { CampKind } from '../data/schema';
 import type { SimEvent } from '../sim/events';
+import { advanceKills, announceKills, BannerQueue, resetKills, sideOf, unitName, type HudSide, type KillView } from './announcer';
 import { Kind, Team, type EntitySnapshot, type Snapshot } from '../sim/sim';
 
 export interface CardView {
@@ -35,8 +35,6 @@ export interface NoticeView {
   text: string;
   tone: 'good' | 'bad' | 'neutral';
 }
-
-export type HudSide = 'ours' | 'theirs' | 'neutral';
 
 /** The local champion is down: the countdown, and who did it ('' if unknown). */
 export interface RespawnView {
@@ -98,6 +96,8 @@ export const hud = {
   canSurrender: signal(false),
   /** The banner showing now. */
   notice: signal<NoticeView | null>(null),
+  /** The kill banner showing now (D-088). */
+  kill: signal<KillView | null>(null),
   /** The local champion's countdown while it is down. */
   respawn: signal<RespawnView | null>(null),
   /** The scoreboard: open (Tab or the score), and its rows, filled only while open. */
@@ -110,9 +110,8 @@ const NOTICE_TICKS = Math.round(2.5 * TICK_HZ);
 const NOTICE_QUEUE = 4;
 
 const notices = {
-  queue: [] as Omit<NoticeView, 'id'>[],
+  queue: new BannerQueue<Omit<NoticeView, 'id'>>(NOTICE_TICKS, NOTICE_QUEUE),
   nextId: 1,
-  until: 0,
   /** `snap.camps[i].members` last tick, and each champion's streak. */
   members: [] as number[],
   streaks: new Map<Entity, number>(),
@@ -122,41 +121,27 @@ const notices = {
 
 /** Forgets notices between matches and tests. */
 export function resetNotices() {
-  notices.queue.length = 0;
-  notices.until = 0;
+  notices.queue.reset();
+  resetKills();
   notices.members.length = 0;
   notices.streaks.clear();
   notices.killerName = '';
   notices.killerSide = 'neutral';
   hud.notice.value = null;
+  hud.kill.value = null;
   hud.respawn.value = null;
 }
 
-const sideOf = (team: Team, localTeam: Team): HudSide => {
-  const d = displayTeam(team, localTeam);
-  return d === Team.Blue ? 'ours' : d === Team.Red ? 'theirs' : 'neutral';
-};
-
 const say = (text: string, tone: NoticeView['tone']) => {
   notices.queue.push({ text, tone });
-  if (notices.queue.length > NOTICE_QUEUE) notices.queue.shift();
 };
-
-/** A unit's display name: its champion, structure, soldier or camp. Read when it kills, while the id is still good. */
-function unitName(e: EntitySnapshot, config: Config): string {
-  if (e.kind === Kind.Champion) return config.champions.find((c) => c.id === e.modelId)?.name ?? e.modelId;
-  if (e.kind === Kind.HQ) return config.structures.hq.name;
-  if (e.kind === Kind.SubBase) return config.structures.subBase.name;
-  if (e.kind === Kind.Minion) return config.units[e.modelId as keyof Config['units']]?.name ?? 'Soldier';
-  if (e.modelId.startsWith('deserter')) return config.neutrals.camps.deserter.name;
-  return config.neutrals.camps[e.modelId as CampKind]?.name ?? '';
-}
 
 /**
  * Turns this tick's events into banners (TDD §10), and remembers who knocked out the local
  * champion. Called every tick, unlike `updateHud`, so no event is missed. Only reads the sim.
  */
 export function pushNotices(events: readonly SimEvent[], snap: Snapshot, localId: Entity | undefined, localTeam: Team, config: Config) {
+  announceKills(events, snap, localId, localTeam, config);
   for (const ev of events) {
     if (ev.type === 'structureDestroyed') {
       const name = ev.kind === 'hq' ? 'HQ' : 'Sub-base';
@@ -196,12 +181,11 @@ export function pushNotices(events: readonly SimEvent[], snap: Snapshot, localId
     if (e.id === localId) say('You have a bounty', 'neutral');
     else say(`${ours ? 'Our' : 'Enemy'} ${name} has a bounty`, ours ? 'good' : 'bad');
   }
-  if (snap.tick < notices.until) return;
-  const next = notices.queue.shift();
-  if (next) {
-    hud.notice.value = { ...next, id: notices.nextId++ };
-    notices.until = snap.tick + NOTICE_TICKS;
-  } else if (hud.notice.value) hud.notice.value = null;
+  const kill = advanceKills(snap.tick, hud.kill.value !== null);
+  if (kill !== undefined) hud.kill.value = kill;
+  const next = notices.queue.advance(snap.tick, hud.notice.value !== null);
+  if (next) hud.notice.value = { ...next, id: notices.nextId++ };
+  else if (next === null) hud.notice.value = null;
 }
 
 const order = (a: StructureView, b: StructureView) => (a.kind === b.kind ? a.id - b.id : a.kind === 'hq' ? -1 : 1);

@@ -120,6 +120,22 @@ function SurrenderButton({ onSurrender }: { onSurrender: () => void }) {
   );
 }
 
+/** Who killed whom, with a headline for the big moments (D-088). */
+function KillBanner() {
+  const k = hud.kill.value;
+  if (!k || hud.ended.value || hud.boardOpen.value) return null;
+  return (
+    <div key={k.id} class="hud-kill" role="status">
+      {k.headline && <div class="hud-kill-headline">{k.headline}</div>}
+      <div class="hud-kill-line">
+        {k.parts.map((p) => (
+          <span class={p.side}>{p.text}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** One short banner at a time, for match events (TDD §10). */
 function Notice() {
   const n = hud.notice.value;
@@ -190,6 +206,7 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
   return (
     <>
       <TopStrip />
+      <KillBanner />
       <Notice />
       <RespawnOverlay />
       <Scoreboard />

@@ -43,6 +43,7 @@
   "bounty": { "minStreak": 3, "xpPerTakedown": 100, "maxXp": 300 },
   "catchUp": { "pctPerLevel": 15, "maxPct": 60 },
   "underdogChargePct": 20,
+  "announcer": { "multiKillSeconds": 10, "shutdownKills": 3 },
   "ultCharge": {
     "minion": {
       "mgSoldier": 3,

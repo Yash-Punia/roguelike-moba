@@ -1880,3 +1880,21 @@ From TDD §13:
   - Notices from the 10 Hz update: events on the other two ticks would be lost.
   - A keyboard-only scoreboard: phones need the tap.
   - Looking the killer up at 10 Hz: the id can go stale.
+
+## D-088 — Kill announcements
+- Date: 2026-11-08
+- Source: user request (HUD text announcements for champion kills, in the style of other MOBAs; general MOBA wording chosen by the user). The rest was decided during development.
+- Decision:
+  - **Banner:** "Alpha has slain Beta", names in side colours, "You" for the local player. A kill by something other than a champion: "Beta was slain by the Pillbox". An unknown killer: "Beta was slain".
+  - **Headline above it, highest first:** First Blood (a champion's kill only, once a match); Shutdown (the victim had 3 or more kills without dying); Double, Triple, Quadra, Penta Kill (the next kill within 10 s); Killing Spree, Rampage, Unstoppable, Dominating, Godlike, Legendary (3 to 8 or more kills without dying).
+  - **Ace** is its own banner, after the kill, when every champion of a team of two or more is down. Once per wipe.
+  - **Where it lives:** `ui/announcer.ts`, fed from `pushNotices` every tick. Read only: `death` events and the snapshot. Kills are counted in the UI, because the sim's `streak` also counts assists.
+  - **Own slot and queue:** 3 s a banner, at most 4 waiting, so kills never push out a structure notice. `BannerQueue` is shared with the notices, which move below this slot. Both hide while the scoreboard is open.
+  - **Config:** `progression.announcer`: `multiKillSeconds` 10, `shutdownKills` 3.
+  - **Not built:** sound and voice for these (M5 audio row). Banners queue, so a fast run of kills shows a few seconds late.
+- **Measured** (Chrome, The Front): three forced kills showed First Blood, Double Kill, Triple Kill, in order; no console errors.
+- **Tests** (`tests/hud-kills.test.ts`): wording and sides for both viewers; "You"; a structure and an unknown killer; first blood once and never from a structure; multi-kills inside and outside the window; spree tiers; a shutdown ends the spree; Ace once per wipe and after the kill; kills don't displace a structure notice.
+- Why: kills are the match's biggest moments, and nothing on screen named them.
+- Alternatives:
+  - Sharing the notice queue: a burst of kills would push out "Our Sub-base lost".
+  - Counting in the sim: this is presentation only, and bots don't read it.
