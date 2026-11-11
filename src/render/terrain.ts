@@ -21,14 +21,24 @@ const surfaceColour: Record<SurfaceKind, number> = {
 const slopeColour = palette.mud;
 
 export interface Terrain {
-  /** The terrain as square tiles (one mesh each), so the camera and shadow passes skip what is off screen (D-044). */
+  /** The terrain as square tiles (one mesh each), so the camera pass skips what is off screen (D-044). They cast no shadow themselves. */
   mesh: THREE.Group;
+  /**
+   * Shadow-only copies of the terrain in `CASTER_CHUNK` squares, on `SHADOW_LAYER` (D-105): only the
+   * triangles facing away from the sun, the only ones a front-side material's shadow pass draws.
+   */
+  casters: THREE.Group;
   /** Ground height (m) at sim (x, y), for standing units on the floor. */
   heightAt(x: number, y: number): number;
 }
 
 /** Terrain tile size (m): about a screen width, so a frame draws ~9–12 tiles. */
 export const TERRAIN_TILE = 12;
+/** Shadow caster chunk size (m): a few cover the fitted shadow box (D-099), so the shadow pass draws a few, not ~30 tiles. */
+export const CASTER_CHUNK = 36;
+/** Objects only the sun's shadow camera renders (the main camera sees layer 0 only). */
+export const SHADOW_LAYER = 1;
+const casterMaterial = new THREE.MeshBasicMaterial(); // front side, like the terrain: its shadow pass draws back faces
 
 const terrainMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
 patchFog(terrainMaterial); // fogged ground is drawn darker (D-010)
@@ -39,7 +49,7 @@ patchFog(terrainMaterial); // fogged ground is drawn darker (D-010)
  * so tiles meet without seams. `dressing` adds map props to the same tiles, so they cost no draw
  * calls of their own (D-097).
  */
-export function buildTerrain(map: MapConfig, dressing?: (heightAt: Terrain['heightAt']) => DressingTris): Terrain {
+export function buildTerrain(map: MapConfig, dressing?: (heightAt: Terrain['heightAt']) => DressingTris, toSun = DEFAULT_SUN): Terrain {
   const { triangles, tags, heightAt } = buildTerrainGeometry(map);
   const surfaces = map.walkable.map((s) => new THREE.Color(surfaceColour[s.surface]));
   const top = new THREE.Color(palette.jungle);
@@ -89,6 +99,9 @@ export function buildTerrain(map: MapConfig, dressing?: (heightAt: Terrain['heig
     b.used += 3;
   }
   const group = new THREE.Group();
+  const casters = new THREE.Group();
+  const chunkCols = Math.max(1, Math.ceil((maxX - minX) / CASTER_CHUNK));
+  const chunks = new Map<number, number[]>();
   for (const tile of [...buffers.keys()].sort((a, b) => a - b)) {
     const b = buffers.get(tile)!;
     const geo = new THREE.BufferGeometry();
@@ -97,11 +110,45 @@ export function buildTerrain(map: MapConfig, dressing?: (heightAt: Terrain['heig
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, terrainMaterial);
-    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.receiveShadow = true;
     mesh.name = `terrain-tile-${tile}`;
     group.add(mesh);
+    collectCasters(b.positions, toSun, (cx, cz) => Math.max(0, Math.floor((-cz - minY) / CASTER_CHUNK)) * chunkCols + Math.min(chunkCols - 1, Math.max(0, Math.floor((cx - minX) / CASTER_CHUNK))), chunks);
   }
-  return { mesh: group, heightAt };
+  for (const [chunk, positions] of [...chunks].sort((a, b) => a[0] - b[0])) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, casterMaterial);
+    mesh.castShadow = true;
+    mesh.layers.set(SHADOW_LAYER);
+    mesh.name = `terrain-caster-${chunk}`;
+    casters.add(mesh);
+  }
+  return { mesh: group, casters, heightAt };
+}
+
+/** The scene's sun direction (towards the sun), as `createScene` places it. */
+export const SUN_OFFSET = new THREE.Vector3(-12, 20, 8);
+const DEFAULT_SUN = SUN_OFFSET.clone().normalize();
+
+/**
+ * Adds to `chunks` every triangle of world-space `positions` that faces away from the sun: a
+ * front-side material's shadow pass culls the rest, so dropping them changes no shadow.
+ */
+function collectCasters(positions: Float32Array, toSun: THREE.Vector3, chunkOf: (x: number, z: number) => number, chunks: Map<number, number[]>) {
+  for (let o = 0; o < positions.length; o += 9) {
+    const ax = positions[o]!, ay = positions[o + 1]!, az = positions[o + 2]!;
+    const ux = positions[o + 3]! - ax, uy = positions[o + 4]! - ay, uz = positions[o + 5]! - az;
+    const vx = positions[o + 6]! - ax, vy = positions[o + 7]! - ay, vz = positions[o + 8]! - az;
+    // Winding normal (u × v), as the renderer culls by.
+    const facing = (uy * vz - uz * vy) * toSun.x + (uz * vx - ux * vz) * toSun.y + (ux * vy - uy * vx) * toSun.z;
+    if (facing >= 0) continue;
+    const chunk = chunkOf((ax + positions[o + 3]! + positions[o + 6]!) / 3, (az + positions[o + 5]! + positions[o + 8]!) / 3);
+    let list = chunks.get(chunk);
+    if (!list) chunks.set(chunk, (list = []));
+    for (let k = 0; k < 9; k++) list.push(positions[o + k]!);
+  }
 }
 
 /** Flat ground outside the map at embankment height, so the camera never sees the void at the edges. */

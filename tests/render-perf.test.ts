@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { parseConfig, rawConfig } from '../src/data/load';
 import { createCameraRig, fitShadowBox } from '../src/render/camera';
 import { createModel, partsOf } from '../src/render/models';
-import { buildTerrain } from '../src/render/terrain';
+import { buildTerrain, SHADOW_LAYER, SUN_OFFSET } from '../src/render/terrain';
 import { buildTerrainGeometry } from '../src/render/terrain-mesh';
 import { HpBars } from '../src/render/hp-bars';
 import { SoldierInstances } from '../src/render/soldier-instances';
@@ -121,6 +121,45 @@ describe('terrain tiles (D-044)', () => {
       expect(box.max.x - box.min.x).toBeLessThan(12 + 3); // a tile plus the triangles straddling its edge
       expect(box.max.z - box.min.z).toBeLessThan(12 + 3);
     }
+  });
+});
+
+describe('terrain shadow casters (D-105)', () => {
+  const map = parseConfig(rawConfig).map;
+  const terrain = buildTerrain(map);
+  const toSun = SUN_OFFSET.clone().normalize();
+  const facingAway = (g: THREE.BufferGeometry) => {
+    const p = g.attributes.position!;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    let n = 0;
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i);
+      b.fromBufferAttribute(p, i + 1).sub(a);
+      c.fromBufferAttribute(p, i + 2).sub(a);
+      if (b.cross(c).dot(toSun) < 0) n++;
+    }
+    return n;
+  };
+
+  it('hold exactly the tiles\' triangles the shadow pass would draw, in a few chunks', () => {
+    const tiles = terrain.mesh.children as THREE.Mesh[];
+    const casters = terrain.casters.children as THREE.Mesh[];
+    const expected = tiles.reduce((n, t) => n + facingAway(t.geometry), 0);
+    expect(casters.reduce((n, c) => n + c.geometry.attributes.position!.count / 3, 0)).toBe(expected);
+    expect(casters.every((c) => facingAway(c.geometry) === c.geometry.attributes.position!.count / 3)).toBe(true);
+    expect(casters.length).toBeLessThan(tiles.length / 4);
+  });
+
+  it('only the shadow camera sees the casters, and the tiles cast no shadow of their own', () => {
+    const main = new THREE.Camera();
+    const shadow = new THREE.Camera();
+    shadow.layers.enable(SHADOW_LAYER);
+    for (const c of terrain.casters.children) {
+      expect(c.castShadow).toBe(true);
+      expect(c.layers.test(main.layers)).toBe(false);
+      expect(c.layers.test(shadow.layers)).toBe(true);
+    }
+    expect(terrain.mesh.children.every((t) => !t.castShadow && t.receiveShadow)).toBe(true);
   });
 });
 

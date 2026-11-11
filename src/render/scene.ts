@@ -19,7 +19,7 @@ import { TargetLine } from './target-line';
 import { Telegraphs } from './telegraphs';
 import { gunLift, Tracers } from './tracers';
 import { palette } from './palette';
-import { buildSurround, buildTerrain } from './terrain';
+import { buildSurround, buildTerrain, SHADOW_LAYER, SUN_OFFSET } from './terrain';
 
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
 /** Metres (Manhattan) moved in one tick that count as a teleport rather than movement. */
@@ -121,8 +121,9 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   let redness = 0;
   let suddenDeath = false;
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
-  const sunOffset = new THREE.Vector3(-12, 20, 8);
+  const sunOffset = SUN_OFFSET;
   sun.castShadow = true;
+  sun.shadow.camera.layers.enable(SHADOW_LAYER); // the terrain's shadow-only casters (D-105)
   sun.shadow.mapSize.setScalar(coarsePointer ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { near: 1, far: 80 }); // its sides follow the view (fitShadowBox, D-099)
   scene.add(sun, sun.target);
@@ -586,7 +587,7 @@ function lerpAngle(a: number, b: number, t: number) {
 function buildArena(map: MapConfig, side: (t: Team) => Team) {
   const group = new THREE.Group();
   const terrain = buildTerrain(map, (heightAt) => buildDressing(map, heightAt, side));
-  group.add(terrain.mesh, buildSurround(map));
+  group.add(terrain.mesh, terrain.casters, buildSurround(map));
 
   for (const team of [Team.Blue, Team.Red]) {
     const at = team === Team.Blue ? map.spawn.blue : map.spawn.red;

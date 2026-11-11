@@ -2197,3 +2197,27 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`): flames and pools add no meshes, decals stay at 64 and recycle the oldest, density keeps single-particle bursts.
 - Why: the largest per-effect draw-call costs left, and the fire, debris and scorch the GDD's VFX table asks for.
 - Alternatives: instancing the old cones and blobs where they stood (keeps per-frame CPU matrices, no embers or data file).
+
+## D-105 — Shadow-only terrain casters
+- Date: 2026-11-11
+- Source: user request (the base fight still over the 120-call budget, D-104); the rest made during development
+- Decision:
+  - **Cause:** a per-draw probe of the worst frame (the base at 2:30, 137 calls) showed the terrain at 47: 17 tiles in the main pass and 30 in the shadow pass. Then Lead Storm's streaks (11), knocked-out soldiers and their helmets (15) and champions (about 13).
+  - **Terrain tiles no longer cast shadows.** `buildTerrain` adds shadow-only casters in 36 m chunks (`src/render/terrain.ts`) on layer 1, which only the sun's shadow camera renders (`shadow.camera.layers.enable(1)`; Three's shadow map uses the shadow camera's layers when it has any beyond 0). Amends D-099, which took a shadow-only draw to be impossible.
+  - **Identical shadows:** a front-side material's shadow pass only draws back faces, so the casters keep just the triangles facing away from the sun. That drops floors, plateau tops and sunward faces, about half the triangles, with no change in any shadow. Same sun offset for both sides, so they are built once. Compared by eye at the same paused view, before and after: cliffs, props and the wrecked biplane cast the same shadows.
+  - **Lead Storm's 12 streak meshes** are one `InstancedMesh` per storm, which D-104 left until a measurement asked for it.
+  - **Knock-outs left as they are:** their fading copies are still a draw per part, but the budget holds without them.
+  - **Measured** (D-104's probe: seed 11, five views at 0:06, 1:02, 2:30, the champion teleported to each):
+
+    | Worst calls | Before | After |
+    | --- | --- | --- |
+    | The Front, 9:16 | 134 | 113, 114 |
+    | The Front, 9:21 | 140 | 99 |
+    | The Bridgehead, 9:16 | 96 | 78 |
+    | The Bridgehead, 9:21 | not sampled | 81 |
+    | Triangles | up to 111k | up to 69k |
+
+    One quiet view (spawn side of the trunk): 72 → 48 calls, 68k → 30k triangles. Every sample is now within 120; the base fight at 9:16 is the closest at 114. No console errors.
+  - **Tests** (`tests/render-perf.test.ts`): the casters hold exactly the tiles' triangles that face away from the sun, in under a quarter as many meshes; only a camera with layer 1 sees them; tiles receive but don't cast.
+- Why: the terrain's shadow pass was a third of every frame, and the change costs nothing visible.
+- Alternatives: coarser tiles for both passes (more off-screen triangles in the main pass); instancing knock-outs (more code, not needed for the budget now).

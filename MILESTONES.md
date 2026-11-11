@@ -122,7 +122,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Kill announcements: who killed whom, First Blood, multi-kills, sprees, Shutdown, Ace (user, D-088) | fc78ed0 |
 | `[p]` | Base under attack: a sim event for the later voice line, a banner for your side, a pulsing top-bar icon (user, D-089) | 56bda99 |
 | `[p]` | Joystick from anywhere on the screen; stats bar only with `?perf` (user, D-098) | 9b5b3db |
-| `[p]` | Draw calls within the mobile budget in busy views: shadow box fitted to the view (D-099), smoke puffs in one draw (D-100), soldiers instanced (D-101) | b4d4940, b198d25, 95a7d08, 4d5cbe0 |
+| `[p]` | Draw calls within the mobile budget in busy views: shadow box fitted to the view (D-099), smoke puffs in one draw (D-100), soldiers instanced (D-101), shadow-only terrain casters and one draw per Lead Storm (D-105) | b4d4940, b198d25, 95a7d08, 4d5cbe0 |
 | `[p]` | Menus: title, match setup (champion, team, lane, team size, lane count, difficulty, seed) (D-091), pause (D-092), results (D-093) | fc83002, c2f041b, 09ce0c5 |
 
 **Exit criteria:** bot matches land near 5 minutes (D-051, user); Normal bots feel like a real 3v3.
@@ -135,7 +135,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | --- | --- | --- |
 | `[p]` | GPU particle pool, part 1: `particles.ts`, `vfx.json`, smoke, blasts, level-up and dust moved over, live count on the `?perf` bar (tracers were already instanced) (D-102) | 704b817 |
 | `[p]` | GPU particle pool, part 2: muzzle flashes, bullet impacts in the shooter's team colour (D-103) | edc9f0d |
-| `[p]` | GPU particle pool, part 3: Gamma's flames and fire pools as particles, embers, explosion debris, structure chunks, 64 pooled scorch decals (D-104) | e418c32 |
+| `[p]` | GPU particle pool, part 3: Gamma's flames and fire pools as particles, embers, explosion debris, structure chunks, 64 pooled scorch decals (D-104) | e418c32, a197d41 |
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[ ]` | Audio: Howler sprites, event mapping, voice limits, music + Sudden Death crossfade | |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |

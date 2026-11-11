@@ -17,6 +17,7 @@ const grenadeMat = new THREE.MeshLambertMaterial({ color: palette.olive, flatSha
 // Lead Storm: bright streaks flying down the strip (the strip itself is a telegraph, D-078).
 const streakGeo = new THREE.BoxGeometry(0.8, 0.04, 0.04);
 const streakMat = new THREE.MeshBasicMaterial({ color: palette.muzzle, toneMapped: false });
+const streakMatrix = new THREE.Matrix4();
 const STREAKS = 12;
 /** Streak passes down the strip per second, and the gun height they fly from. */
 const STREAK_RATE = 2.2;
@@ -47,7 +48,8 @@ interface Flames {
 
 interface Storm {
   group: THREE.Group;
-  streaks: THREE.Mesh[];
+  /** All of a storm's streaks in one draw (D-105). */
+  streaks: THREE.InstancedMesh;
   length: number;
   width: number;
 }
@@ -131,13 +133,13 @@ export class UltFx {
     }
     if (!st) {
       const group = new THREE.Group();
-      const streaks: THREE.Mesh[] = [];
-      for (let k = 0; k < STREAKS; k++) streaks.push(new THREE.Mesh(streakGeo, streakMat));
-      group.add(...streaks);
+      const streaks = new THREE.InstancedMesh(streakGeo, streakMat, STREAKS);
+      streaks.frustumCulled = false;
+      group.add(streaks);
       this.group.add(group);
       this.storms.set(id, (st = { group, streaks, length, width }));
     }
-    for (const s of st.streaks) s.visible = channel === 2;
+    st.streaks.visible = channel === 2;
   }
 
   /** Moves a storm with its caster (interpolated sim position and strip angle) and runs its streaks. */
@@ -146,11 +148,12 @@ export class UltFx {
     if (!st) return;
     st.group.position.set(x, this.heightAt(x, y) + 0.06, -y);
     st.group.rotation.y = angle;
-    for (let k = 0; k < st.streaks.length; k++) {
+    for (let k = 0; k < STREAKS; k++) {
       const t = ((now / 1000) * STREAK_RATE + k / STREAKS) % 1;
       const lateral = (((k * 0.618) % 1) - 0.5) * st.width * 0.85;
-      st.streaks[k]!.position.set(0.6 + t * (st.length - 0.6), GUN_HEIGHT * (1 - t) + 0.15, lateral * t);
+      st.streaks.setMatrixAt(k, streakMatrix.makeTranslation(0.6 + t * (st.length - 0.6), GUN_HEIGHT * (1 - t) + 0.15, lateral * t));
     }
+    st.streaks.instanceMatrix.needsUpdate = true;
   }
 
   /** Shows or hides Gamma's flame cone (GDD §11) for champion `id`; `range` and `angle` are its sector. */
