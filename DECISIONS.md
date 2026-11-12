@@ -118,7 +118,7 @@ From GDD §13:
 
 From TDD §13:
 - Add a minimal online 1v1/3v3 test (Node server running `sim`) after M5, or is bot play enough?
-- Telemetry: automatic capture (needs a backend and consent screen) or manual JSON export?
+- ~~Telemetry: automatic capture (needs a backend and consent screen) or manual JSON export?~~ Manual JSON export for the prototype, D-115.
 - Production engine choice, and whether sim math should move to fixed-point now.
 - ~~Models: in-house Blender or CC0 stand-ins first?~~ Resolved for the prototype in D-020.
 
@@ -2463,3 +2463,24 @@ From TDD §13:
   - **Tests** (`tests/colour-blind.test.ts`, its own file since it changes the palette): the orange stays clear of the other colours; after the switch, `teamColour`, a tracer and a soldier's baked helmet are orange, and blue is unchanged.
 - Why: GDD §10's colour-blind mode, in colour and in shape, so friend and foe never rest on red against blue alone.
 - Alternatives: recolouring live in a match (every baked template and instance would need rebuilding); markers in team colours only, without the shape difference (the GDD asks for the shapes).
+
+## D-115 — Match telemetry, exported from the Results screen
+- Date: 2026-11-12
+- Source: M5 row "Telemetry recorder + JSON export from Results screen" (TDD §11 Telemetry, GDD §13); the rest made during development
+- Decision:
+  - **One recorder, `src/tools/telemetry.ts`, in every build**, not only `?debug`: Gate 2 asks that every match exports a telemetry JSON. `match.ts` imports it statically and feeds it each step's events and snapshot right after `sim.step`, before the early returns, so the tick the match ends on counts. It stops recording after `matchOver`.
+  - **Export is manual:** an "Export telemetry" button on the Results screen downloads `warfront-<seed>-<time>.json` (a Blob and an `<a download>`). `ui` gets it as an `onExport` callback to `mountHud`, since `ui` mustn't import `tools`. No POST endpoint: that needs a backend and a consent screen. This resolves the TDD §13 open question.
+  - **The record (`format: 1`), per the TDD §11 table:**
+    - `meta`: build version (`package.json`), config hash (`fnv1a` of the starting raw config, hex), seed, query string, map id, lanes, team size, difficulty, your champion and team, start time, and `configEdited` once the debug panel changes the config;
+    - `match`: winner (`'blue'`, `'red'` or `null` for a draw), reason, end tick and seconds (`unfinished: true` before the end);
+    - `champions`: final level, XP, K/D/A, damage dealt, powers, human or bot, levels at each full minute plus the last, distance moved, seconds standing still and alive;
+    - `structureFalls` with lane, `draft` offers, rerolls and picks (`auto` = the timer picked), champion `deaths` with position and the killer's kind, model and position, `ultimates` with the target's kind;
+    - `device`: user agent, coarse pointer, pixel ratio, screen, ticks per last-used input (keyboard or pointer), average FPS while the match runs (gaps over 0.5 s, such as a hidden tab, don't count).
+  - **Ticks** are the sim's own: an event's tick is the one being stepped (`matchOver.tick`), one less than the snapshot's after the step.
+  - **Movement** skips any jump over 5 m in one tick (a respawn), the renderer's snap distance; still time is alive with zero velocity.
+  - **Cheap per tick:** one pass over the snapshot's champions into a counter object each; entries are added only on events. Events are pooled, so the recorder copies what it keeps (the card lists too).
+  - **Not built:** Ultimate targets hit and Ultimate charge by source. No sim event carries them; they need attribution in the sim.
+  - **Measured** (DevTools Chrome, The Front 3v3, seed 7): bots' draft offers and picks, a debug knock-out, the left Sub-base and then the HQ falling all appeared in the export; the HQ fall's tick equals the end tick; the Results screen fits the three buttons at 540 × 960; no console errors besides the existing favicon 404. The bundle carries only the package version, not the rest of `package.json`.
+  - **Tests** (`tests/telemetry.test.ts`): a champion knock-out records position and killer; minion deaths are skipped; offers, rerolls and an auto pick are kept, with cards copied; Ultimate casts carry the target's kind; distance and still time add up without a teleport's jump; levels every minute; the result ends recording; the record survives a JSON round trip unchanged.
+- Why: playtests need the numbers the GDD targets are checked against, and Gate 2 needs a JSON from every match.
+- Alternatives: automatic upload (needs a backend and consent); the recorder only in debug builds (playtesters would have nothing to export); counting from HUD state (it updates at 10 Hz and misses per-tick data).

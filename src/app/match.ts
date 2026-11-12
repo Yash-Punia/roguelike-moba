@@ -18,6 +18,9 @@ import { AudioDirector } from '../audio/director';
 import { createHowlerSink, sprite } from '../audio/howler-sink';
 import { settings } from '../ui/settings';
 import { cssColour, palette } from '../render/palette';
+import { createTelemetry } from '../tools/telemetry';
+import { fnv1a } from '../sim/rng';
+import { version } from '../../package.json';
 
 /** The enemy's light text colour in colour-blind mode, a pale orange. */
 const COLOUR_BLIND_TEXT = '#f2a466';
@@ -69,12 +72,40 @@ const difficulty: Difficulty = difficultyParam === 'easy' || difficultyParam ===
 const bots = botSlots.map((s, i) => ({ bot: createBot(i + 1, s.team, () => config, () => sim.lanes, sim.rng.ai, s.lane, squads[s.team], () => sim.grid, difficulty), entity: sim.entityOf(i + 1)! }));
 const bot = bots[0]?.bot; // the enemy in your lane, shown in the debug panel
 let lastSnap = sim.snapshot();
+// Telemetry (TDD §11, D-115): every match, exported from the Results screen.
+const telemetry = createTelemetry(
+  {
+    version,
+    configHash: fnv1a(JSON.stringify(raw)).toString(16).padStart(8, '0'),
+    seed,
+    query: location.search,
+    map: config.map.id,
+    lanes: laneCount,
+    teamSize,
+    difficulty,
+    champion: localChampion,
+    team: localTeam === Team.Red ? 'red' : 'blue',
+    localEntity: sim.entityOf(0) ?? 0,
+    startedAt: new Date().toISOString(),
+  },
+  { userAgent: navigator.userAgent, coarsePointer: matchMedia('(pointer: coarse)').matches, pixelRatio: devicePixelRatio, screen: { width: screen.width, height: screen.height } },
+);
+
+/** Downloads the match's telemetry record as JSON (Results → Export telemetry). */
+function exportTelemetry() {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(telemetry.record(), null, 1)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `warfront-${seed}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam, { shapeMarkers: settings.value.colourBlind });
 const sound = createHowlerSink();
-const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender());
+const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender(), exportTelemetry);
 // Colour-blind mode (D-114): the enemy's HUD colours turn orange with the models.
 if (settings.value.colourBlind) {
   hudLayer.style.setProperty('--hud-red', cssColour(palette.red));
@@ -136,6 +167,8 @@ const loop = startLoop({
     audio.onEvents(events, performance.now());
     const snap = sim.snapshot();
     lastSnap = snap;
+    telemetry.onStep(events, snap); // before the early returns: the matchOver tick counts
+    telemetry.onInput(input.lastInput);
     view.capture(snap);
     audio.capture(snap);
     pushNotices(events, snap, localEntity, localTeam, config); // every tick: no event is missed
@@ -163,6 +196,7 @@ const loop = startLoop({
   },
   draw: (alpha) => {
     const now = performance.now();
+    telemetry.onFrame(now - lastFrame, !(loop.paused || loop.held));
     const dt = Math.min((now - lastFrame) / 1000, 0.1);
     lastFrame = now;
     view.update(alpha, localEntity, cameraFocus);
@@ -181,7 +215,7 @@ effect(() => {
 });
 
 if (debug) {
-  Object.assign(window, { warfront: { sim, view, audio, loop, bot, bots, squads, get config() { return config; } } });
+  Object.assign(window, { warfront: { sim, view, audio, loop, bot, bots, squads, telemetry, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
       raw,
@@ -190,6 +224,7 @@ if (debug) {
         view.particles.setVfx(next.vfx);
         view.setCameraConfig(next.camera);
         audio.setConfig(next.audio);
+        telemetry.configEdited();
         config = next;
         sim.setConfig(next);
       },

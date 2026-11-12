@@ -143,9 +143,9 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Settings, part 1: saved settings, a Settings screen from the title and the pause menu, volume sliders, show FPS, joystick opacity (D-111) | 795a700 |
 | `[p]` | Settings, part 2: camera shake from blasts and structure falls; reduced effects halves particles and turns the shake off (D-112) | ec419bd |
 | `[p]` | Settings, part 3: left-handed (gauge and vitals swap sides, joystick zone mirrors) and hold-to-cast (0.3 s, with a fill ring) (D-113) | 8f645de |
-| `[c]` | Settings, part 4: colour-blind mode: the red team in vermillion orange everywhere, circle and diamond markers under units (D-114) | |
+| `[p]` | Settings, part 4: colour-blind mode: the red team in vermillion orange everywhere, circle and diamond markers under units (D-114) | 5b41c33 |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
-| `[ ]` | Telemetry recorder + JSON export from Results screen | |
+| `[c]` | Telemetry recorder + JSON export from Results screen: match result, structure falls by lane, levels by minute, draft offers and picks, champion deaths, Ultimate casts, movement, device and FPS; Ultimate hits and charge sources, and the POST endpoint, not built (D-115) | |
 | `[ ]` | Replays: command log, keyframes, scrubbing | |
 | `[ ]` | `npm run soak` headless bot matches with report | |
 | `[ ]` | Playwright smoke test | |

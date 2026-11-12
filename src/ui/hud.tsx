@@ -245,7 +245,7 @@ function Scoreboard() {
 const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n)));
 
 /** The end of the match (TDD §10, D-093): who won, every champion's numbers, and where to go next. */
-function Results() {
+function Results({ onExport }: { onExport: () => void }) {
   const v = hud.results.value;
   if (!v) return null;
   const { title, line } = resultsHeading(v);
@@ -294,6 +294,9 @@ function Results() {
         <button type="button" onClick={() => (location.href = location.pathname)}>
           Main menu
         </button>
+        <button type="button" onClick={onExport}>
+          Export telemetry
+        </button>
       </div>
     </div>
   );
@@ -323,7 +326,7 @@ function FpsReadout() {
   return on ? <div ref={el} class="hud-fps" /> : null;
 }
 
-function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void }) {
+function Hud({ onPick, onReroll, onSurrender, onExport }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void; onExport: () => void }) {
   return (
     <>
       <TopStrip />
@@ -336,13 +339,13 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
       <PauseMenu onSurrender={onSurrender} />
-      <Results />
+      <Results onExport={onExport} />
     </>
   );
 }
 
 /** Mounts the HUD layer over the canvas (TDD §10). Only the draft cards and the buttons take pointer input. */
-export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}, onSurrender: () => void = () => {}) {
+export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, onReroll: () => void = () => {}, onSurrender: () => void = () => {}, onExport: () => void = () => {}) {
   const layer = document.createElement('div');
   layer.className = 'hud';
   frame.appendChild(layer);
@@ -355,6 +358,6 @@ export function mountHud(frame: HTMLElement, onPick: (slot: 0 | 1 | 2) => void, 
   addEventListener('keyup', (e) => {
     if (e.key === 'Tab') hud.boardOpen.value = false;
   });
-  render(<Hud onPick={onPick} onReroll={onReroll} onSurrender={onSurrender} />, layer);
+  render(<Hud onPick={onPick} onReroll={onReroll} onSurrender={onSurrender} onExport={onExport} />, layer);
   return layer;
 }
