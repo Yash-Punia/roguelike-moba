@@ -160,7 +160,7 @@ describe('audio director (D-106)', () => {
     expect(played.map((p) => p.name)).toEqual(['victory']);
   });
 
-  it('plays the march from the start, crossfades to the Sudden Death variant, and fades out at the end', () => {
+  it('plays the battle ambience from the start, crossfades to the Sudden Death variant, and fades out at the end', () => {
     const { director, music } = rig(pinned({ musicVolume: 0.5 }));
     director.capture(snap());
     director.capture(snap());
@@ -168,7 +168,7 @@ describe('audio director (D-106)', () => {
     director.setConfig(pinned({ musicVolume: 0.25 }));
     director.onEvents([{ type: 'matchOver', winner: Team.Red, reason: 'timeout', tick: 1 }], 0);
     director.capture(snap());
-    expect(music).toEqual([['march', 0.5, 0], ['sudden', 0.5, 2000], ['sudden', 0.25, 0], [null, 0.25, 2000]]);
+    expect(music).toEqual([['battle', 0.5, 0], ['sudden', 0.5, 2000], ['sudden', 0.25, 0], [null, 0.25, 2000]]);
   });
 
   it('every sound audio.json or the director names is in the sprite', () => {

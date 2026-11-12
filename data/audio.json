@@ -14,8 +14,8 @@
     "mg": 28, "hmg": 40, "flak": 45, "rocket": 55,
     "rifle": 35, "sniper": 65, "cannon": 70, "halftrackGun": 45, "turret": 70,
     "explosion": 85, "knockout": 50, "collapse": 95,
-    "levelUp": 70, "ultReady": 75, "ultSiren": 40, "cardDeal": 50, "cardPick": 55,
-    "respawn": 60, "suddenDeath": 85, "victory": 85, "defeat": 85
+    "levelUp": 45, "ultReady": 55, "ultSiren": 35, "cardDeal": 35, "cardPick": 40,
+    "respawn": 45, "suddenDeath": 55, "victory": 65, "defeat": 65
   },
   "shots": {
     "alpha": "revolver", "beta": "smg",

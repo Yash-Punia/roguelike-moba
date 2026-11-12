@@ -2,10 +2,10 @@ import { Howl, Howler } from 'howler';
 import webm from '../../assets/audio/sfx.webm?url';
 import mp3 from '../../assets/audio/sfx.mp3?url';
 import spriteJson from '../../assets/audio/sfx.json';
-import marchWebm from '../../assets/audio/music-march.webm?url';
-import marchMp3 from '../../assets/audio/music-march.mp3?url';
-import suddenWebm from '../../assets/audio/music-sudden.webm?url';
-import suddenMp3 from '../../assets/audio/music-sudden.mp3?url';
+import battleWebm from '../../assets/audio/ambience-battle.webm?url';
+import battleMp3 from '../../assets/audio/ambience-battle.mp3?url';
+import suddenWebm from '../../assets/audio/ambience-sudden.webm?url';
+import suddenMp3 from '../../assets/audio/ambience-sudden.mp3?url';
 import type { Sink, Sprite, Track } from './director';
 
 export const sprite = spriteJson as unknown as Sprite;
@@ -23,15 +23,15 @@ export function createHowlerSink() {
   });
   /** Loop key → Howler sound id. */
   const loops = new Map<number, number>();
-  // The two music loops share a tempo and length, so one can take over where the other is.
+  // The two background loops share a length, so one can take over where the other is.
   const tracks = {
-    march: new Howl({ src: [marchWebm, marchMp3], format: ['webm', 'mp3'], loop: true }),
+    battle: new Howl({ src: [battleWebm, battleMp3], format: ['webm', 'mp3'], loop: true }),
     sudden: new Howl({ src: [suddenWebm, suddenMp3], format: ['webm', 'mp3'], loop: true }),
   };
   let current: Track = null;
   let currentId = 0;
   // Until the first touch or key press the context is suspended, and Howler would park every play
-  // and start them all at once on that tap. Effects and loops wait instead; the march stays queued.
+  // and start them all at once on that tap. Effects and loops wait instead; the background stays queued.
   const ready = () => howl.state() === 'loaded' && Howler.ctx?.state === 'running';
   let hold = false;
   const applyMute = () => Howler.mute(hold || document.hidden);
@@ -55,7 +55,7 @@ export function createHowlerSink() {
       current = track;
       if (!track) return;
       const to = tracks[track];
-      currentId = to.play(); // queued until loaded, unlike the effects: the march should start with the match
+      currentId = to.play(); // queued until loaded, unlike the effects: the background should start with the match
       to.seek(at, currentId);
       to.volume(0, currentId);
       to.fade(0, volume, fade, currentId);

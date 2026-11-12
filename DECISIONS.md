@@ -2331,3 +2331,42 @@ From TDD §13:
   - **Not listened to.**
 - Why: the player needs to hear the fight (shots, cues, the siren); a tune over it competes for attention.
 - Alternatives: keeping the march and only lowering `musicVolume` (the melody would still pull attention, and Sudden Death would drop with it); no music outside Sudden Death.
+
+## D-110 — A distant battle instead of music; grim, quick sounds
+- Date: 2026-11-12
+- Source: user request (a war setting: grim, subtle, quick effects; the background as war sounds in the distance, muffled so the real effects stand out; quick, subtle cues); supersedes the music of D-108 and D-109
+- Decision:
+  - **No music. The background is a battle past the map edge,** two 32 s loops from the generator (`ambience-battle`, `ambience-sudden`):
+    - a wind and low rumble bed;
+    - artillery thudding in;
+    - machine-gun bursts far off;
+    - single rifle cracks.
+    - Everything goes through two low-pass passes (1.1 kHz, the booms lower), so it reads as distant. Events are placed unevenly, and every one wraps round the loop's end, so there's no seam or obvious repeat.
+    - **Sudden Death** brings it closer and busier: 20 shells instead of 9, 13 bursts instead of 6, a brighter cut-off, and a faint low drone a fifth apart that swells twice a loop.
+  - **Loudness:** the battle sits at −30 dBFS RMS and Sudden Death at −26. After encoding they average −30 dB (peaks −18.5) and −26 dB (peaks −14). That puts the background about 25 dB under a gunshot, before `musicVolume`. The generator now caps a loop's target loudness at its peak limit rather than failing.
+  - **Encoding:** 48 kb/s Opus and 64 kb/s MP3 for the ambience, which has little top end: about 180 KB and 257 KB a loop.
+  - **The crossfade is unchanged:** equal lengths, so Sudden Death still takes over at the same position, over 2 s. The tracks are now `battle` and `sudden`; the old music files are gone.
+  - **Effects, quicker and darker:**
+    - shorter tails: revolver 0.55 → 0.38 s, sniper 0.8 → 0.5, explosion 1.5 → 1.0, collapse 2.6 → 1.6, cannon 1.1 → 0.8;
+    - cracks and bodies 10–20% lower in pitch;
+    - the sprite drops from 27.3 s to 19.4 s.
+    - Each champion's gun keeps its own character.
+  - **Cues, quick and muted:**
+    - level-up: two muffled bell ticks, 0.32 s;
+    - Ultimate ready: a rifle bolt worked and a low ring, 0.42 s;
+    - the siren: a 0.6 s rising wail;
+    - draft swish and stamp: 0.12 s;
+    - respawn: a 0.35 s hiss;
+    - Sudden Death: a far-off air-raid siren winding up, 1.3 s;
+    - victory and defeat: a dark horn with a distant thump, about 1 s, no fanfare.
+    - Their gains are lowered too, to 35–65%.
+  - **Measured** (DevTools Chrome):
+    - all three files load;
+    - the battle loop plays from the start, and Sudden Death crossfades in at the same position (both at 10.0 s);
+    - level-up, draft and the defeat stinger fire;
+    - all silent after the end;
+    - no console errors (the only 404 is `favicon.ico`).
+  - **Tests:** unchanged apart from the track name.
+  - **Not listened to.**
+- Why: the setting is war, and the player must hear the fight in front of them first; a melody competes for attention, distant battle noise doesn't.
+- Alternatives: keeping a quiet musical bed (D-109); no background at all.

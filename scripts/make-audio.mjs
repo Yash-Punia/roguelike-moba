@@ -176,23 +176,24 @@ function brass(f, s, { attack = 0.03, decay = 0.6, bright = 3200, hold = 1 } = {
 /** A struck bell: a sine with an inharmonic partial, both ringing out. */
 const bell = (f, s, decay = 0.5) => mix(s, [env(osc(s, f), 0.002, decay), 1], [env(osc(s, f * 2.76), 0.002, decay * 0.4), 0.35], [env(osc(s, f * 5.4), 0.001, decay * 0.15), 0.15]);
 
-/** Notes in sequence: `[midi, startSeconds, lengthSeconds]`, each a brass note. */
-const phrase = (s, notes, opts) => mix(s, ...notes.map(([n, at, len]) => [brass(hz(n), len, { hold: len * 0.6, decay: len * 0.4, ...opts }), 0.6, at]));
+/** Two low-pass passes: far-off sound loses its top end steeply. */
+const muffle = (x, cutoff) => filter(filter(x, 'lp', cutoff, 0.6), 'lp', cutoff, 0.6);
 
 const SOUNDS = {
-  // Champions: each must be told apart by ear (GDD §10).
-  revolver: (rng) => gunshot(rng, { s: 0.55, crack: 1800, crackDecay: 0.025, body: 900, bodyDecay: 0.09, thump: 120, thumpDecay: 0.09, tail: 0.25, tailFreq: 420, k: 2.5 }),
-  smg: (rng) => gunshot(rng, { s: 0.16, crack: 2600, crackDecay: 0.012, body: 2100, bodyDecay: 0.025, thump: 200, thumpDecay: 0.025, k: 1.8 }),
+  // Grim and quick (user, D-110): short tails, darker cracks, no fanfares.
+  // Champions: each must still be told apart by ear (GDD §10).
+  revolver: (rng) => gunshot(rng, { s: 0.38, crack: 1500, crackDecay: 0.02, body: 800, bodyDecay: 0.07, thump: 110, thumpDecay: 0.07, tail: 0.12, tailFreq: 380, k: 2.3 }),
+  smg: (rng) => gunshot(rng, { s: 0.12, crack: 2200, crackDecay: 0.01, body: 1800, bodyDecay: 0.02, thump: 180, thumpDecay: 0.02, k: 1.8 }),
   // Gamma's flamethrower: a breathy roar with a slow flutter and crackle.
   flameLoop: (rng) =>
     seamless((s) => {
-      const roar = filter(filter(noise(rng, s), 'lp', 900, 0.6), 'hp', 120);
-      const hiss = filter(noise(rng, s), 'bp', 2400, 0.8);
-      const out = mix(s, [roar, 1.4], [hiss, 0.25]);
+      const roar = filter(filter(noise(rng, s), 'lp', 750, 0.6), 'hp', 110);
+      const hiss = filter(noise(rng, s), 'bp', 2000, 0.8);
+      const out = mix(s, [roar, 1.4], [hiss, 0.2]);
       for (let i = 0; i < out.length; i++) out[i] *= 0.8 + 0.2 * Math.sin((2 * Math.PI * 6 * i) / SR) * Math.sin((2 * Math.PI * 1.3 * i) / SR + 1);
       for (let n = 0; n < s * 25; n++) {
         const at = Math.floor(rng() * out.length);
-        for (let i = 0; i < 60 && at + i < out.length; i++) out[at + i] += (rng() - 0.5) * 0.6 * (1 - i / 60);
+        for (let i = 0; i < 60 && at + i < out.length; i++) out[at + i] += (rng() - 0.5) * 0.5 * (1 - i / 60);
       }
       return drive(out, 1.6);
     }, 2),
@@ -200,82 +201,90 @@ const SOUNDS = {
   stormLoop: (rng) => {
     const out = new Float32Array(samples(1));
     for (let n = 0; n < 15; n++) {
-      const shot = gunshot(rng, { s: 0.09, crack: 2300 + rng() * 400, crackDecay: 0.01, body: 1700, bodyDecay: 0.02, thump: 170, thumpDecay: 0.02, k: 1.8 });
+      const shot = gunshot(rng, { s: 0.08, crack: 1900 + rng() * 300, crackDecay: 0.009, body: 1500, bodyDecay: 0.018, thump: 160, thumpDecay: 0.02, k: 1.8 });
       const at = samples(n / 15);
       for (let i = 0; i < shot.length; i++) out[(at + i) % out.length] += shot[i] * (0.85 + rng() * 0.15);
     }
     return out;
   },
   // Minions and structures.
-  mg: (rng) => gunshot(rng, { s: 0.2, crack: 1500, crackDecay: 0.015, body: 1300, bodyDecay: 0.04, thump: 150, thumpDecay: 0.04, k: 1.8 }),
-  hmg: (rng) => gunshot(rng, { s: 0.32, crack: 1200, crackDecay: 0.02, body: 800, bodyDecay: 0.07, thump: 90, thumpDecay: 0.12, k: 2.2 }),
-  flak: (rng) => gunshot(rng, { s: 0.55, crack: 1000, crackDecay: 0.03, body: 500, bodyDecay: 0.14, thump: 70, thumpDecay: 0.2, tail: 0.3, tailFreq: 300, k: 2.8 }),
+  mg: (rng) => gunshot(rng, { s: 0.16, crack: 1300, crackDecay: 0.012, body: 1100, bodyDecay: 0.03, thump: 140, thumpDecay: 0.035, k: 1.8 }),
+  hmg: (rng) => gunshot(rng, { s: 0.26, crack: 1000, crackDecay: 0.018, body: 700, bodyDecay: 0.06, thump: 85, thumpDecay: 0.1, k: 2.2 }),
+  flak: (rng) => gunshot(rng, { s: 0.4, crack: 900, crackDecay: 0.025, body: 450, bodyDecay: 0.1, thump: 65, thumpDecay: 0.14, tail: 0.15, tailFreq: 260, k: 2.6 }),
   rocket: (rng) =>
     drive(
       mix(
-        0.8,
-        [env(filter(noise(rng, 0.8), 'bp', sweep(350, 1600, 0.5), 1.2), 0.04, 0.35), 1.3],
-        [env(osc(0.8, sweep(90, 45, 0.1)), 0.002, 0.08), 0.9],
-        [env(filter(noise(rng, 0.8), 'hp', 1500), 0.001, 0.03), 0.6],
+        0.5,
+        [env(filter(noise(rng, 0.5), 'bp', sweep(300, 1200, 0.3), 1.2), 0.03, 0.2), 1.3],
+        [env(osc(0.5, sweep(85, 42, 0.1)), 0.002, 0.07), 0.9],
+        [env(filter(noise(rng, 0.5), 'hp', 1300), 0.001, 0.025), 0.5],
       ),
       2,
     ),
   // Camps and bosses.
-  rifle: (rng) => gunshot(rng, { s: 0.38, crack: 1300, crackDecay: 0.02, body: 700, bodyDecay: 0.1, thump: 110, thumpDecay: 0.07, tail: 0.15, tailFreq: 600, k: 2 }),
-  sniper: (rng) => gunshot(rng, { s: 0.8, crack: 3200, crackDecay: 0.012, body: 1500, bodyDecay: 0.05, thump: 130, thumpDecay: 0.06, tail: 0.45, tailFreq: 520, k: 2.6 }),
-  cannon: (rng) => blast(rng, 1.1, { from: 1600, to: 140, decay: 0.38, sub: 55, crackle: 10 }),
-  halftrackGun: (rng) => gunshot(rng, { s: 0.24, crack: 1100, crackDecay: 0.018, body: 900, bodyDecay: 0.05, thump: 110, thumpDecay: 0.06, k: 2.2 }),
-  turret: (rng) =>
-    mix(1, [blast(rng, 1, { from: 1800, to: 200, decay: 0.32, sub: 75, crackle: 8 }), 1], [env(osc(1, 620), 0.002, 0.3), 0.12], [env(osc(1, 931), 0.002, 0.22), 0.08]),
+  rifle: (rng) => gunshot(rng, { s: 0.3, crack: 1100, crackDecay: 0.018, body: 650, bodyDecay: 0.08, thump: 100, thumpDecay: 0.06, tail: 0.08, tailFreq: 520, k: 2 }),
+  sniper: (rng) => gunshot(rng, { s: 0.5, crack: 2600, crackDecay: 0.01, body: 1300, bodyDecay: 0.04, thump: 120, thumpDecay: 0.05, tail: 0.2, tailFreq: 480, k: 2.4 }),
+  cannon: (rng) => blast(rng, 0.8, { from: 1200, to: 120, decay: 0.28, sub: 52, crackle: 6 }),
+  halftrackGun: (rng) => gunshot(rng, { s: 0.2, crack: 950, crackDecay: 0.016, body: 800, bodyDecay: 0.045, thump: 105, thumpDecay: 0.05, k: 2.2 }),
+  turret: (rng) => mix(0.7, [blast(rng, 0.7, { from: 1400, to: 180, decay: 0.24, sub: 70, crackle: 5 }), 1], [env(osc(0.7, 620), 0.002, 0.18), 0.08]),
   // Effects.
-  explosion: (rng) => blast(rng, 1.5, {}),
+  explosion: (rng) => blast(rng, 1, { from: 1800, to: 150, decay: 0.32, sub: 58, crackle: 18 }),
   knockout: (rng) =>
     mix(
-      0.4,
-      [env(osc(0.4, sweep(130, 60, 0.1)), 0.002, 0.08), 1],
-      [env(filter(noise(rng, 0.4), 'lp', 400), 0.002, 0.07), 0.8],
-      [env(osc(0.4, 1850), 0.001, 0.05), 0.15, 0.09], // the helmet hits the ground
-      [env(osc(0.4, 2390), 0.001, 0.03), 0.08, 0.09],
+      0.3,
+      [env(osc(0.3, sweep(120, 55, 0.1)), 0.002, 0.07), 1],
+      [env(filter(noise(rng, 0.3), 'lp', 350), 0.002, 0.06), 0.8],
+      [env(osc(0.3, 1700), 0.001, 0.04), 0.07, 0.08], // the helmet hits the ground
     ),
   collapse: (rng) => {
     const crashes = [];
-    for (let n = 0; n < 6; n++) crashes.push([env(filter(noise(rng, 0.6), 'bp', 500 + rng() * 900, 0.9), 0.003, 0.12), 0.7, 0.1 + n * 0.25 + rng() * 0.1]);
-    return drive(mix(2.6, [env(filter(noise(rng, 2.6), 'lp', 260, 0.8), 0.05, 1.0), 1.6], [env(osc(2.6, sweep(45, 30, 1.5)), 0.05, 0.9), 0.8], ...crashes), 2);
+    for (let n = 0; n < 4; n++) crashes.push([env(filter(noise(rng, 0.4), 'bp', 400 + rng() * 700, 0.9), 0.003, 0.1), 0.6, 0.05 + n * 0.18 + rng() * 0.08]);
+    return drive(mix(1.6, [env(filter(noise(rng, 1.6), 'lp', 240, 0.8), 0.04, 0.6), 1.6], [env(osc(1.6, sweep(42, 30, 1)), 0.04, 0.55), 0.8], ...crashes), 2);
   },
-  // The local player's cues (GDD §10): not positional.
-  levelUp: () => phrase(0.95, [[72, 0, 0.12], [76, 0.09, 0.12], [79, 0.18, 0.12], [84, 0.27, 0.65]], { bright: 4000 }),
-  ultReady: () => mix(1, [bell(hz(88), 1, 0.45), 0.6], [bell(hz(95), 1, 0.55), 0.5, 0.12]),
-  // A rising siren: an enemy Ultimate is aimed at you.
+  // The local player's cues (GDD §10): quick, muted, not positional.
+  levelUp: () => muffle(mix(0.32, [bell(hz(74), 0.32, 0.09), 0.6], [bell(hz(81), 0.32, 0.1), 0.5, 0.07]), 2600),
+  // A rifle bolt worked back and forward, and a low ring: the Ultimate is loaded.
+  ultReady: (rng) =>
+    mix(
+      0.42,
+      [env(filter(noise(rng, 0.42), 'bp', 2800, 2), 0.001, 0.012), 0.7],
+      [env(filter(noise(rng, 0.42), 'bp', 2200, 2), 0.001, 0.015), 0.8, 0.09],
+      [muffle(bell(hz(62), 0.42, 0.14), 1800), 0.5, 0.09],
+    ),
+  // A short rising wail: an enemy Ultimate is aimed at you.
   ultSiren: () => {
-    const s = 1.1;
-    const tone = osc(s, (t) => 380 * Math.pow(3, Math.min(1, t / 0.9)) * (1 + 0.03 * Math.sin(2 * Math.PI * 9 * t)), 'square');
-    filter(tone, 'lp', 2400, 0.9);
+    const s = 0.6;
+    const tone = osc(s, (t) => 280 * Math.pow(2.3, Math.min(1, t / 0.45)), 'square');
+    filter(tone, 'lp', 1100, 0.8);
     for (let i = 0; i < tone.length; i++) {
       const t = i / SR;
-      tone[i] *= Math.min(1, t / 0.05) * (t < 0.8 ? 1 : Math.exp(-(t - 0.8) / 0.1)); // up, held, then cut
+      tone[i] *= Math.min(1, t / 0.03) * (t < 0.45 ? 1 : Math.exp(-(t - 0.45) / 0.05));
     }
-    return drive(tone, 1.4);
+    return drive(tone, 1.3);
   },
-  cardDeal: (rng) => env(filter(noise(rng, 0.2), 'bp', sweep(1800, 5200, 0.15), 1.4), 0.02, 0.06),
-  cardPick: (rng) => mix(0.22, [env(osc(0.22, sweep(220, 110, 0.05)), 0.001, 0.04), 1], [env(filter(noise(rng, 0.22), 'bp', 2500, 1.2), 0.001, 0.02), 0.6]),
-  respawn: (rng) => mix(0.6, [env(filter(noise(rng, 0.6), 'hp', 2500), 0.001, 0.02), 0.7], [env(filter(noise(rng, 0.6), 'lp', sweep(4000, 600, 0.5)), 0.02, 0.22), 1]),
-  // A low brass horn swelling in.
-  suddenDeath: () => mix(1.8, [brass(hz(45), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1400 }), 0.5], [brass(hz(52), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1400 }), 0.4], [brass(hz(57), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1800 }), 0.35]),
-  victory: () => phrase(2, [[67, 0, 0.16], [72, 0.15, 0.16], [76, 0.3, 0.16], [79, 0.45, 1.4], [72, 0.45, 1.4], [76, 0.45, 1.4]], { bright: 3800 }),
-  defeat: () => phrase(2, [[67, 0, 0.4], [63, 0.38, 0.4], [60, 0.76, 1.2], [55, 0.76, 1.2]], { bright: 1600 }),
+  cardDeal: (rng) => env(filter(noise(rng, 0.12), 'bp', sweep(1500, 3800, 0.1), 1.4), 0.015, 0.035),
+  cardPick: (rng) => mix(0.12, [env(osc(0.12, sweep(180, 90, 0.04)), 0.001, 0.03), 1], [env(filter(noise(rng, 0.12), 'bp', 2000, 1.2), 0.001, 0.012), 0.4]),
+  respawn: (rng) => mix(0.35, [env(filter(noise(rng, 0.35), 'hp', 2200), 0.001, 0.015), 0.5], [env(filter(noise(rng, 0.35), 'lp', sweep(2500, 500, 0.3)), 0.015, 0.12), 1]),
+  // A far-off air-raid siren winding up.
+  suddenDeath: () => {
+    const s = 1.3;
+    const wail = mix(s, [osc(s, (t) => 210 + 190 * Math.min(1, t / 0.9), 'saw'), 0.5], [osc(s, (t) => 211 + 191 * Math.min(1, t / 0.9)), 0.5]);
+    muffle(wail, 800);
+    for (let i = 0; i < wail.length; i++) {
+      const t = i / SR;
+      wail[i] *= Math.min(1, t / 0.35) * (t < 1 ? 1 : Math.exp(-(t - 1) / 0.12));
+    }
+    return wail;
+  },
+  // The result: a dark horn with a distant thump, no fanfare.
+  victory: (rng) => mix(1, [brass(hz(55), 1, { attack: 0.12, hold: 0.55, decay: 0.2, bright: 900 }), 0.5], [brass(hz(62), 1, { attack: 0.12, hold: 0.55, decay: 0.2, bright: 900 }), 0.4], [muffle(blast(rng, 1, { from: 600, to: 90, decay: 0.3, sub: 45, crackle: 0 }), 500), 0.5]),
+  defeat: (rng) => mix(1.1, [brass(hz(52), 0.5, { attack: 0.08, hold: 0.3, decay: 0.15, bright: 700 }), 0.5], [brass(hz(47), 0.7, { attack: 0.08, hold: 0.35, decay: 0.25, bright: 600 }), 0.5, 0.4], [muffle(blast(rng, 1.1, { from: 500, to: 80, decay: 0.35, sub: 40, crackle: 0 }), 400), 0.45, 0.4]),
 };
 
-// ---------------------------------------------------------------- music (GDD §10: marching snare and brass)
+// ---------------------------------------------------------------- background (user, D-110: a battle in the distance)
 
-const BEAT = 0.5; // 120 bpm
-const BARS = 8;
-const LOOP_S = BARS * 4 * BEAT; // 16 s
-// The tune, one note a beat (0: hold the previous note), and the bar's root for the bass.
-const TUNE = [
-  [67, 72, 72, 76], [79, 76, 72, 76], [74, 74, 71, 74], [79, 77, 76, 74],
-  [72, 76, 79, 76], [81, 79, 77, 76], [74, 67, 71, 74], [72, 0, 0, 0],
-];
-const ROOTS = [48, 48, 43, 43, 48, 41, 43, 48];
+/** Both loops are this long, so Sudden Death can take over at the same position. */
+const LOOP_S = 32;
 
 /** Adds `x` into `out` at `at` seconds, wrapping round the end, so the loop has no seam. */
 function place(out, x, at, gain) {
@@ -283,76 +292,48 @@ function place(out, x, at, gain) {
   for (let i = 0; i < x.length; i++) out[(o + i) % out.length] += x[i] * gain;
 }
 
-const snare = (rng) => mix(0.25, [env(filter(noise(rng, 0.25), 'bp', 1900, 0.7), 0.001, 0.07), 1], [env(osc(0.25, 190), 0.001, 0.04), 0.5]);
-const kick = () => env(osc(0.3, sweep(110, 45, 0.12)), 0.001, 0.14);
-
-/** One loop of the march; `sudden` plays it up a fourth over snare rolls and a running bass (Sudden Death). */
-function march(rng, sudden) {
-  const out = new Float32Array(samples(LOOP_S));
-  const lift = sudden ? 5 : 0;
-  for (let bar = 0; bar < BARS; bar++) {
-    const t0 = bar * 4 * BEAT;
-    // Drums: kick on 1 and 3; the snare's march figure, or a full roll in Sudden Death.
-    place(out, kick(), t0, 0.9);
-    place(out, kick(), t0 + 2 * BEAT, 0.9);
-    const hits = sudden ? [...Array(16).keys()] : [4, 6, 7, 12, 14, 15];
-    for (const h of hits) place(out, snare(rng), t0 + (h * BEAT) / 4, h % 4 === 0 ? 0.55 : 0.3);
-    // Bass: root and fifth on the strong beats, or running eighths.
-    const root = ROOTS[bar] + lift - 12;
-    const bassNotes = sudden ? [0, 0, 7, 7, 0, 0, 7, 12] : [0, 7];
-    const step = (4 * BEAT) / bassNotes.length;
-    bassNotes.forEach((n, i) => place(out, brass(hz(root + n), step * 0.9, { attack: 0.02, hold: step * 0.6, decay: 0.08, bright: 900 }), t0 + i * step, 0.45));
-    // Melody: each note held until the next one.
-    const notes = TUNE[bar];
-    for (let b = 0; b < 4; b++) {
-      if (!notes[b]) continue;
-      let len = 1;
-      while (b + len < 4 && !notes[b + len]) len++;
-      const s = len * BEAT;
-      place(out, brass(hz(notes[b] + lift), s, { attack: 0.025, hold: s * 0.75, decay: 0.1, bright: sudden ? 3600 : 2800 }), t0 + b * BEAT, 0.35);
-    }
-  }
-  return drive(out, 1.2);
+/** A gun far away: a burst of `shots` muffled cracks at `rate` per second. */
+function distantBurst(rng, shots, rate, cutoff) {
+  const out = new Float32Array(samples(shots / rate + 0.3));
+  for (let n = 0; n < shots; n++) place(out, gunshot(rng, { s: 0.2, crack: 1300, crackDecay: 0.012, body: 900, bodyDecay: 0.04, thump: 120, thumpDecay: 0.04, k: 1.6 }), n / rate + rng() * 0.015, 0.7 + rng() * 0.3);
+  return muffle(out, cutoff);
 }
-
-/** The bar's major triad above `root` (MIDI). */
-const triad = (root) => [root + 12, root + 16, root + 19];
-
-/** A soft pad note: two detuned saws, darkly filtered, swelling in and fading out over `s` seconds. */
-function pad(f, s) {
-  const x = mix(s, [osc(s, f, 'saw'), 0.5], [osc(s, f * 1.003, 'saw'), 0.5]);
-  filter(x, 'lp', 650, 0.6);
-  const attack = 0.4;
-  const release = 0.6;
-  for (let i = 0; i < x.length; i++) {
-    const t = i / SR;
-    x[i] *= Math.min(1, t / attack, (s - t) / release);
-  }
-  return x;
-}
-
-const brush = (rng) => env(filter(noise(rng, 0.12), 'bp', 3200, 0.5), 0.004, 0.035);
 
 /**
- * The combat loop (user request, D-109): kept out of the way. Soft chords on the march's
- * progression, a low pulse on the strong beats and a brushed snare on the off-beats; no tune.
- * Same tempo, length and chords as the Sudden Death variant, so the crossfade still lines up.
+ * A battle somewhere past the map edge, kept low and muffled so the fight in front of you reads
+ * first: wind and a low rumble, artillery thudding in, machine guns rattling far off, single
+ * rifle cracks. `intensity` (Sudden Death) brings it closer and busier, with a low drone.
  */
-function calmMarch(rng) {
-  const out = new Float32Array(samples(LOOP_S));
-  const bar = 4 * BEAT;
-  for (let b = 0; b < BARS; b++) {
-    const t0 = b * bar;
-    for (const n of triad(ROOTS[b])) place(out, pad(hz(n), bar + 0.5), t0, 0.22); // overlaps the next bar's swell
-    for (const beat of [0, 2]) place(out, env(osc(0.6, hz(ROOTS[b] - 12)), 0.01, 0.25), t0 + beat * BEAT, beat === 0 ? 0.45 : 0.3);
-    for (const beat of [1, 3]) place(out, brush(rng), t0 + beat * BEAT, 0.12);
+function battle(rng, { booms, bursts, cracks, cutoff, drone }) {
+  const s = LOOP_S;
+  // Wind and rumble; the gusts complete whole cycles in the loop, so it stays seamless.
+  const bed = seamless((len) => {
+    const rumble = muffle(noise(rng, len), 180);
+    const wind = filter(noise(rng, len), 'bp', 420, 0.5);
+    for (let i = 0; i < wind.length; i++) wind[i] *= 0.6 + 0.4 * Math.sin((2 * Math.PI * 2 * i) / (s * SR)) * Math.sin((2 * Math.PI * 5 * i) / (s * SR) + 1);
+    return mix(len, [rumble, 1.6], [wind, 0.35]);
+  }, s, 0.5);
+  const out = Float32Array.from(bed);
+  const at = (n, k) => (s * (n + 0.2 + rng() * 0.6)) / k; // spread out, never evenly
+  for (let n = 0; n < booms; n++) place(out, muffle(blast(rng, 2.2, { from: 900, to: 70, decay: 0.75, sub: 38, crackle: 0 }), cutoff * 0.45), at(n, booms), 0.35 + rng() * 0.5);
+  for (let n = 0; n < bursts; n++) place(out, distantBurst(rng, 4 + Math.floor(rng() * 8), 9 + rng() * 3, cutoff), at(n, bursts), 0.12 + rng() * 0.18);
+  for (let n = 0; n < cracks; n++) place(out, muffle(gunshot(rng, { s: 0.4, crack: 1500, crackDecay: 0.015, body: 700, bodyDecay: 0.08, thump: 100, thumpDecay: 0.06, tail: 0.25, tailFreq: 450, k: 2 }), cutoff), at(n, cracks), 0.12 + rng() * 0.12);
+  if (drone) {
+    // A low swell under Sudden Death: two sines a fifth apart, breathing twice a loop.
+    for (let i = 0; i < out.length; i++) {
+      const t = i / SR;
+      out[i] += drone * (0.6 + 0.4 * Math.sin((2 * Math.PI * 2 * t) / s)) * (Math.sin(2 * Math.PI * 41 * t) + 0.5 * Math.sin(2 * Math.PI * 61.5 * t));
+    }
   }
   return out;
 }
 
-const MUSIC = { 'music-march': (rng) => calmMarch(rng), 'music-sudden': (rng) => march(rng, true) };
-/** Loudness of each loop (RMS, dBFS): the combat loop sits well under the effects; Sudden Death is peak-normalised as before. */
-const MUSIC_RMS_DB = { 'music-march': -26 };
+const MUSIC = {
+  'ambience-battle': (rng) => battle(rng, { booms: 9, bursts: 6, cracks: 7, cutoff: 1100, drone: 0 }),
+  'ambience-sudden': (rng) => battle(rng, { booms: 20, bursts: 13, cracks: 12, cutoff: 1500, drone: 0.05 }),
+};
+/** Loudness of each loop (RMS, dBFS): well under the effects, Sudden Death a little closer. */
+const MUSIC_RMS_DB = { 'ambience-battle': -30, 'ambience-sudden': -26 };
 
 /** Sounds that loop while their source keeps going (Gamma firing, Lead Storm). */
 const LOOPS = new Set(['flameLoop', 'stormLoop']);
@@ -374,7 +355,7 @@ function normalise(name, x) {
   return Math.sqrt(sum / x.length);
 }
 
-/** Scales `x` to an RMS of `db` dBFS; it must not clip. */
+/** Scales `x` to an RMS of `db` dBFS, or less if that would clip. */
 function toRms(name, x, db) {
   let sum = 0;
   for (let i = 0; i < x.length; i++) {
@@ -383,10 +364,11 @@ function toRms(name, x, db) {
   }
   const rms = Math.sqrt(sum / x.length);
   if (rms < 1e-6) throw new Error(`${name}: silent`);
-  const k = Math.pow(10, db / 20) / rms;
   let peak = 0;
-  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs((x[i] *= k)));
-  if (peak > PEAK) throw new Error(`${name}: peak ${peak.toFixed(2)} at ${db} dBFS RMS`);
+  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+  // The target loudness, unless that would clip: then the peak limit wins (and the log shows it).
+  const k = Math.min(Math.pow(10, db / 20) / rms, PEAK / peak);
+  for (let i = 0; i < x.length; i++) x[i] *= k;
   return rms * k;
 }
 
@@ -448,7 +430,7 @@ try {
   for (const [i, [name, make]] of Object.entries(MUSIC).entries()) {
     const x = make(mulberry32(5000 + i));
     const rms = MUSIC_RMS_DB[name] === undefined ? normalise(name, x) : toRms(name, x, MUSIC_RMS_DB[name]);
-    encode(name, x, tmp, '80k', '112k');
+    encode(name, x, tmp, '48k', '64k'); // muffled ambience: little top end to spend bits on
     console.log(`${name}: ${(x.length / SR).toFixed(1)} s loop, rms ${(20 * Math.log10(rms)).toFixed(1)} dBFS`);
   }
 } finally {

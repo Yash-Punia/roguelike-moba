@@ -5,8 +5,8 @@ import { Kind, type EntitySnapshot, type Snapshot, type Team } from '../sim/sim'
 /** A Howler sprite map: name → [offset ms, duration ms, loop?]. */
 export type Sprite = Readonly<Record<string, readonly (number | boolean)[]>>;
 
-/** The music: the march, its Sudden Death variant, or none. */
-export type Track = 'march' | 'sudden' | null;
+/** The background: a distant battle, its closer Sudden Death variant, or none (D-110). */
+export type Track = 'battle' | 'sudden' | null;
 
 /** Where sounds go: Howler in the game, a recorder in tests. Volumes 0–1, pan −1 (left) to 1. */
 export interface Sink {
@@ -115,7 +115,7 @@ export class AudioDirector {
       } else if (ev.type === 'phaseChanged') {
         if (ev.phase === 'suddenDeath') {
           this.cue('suddenDeath');
-          this.setTrack('sudden', MUSIC_FADE_MS); // the music intensifies (GDD §10)
+          this.setTrack('sudden', MUSIC_FADE_MS); // the battle closes in (GDD §10: intensifying)
         }
       } else if (ev.type === 'matchOver') {
         this.cue(ev.winner === this.viewer ? 'victory' : 'defeat'); // a draw sounds like a loss
@@ -132,7 +132,7 @@ export class AudioDirector {
     this.entities.clear();
     for (const e of snap.entities) this.entities.set(e.id, e);
     if (this.over) return;
-    if (!this.track) this.setTrack(snap.match.phase === 'suddenDeath' ? 'sudden' : 'march', 0);
+    if (!this.track) this.setTrack(snap.match.phase === 'suddenDeath' ? 'sudden' : 'battle', 0);
     const me = this.entities.get(this.local);
     if (me) {
       if (this.lastCharge >= 0 && this.lastCharge < 100 && me.ultCharge >= 100) this.cue('ultReady');
