@@ -2306,5 +2306,12 @@ From TDD §13:
     - No console errors.
   - **Tests** (`tests/audio.test.ts`): march from the start, the variant at Sudden Death with a 2 s fade, live volume, silence at the end.
   - **Not listened to.**
+  - **Follow-up fixes:**
+    - **No burst on the first tap.** Each match is its own page load, so audio is locked until the first touch or key press. Howler parks every play on a suspended context and starts them all on that tap. Effects and loops now wait until the context runs; the march stays queued.
+      - Simulated by suspending the context in a fight: 0 plays and 0 parked in 4 s. After resuming, nothing in the first 150 ms, then 4 plays in 2 s.
+      - DevTools' Chrome allows autoplay, so the real locked page couldn't be reproduced there.
+    - **An HQ falling is a centred cue,** heard wherever the camera is, since the camera only cuts to it afterwards. A Sub-base stays positional.
+    - **`cullDistance` 20 → 26 m** (amends D-106 and TDD §9's 20 m). With this camera the top of a 9:16 screen is 24 m from the focus and its corners 26 m, so sounds in the top few metres of the view were silent. The sides are only 9 m away.
+    - **Re-measured on the shipped files:** sprite MP3 onsets within 8.4 ms of the map (the largest is the horn's slow swell). All four music files decode to 16.000 s, so the MP3 fallback loops without a seam.
 - Why: the TDD's march loop and crossfade; aligning the bars keeps the switch musical.
 - Alternatives: one track with a tempo change (a crossfade can't line up across tempos); a hard cut at Sudden Death.

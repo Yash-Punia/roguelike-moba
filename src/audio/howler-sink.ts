@@ -12,8 +12,8 @@ export const sprite = spriteJson as unknown as Sprite;
 
 /**
  * Plays the director's sounds through Howler (D-106): one sprite file, Opus-in-WebM with an MP3
- * fallback. Plays before the file has loaded are dropped rather than queued, so a fight during
- * loading doesn't burst out at once. Howler unlocks audio on the first touch or click.
+ * fallback. Plays before the file has loaded, or before the first touch or key press unlocks audio,
+ * are dropped rather than queued, so a fight in that time doesn't burst out at once (D-108).
  */
 export function createHowlerSink() {
   const howl = new Howl({
@@ -30,7 +30,9 @@ export function createHowlerSink() {
   };
   let current: Track = null;
   let currentId = 0;
-  const ready = () => howl.state() === 'loaded';
+  // Until the first touch or key press the context is suspended, and Howler would park every play
+  // and start them all at once on that tap. Effects and loops wait instead; the march stays queued.
+  const ready = () => howl.state() === 'loaded' && Howler.ctx?.state === 'running';
   let hold = false;
   const applyMute = () => Howler.mute(hold || document.hidden);
   // The sim stops while the tab is hidden; so does the frame loop that would mute it.

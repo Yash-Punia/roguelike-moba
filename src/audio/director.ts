@@ -98,7 +98,9 @@ export class AudioDirector {
       } else if (ev.type === 'death') {
         if (this.sees(ev.x, ev.y)) this.at('knockout', ev.x, ev.y);
       } else if (ev.type === 'structureDestroyed') {
-        this.at('collapse', ev.x, ev.y);
+        // An HQ decides the match: heard wherever the camera is (it cuts there only afterwards).
+        if (ev.kind === 'hq') this.cue('collapse');
+        else this.at('collapse', ev.x, ev.y);
       } else if (ev.type === 'levelUp') {
         if (ev.id === this.local) this.cue('levelUp');
       } else if (ev.type === 'ultCast') {

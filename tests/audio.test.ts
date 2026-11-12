@@ -124,6 +124,16 @@ describe('audio director (D-106)', () => {
     expect(played.slice(2).every((p) => p.pan === 0 && p.volume === 1)).toBe(true);
   });
 
+  it('an HQ falling is heard from anywhere; a Sub-base only nearby', () => {
+    const { director, played } = rig();
+    director.setListener(0, 0);
+    director.onEvents([
+      { type: 'structureDestroyed', id: 7, kind: 'subBase', team: Team.Red, killer: 0, x: 0, y: 60 },
+      { type: 'structureDestroyed', id: 8, kind: 'hq', team: Team.Red, killer: 0, x: 0, y: 70 },
+    ], 0);
+    expect(played).toEqual([{ name: 'collapse', volume: 1, pan: 0 }]);
+  });
+
   it('chimes once each time the Ultimate fills', () => {
     const { director, played } = rig();
     const me = (ultCharge: number) => snap(ent(LOCAL, 'alpha', 0, 0, { team: Team.Blue, ultCharge }));
