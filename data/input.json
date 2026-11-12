@@ -4,5 +4,6 @@
   "ringRadiusPx": 60,
   "fullSpeedPct": 60,
   "zoneWidthPct": 100,
-  "zoneHeightPct": 100
+  "zoneHeightPct": 100,
+  "holdToCastSeconds": 0.3
 }

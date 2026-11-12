@@ -74,7 +74,7 @@ const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input
 const minimap = mountMinimap(hudLayer, config, () => sim.lanes, localTeam);
 const input = createInput(container, () => config.input, 0, localTeam);
 // The Ultimate button: a 22 mm gauge (GDD §3).
-const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt);
+const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.pressUlt, () => (settings.value.holdToCast ? config.input.holdToCastSeconds * 1000 : 0));
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
@@ -85,6 +85,7 @@ effect(() => {
   audio.setUserVolumes(s.masterVolume / 100, s.effectsVolume / 100, s.backgroundVolume / 100);
   container.style.setProperty('--stick-opacity', String(s.joystickOpacity / 100));
   view.setReduced(s.reducedEffects);
+  container.classList.toggle('left-handed', s.leftHanded);
 });
 const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();

@@ -802,6 +802,8 @@ const Input = z.object({
   fullSpeedPct: pct(),
   zoneWidthPct: pct(),
   zoneHeightPct: pct(),
+  /** Hold-to-cast (TDD §8, D-113): how long the Ultimate button must be held (real seconds, not ticks). */
+  holdToCastSeconds: positive().default(0.3),
 });
 
 /** One group of particles in a preset (TDD §9, D-102). Times are render seconds, not ticks. */

@@ -1051,6 +1051,41 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Left-handed (D-113): the gauge and the vitals swap sides. */
+.left-handed .ult-gauge {
+  right: auto;
+  left: calc(4cqw + env(safe-area-inset-left));
+}
+
+.left-handed .hud-vitals {
+  left: auto;
+  right: calc(2.4cqw + env(safe-area-inset-right));
+}
+
+/* Hold-to-cast (D-113): a brass ring fills round the gauge while it is held. */
+.ult-gauge.holding::after {
+  content: '';
+  position: absolute;
+  inset: -7%;
+  border-radius: 50%;
+  background: conic-gradient(#ffd24a var(--hold-fill), transparent 0);
+  mask: radial-gradient(closest-side, transparent 86%, #000 88%);
+  animation: hold-fill var(--hold-ms, 300ms) linear forwards;
+  pointer-events: none;
+}
+
+@property --hold-fill {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@keyframes hold-fill {
+  to {
+    --hold-fill: 100%;
+  }
+}
+
 .ult-gauge svg {
   display: block;
   width: 100%;

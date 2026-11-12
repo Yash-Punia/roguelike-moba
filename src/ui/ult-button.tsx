@@ -1,4 +1,5 @@
 import { render } from 'preact';
+import { createHold } from '../input/ult-latch';
 import { RING_LENGTH, RING_R, ultGaugeGeometry } from './ult-gauge';
 
 /**
@@ -10,16 +11,27 @@ import { RING_LENGTH, RING_R, ultGaugeGeometry } from './ult-gauge';
  * Rendered once with Preact; the per-tick values bypass the store and are written straight
  * into the DOM (TDD §10 "State flow"), so the ring moves smoothly without re-renders.
  */
-export function mountUltGauge(frame: HTMLElement, sizePx: number, onPress: () => void) {
+export function mountUltGauge(frame: HTMLElement, sizePx: number, onPress: () => void, holdMs: () => number = () => 0) {
   const host = document.createElement('div');
   host.className = 'ult-gauge';
   host.style.setProperty('--gauge-size', `${Math.max(64, Math.round(sizePx))}px`);
   frame.appendChild(host);
+  // Hold-to-cast (D-113): a ring fills while held; lifting or sliding off before it is full cancels.
+  const hold = createHold(holdMs, () => {
+    host.classList.remove('holding');
+    onPress();
+  });
+  const release = () => {
+    hold.up();
+    host.classList.remove('holding');
+  };
   host.addEventListener('pointerdown', (e) => {
     e.stopPropagation(); // never spawn the joystick under the button
     e.preventDefault();
-    onPress();
+    host.style.setProperty('--hold-ms', `${holdMs()}ms`);
+    host.classList.toggle('holding', hold.down());
   });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) host.addEventListener(type, release);
 
   const ticks = Array.from({ length: 12 }, (_, i) => {
     const a = (i / 12) * Math.PI * 2;

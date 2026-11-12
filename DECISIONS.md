@@ -2415,3 +2415,25 @@ From TDD §13:
     - reduced effects halve the counts but keep single bursts.
 - Why: TDD §9 and GDD §11, and the setting that turns it off.
 - Alternatives: shaking by rotation (tilts the fixed-angle camera the GDD rules out); shaking in the rig (it doesn't see the blasts, and would need the events plumbed through the match).
+
+## D-113 — Left-handed layout and hold-to-cast
+- Date: 2026-11-13
+- Source: M5 Settings row, part 3 (TDD §8, GDD §3); the rest made during development
+- Decision:
+  - **Left-handed:**
+    - a `left-handed` class on the frame moves the Ultimate gauge to the bottom left and the HP, level and XP cluster to the bottom right, in CSS only, live from the pause menu;
+    - the joystick's zone test mirrors across the frame. Its zone is the whole screen today (D-098), so that only matters if `zoneWidthPct` is narrowed again.
+  - **Hold-to-cast:**
+    - a small `createHold` helper beside the Ultimate latch (`src/input/ult-latch.ts`): a press starts a timer, and the Ultimate fires only if the button is still held when it ends;
+    - lifting, cancelling or sliding off the gauge cancels;
+    - a brass ring fills round the gauge for the hold (a conic gradient on an animated CSS property);
+    - with the setting off the hold is 0, so the button stays a plain tap;
+    - the length is `input.json` `holdToCastSeconds` (0.3, TDD §8), in real seconds, not ticks;
+    - Space on a keyboard stays a tap: the setting is against accidental touches.
+  - **Measured** (DevTools Chrome, against the 1v1 dummy with a full Ultimate):
+    - left-handed puts the gauge left of centre and the vitals right of it;
+    - a 120 ms tap showed the ring and cast nothing; a 450 ms hold cast the Frag Grenade once;
+    - no console errors.
+  - **Tests** (`tests/settings.test.ts`, fake timers): no cast when released 1 ms short; one cast after the hold; nothing extra when lifted after; an instant cast with no hold.
+- Why: TDD §8's two options for thumbs and accidental casts.
+- Alternatives: mirroring by flipping the whole HUD layer (it would mirror text and the minimap too); hold-to-cast on the keyboard as well (a key press isn't an accidental touch).

@@ -27,7 +27,8 @@ export function createJoystick(frame: HTMLElement, getConfig: () => InputConfig)
     if (pointerId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const cfg = getConfig();
     const r = frame.getBoundingClientRect();
-    const fx = (e.clientX - r.left) / r.width;
+    const across = (e.clientX - r.left) / r.width;
+    const fx = frame.classList.contains('left-handed') ? 1 - across : across; // the zone mirrors for the left thumb (D-113)
     const fy = (e.clientY - r.top) / r.height;
     if (fx > cfg.zoneWidthPct || fy < 1 - cfg.zoneHeightPct) return;
     pointerId = e.pointerId;

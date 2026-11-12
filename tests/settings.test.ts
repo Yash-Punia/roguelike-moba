@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createHold } from '../src/input/ult-latch';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/ui/settings';
 import { parseConfig, rawConfig } from '../src/data/load';
 import { addTrauma, decayTrauma, shakeOffset } from '../src/render/camera';
@@ -6,6 +7,31 @@ import { Particles } from '../src/render/particles';
 
 const config = parseConfig(rawConfig);
 const cam = { ...config.camera, shakeAmplitude: 0.4, shakeDecay: 2, shakeFalloff: 20, shakePerRadius: 0.1, shakeFrequency: 15 };
+
+describe('hold-to-cast (D-113)', () => {
+  it('fires after the hold, not when released early, and at once with no hold', () => {
+    vi.useFakeTimers();
+    try {
+      let fired = 0;
+      let ms = 300;
+      const hold = createHold(() => ms, () => fired++);
+      expect(hold.down()).toBe(true);
+      vi.advanceTimersByTime(299);
+      hold.up(); // lifted just short
+      vi.advanceTimersByTime(100);
+      expect(fired).toBe(0);
+      hold.down();
+      vi.advanceTimersByTime(300);
+      expect(fired).toBe(1);
+      hold.up(); // lifting after it fired does nothing
+      ms = 0;
+      expect(hold.down()).toBe(false);
+      expect(fired).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe('reduced effects and camera shake (D-112)', () => {
   it('bigger and nearer blasts shake more; far ones not at all; trauma caps at 1', () => {
