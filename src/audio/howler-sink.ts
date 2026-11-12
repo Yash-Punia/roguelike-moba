@@ -2,7 +2,11 @@ import { Howl, Howler } from 'howler';
 import webm from '../../assets/audio/sfx.webm?url';
 import mp3 from '../../assets/audio/sfx.mp3?url';
 import spriteJson from '../../assets/audio/sfx.json';
-import type { Sink, Sprite } from './director';
+import marchWebm from '../../assets/audio/music-march.webm?url';
+import marchMp3 from '../../assets/audio/music-march.mp3?url';
+import suddenWebm from '../../assets/audio/music-sudden.webm?url';
+import suddenMp3 from '../../assets/audio/music-sudden.mp3?url';
+import type { Sink, Sprite, Track } from './director';
 
 export const sprite = spriteJson as unknown as Sprite;
 
@@ -19,6 +23,13 @@ export function createHowlerSink() {
   });
   /** Loop key → Howler sound id. */
   const loops = new Map<number, number>();
+  // The two music loops share a tempo and length, so one can take over where the other is.
+  const tracks = {
+    march: new Howl({ src: [marchWebm, marchMp3], format: ['webm', 'mp3'], loop: true }),
+    sudden: new Howl({ src: [suddenWebm, suddenMp3], format: ['webm', 'mp3'], loop: true }),
+  };
+  let current: Track = null;
+  let currentId = 0;
   const ready = () => howl.state() === 'loaded';
   let hold = false;
   const applyMute = () => Howler.mute(hold || document.hidden);
@@ -26,6 +37,27 @@ export function createHowlerSink() {
   document.addEventListener('visibilitychange', applyMute);
 
   const sink: Sink & { setHeld(held: boolean): void } = {
+    music(track, volume, fadeMs) {
+      const fade = Math.max(10, fadeMs);
+      if (track === current) {
+        if (track) tracks[track].volume(volume, currentId);
+        return;
+      }
+      const from = current ? tracks[current] : undefined;
+      const fromId = currentId;
+      const at = from && from.playing(fromId) ? (from.seek(fromId) as number) : 0;
+      if (from) {
+        from.fade(from.volume(fromId) as number, 0, fade, fromId);
+        setTimeout(() => from.stop(fromId), fade);
+      }
+      current = track;
+      if (!track) return;
+      const to = tracks[track];
+      currentId = to.play(); // queued until loaded, unlike the effects: the march should start with the match
+      to.seek(at, currentId);
+      to.volume(0, currentId);
+      to.fade(0, volume, fade, currentId);
+    },
     play(name, volume, pan) {
       if (!ready()) return;
       const id = howl.play(name);

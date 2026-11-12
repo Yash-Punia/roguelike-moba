@@ -2283,3 +2283,28 @@ From TDD §13:
   - **Not listened to.**
 - Why: GDD §10's feedback set, minus the voice lines the user left out.
 - Alternatives: positional cues (they're about you, so they belong in the centre).
+
+## D-108 — Music and the Sudden Death crossfade
+- Date: 2026-11-12
+- Source: M5 Audio row, part 3 (TDD §9, GDD §10 "marching snare and brass, intensifying in Sudden Death"); the rest made during development
+- Decision:
+  - **Two loops from the same generator,** both 8 bars at 120 bpm, exactly 16 s, so either can take over where the other is.
+    - The march: kick on 1 and 3, the snare's march figure, root and fifth on the tuba, and an 8-bar brass tune in C.
+    - The Sudden Death variant: the same tune up a fourth, a continuous snare roll, running eighths in the bass and a brighter brass.
+    - Every note wraps round the end of the buffer, so neither loop has a seam.
+    - Encoded at 80 kb/s Opus and 112 kb/s MP3: about 180 KB and 225 KB each.
+  - **Playback:**
+    - The march starts with the first snapshot. It is queued until loaded, unlike the effects, so it starts as soon as it can.
+    - On `phaseChanged` to Sudden Death, the variant starts at the march's position and they crossfade over 2 s. A match joined in Sudden Death starts on the variant.
+    - On `matchOver` the music fades out over 2 s under the result stinger.
+    - Volume is `masterVolume` × `musicVolume`, and a live edit reaches it at once. The pause and hidden-tab mute (D-106) cover it too.
+  - **Reproducible files:** ffmpeg now runs with `bitexact`, since the WebM container carried a random id and every regeneration changed the files. Two runs now give byte-identical output.
+  - **Measured** (DevTools Chrome, Sudden Death pulled forward through the live config, then the debug HQ loss):
+    - The march played at 0.44 (0.8 × 0.55).
+    - At the switch both tracks were at 6.99 s, the march fading down and the variant up.
+    - 2.5 s later only the variant played, and all music was silent 2.6 s after the end.
+    - No console errors.
+  - **Tests** (`tests/audio.test.ts`): march from the start, the variant at Sudden Death with a 2 s fade, live volume, silence at the end.
+  - **Not listened to.**
+- Why: the TDD's march loop and crossfade; aligning the bars keeps the switch musical.
+- Alternatives: one track with a tempo change (a crossfade can't line up across tempos); a hard cut at Sudden Death.

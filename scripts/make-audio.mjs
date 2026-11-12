@@ -265,6 +265,58 @@ const SOUNDS = {
   defeat: () => phrase(2, [[67, 0, 0.4], [63, 0.38, 0.4], [60, 0.76, 1.2], [55, 0.76, 1.2]], { bright: 1600 }),
 };
 
+// ---------------------------------------------------------------- music (GDD §10: marching snare and brass)
+
+const BEAT = 0.5; // 120 bpm
+const BARS = 8;
+const LOOP_S = BARS * 4 * BEAT; // 16 s
+// The tune, one note a beat (0: hold the previous note), and the bar's root for the bass.
+const TUNE = [
+  [67, 72, 72, 76], [79, 76, 72, 76], [74, 74, 71, 74], [79, 77, 76, 74],
+  [72, 76, 79, 76], [81, 79, 77, 76], [74, 67, 71, 74], [72, 0, 0, 0],
+];
+const ROOTS = [48, 48, 43, 43, 48, 41, 43, 48];
+
+/** Adds `x` into `out` at `at` seconds, wrapping round the end, so the loop has no seam. */
+function place(out, x, at, gain) {
+  const o = samples(at);
+  for (let i = 0; i < x.length; i++) out[(o + i) % out.length] += x[i] * gain;
+}
+
+const snare = (rng) => mix(0.25, [env(filter(noise(rng, 0.25), 'bp', 1900, 0.7), 0.001, 0.07), 1], [env(osc(0.25, 190), 0.001, 0.04), 0.5]);
+const kick = () => env(osc(0.3, sweep(110, 45, 0.12)), 0.001, 0.14);
+
+/** One loop of the march; `sudden` plays it up a fourth over snare rolls and a running bass (Sudden Death). */
+function march(rng, sudden) {
+  const out = new Float32Array(samples(LOOP_S));
+  const lift = sudden ? 5 : 0;
+  for (let bar = 0; bar < BARS; bar++) {
+    const t0 = bar * 4 * BEAT;
+    // Drums: kick on 1 and 3; the snare's march figure, or a full roll in Sudden Death.
+    place(out, kick(), t0, 0.9);
+    place(out, kick(), t0 + 2 * BEAT, 0.9);
+    const hits = sudden ? [...Array(16).keys()] : [4, 6, 7, 12, 14, 15];
+    for (const h of hits) place(out, snare(rng), t0 + (h * BEAT) / 4, h % 4 === 0 ? 0.55 : 0.3);
+    // Bass: root and fifth on the strong beats, or running eighths.
+    const root = ROOTS[bar] + lift - 12;
+    const bassNotes = sudden ? [0, 0, 7, 7, 0, 0, 7, 12] : [0, 7];
+    const step = (4 * BEAT) / bassNotes.length;
+    bassNotes.forEach((n, i) => place(out, brass(hz(root + n), step * 0.9, { attack: 0.02, hold: step * 0.6, decay: 0.08, bright: 900 }), t0 + i * step, 0.45));
+    // Melody: each note held until the next one.
+    const notes = TUNE[bar];
+    for (let b = 0; b < 4; b++) {
+      if (!notes[b]) continue;
+      let len = 1;
+      while (b + len < 4 && !notes[b + len]) len++;
+      const s = len * BEAT;
+      place(out, brass(hz(notes[b] + lift), s, { attack: 0.025, hold: s * 0.75, decay: 0.1, bright: sudden ? 3600 : 2800 }), t0 + b * BEAT, 0.35);
+    }
+  }
+  return drive(out, 1.2);
+}
+
+const MUSIC = { 'music-march': (rng) => march(rng, false), 'music-sudden': (rng) => march(rng, true) };
+
 /** Sounds that loop while their source keeps going (Gamma firing, Lead Storm). */
 const LOOPS = new Set(['flameLoop', 'stormLoop']);
 
@@ -303,12 +355,13 @@ function wav(x) {
   return buf;
 }
 
-function encode(name, x, tmp) {
+function encode(name, x, tmp, opus = '64k', mp3 = '96k') {
   const src = join(tmp, `${name}.wav`);
   writeFileSync(src, wav(x));
-  const ff = (args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', src, ...args], { stdio: 'inherit' });
-  ff(['-c:a', 'libopus', '-b:a', '64k', `${OUT}/${name}.webm`]);
-  ff(['-c:a', 'libmp3lame', '-b:a', '96k', `${OUT}/${name}.mp3`]);
+  // bitexact: no random container ids or version tags, so the same sound gives the same file.
+  const ff = (args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', src, '-fflags', '+bitexact', '-flags:a', '+bitexact', ...args], { stdio: 'inherit' });
+  ff(['-c:a', 'libopus', '-b:a', opus, `${OUT}/${name}.webm`]);
+  ff(['-c:a', 'libmp3lame', '-b:a', mp3, `${OUT}/${name}.mp3`]);
 }
 
 function buildSprite() {
@@ -339,6 +392,12 @@ try {
   encode('sfx', total, tmp);
   writeFileSync(`${OUT}/sfx.json`, JSON.stringify(sprite, null, 2) + '\n');
   console.log(`sfx: ${Object.keys(sprite).length} sounds, ${(total.length / SR).toFixed(1)} s`);
+  for (const [i, [name, make]] of Object.entries(MUSIC).entries()) {
+    const x = make(mulberry32(5000 + i));
+    const rms = normalise(name, x);
+    encode(name, x, tmp, '80k', '112k');
+    console.log(`${name}: ${(x.length / SR).toFixed(1)} s loop, rms ${(20 * Math.log10(rms)).toFixed(1)} dBFS`);
+  }
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

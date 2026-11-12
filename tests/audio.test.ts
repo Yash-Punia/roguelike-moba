@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig, rawConfig } from '../src/data/load';
 import type { AudioConfig } from '../src/data/schema';
-import { AudioDirector, type Sink } from '../src/audio/director';
+import { AudioDirector, type Sink, type Track } from '../src/audio/director';
 import spriteJson from '../assets/audio/sfx.json';
 import { Kind, Team, type EntitySnapshot, type Snapshot } from '../src/sim/sim';
 import type { SimEvent } from '../src/sim/events';
@@ -28,19 +28,21 @@ const SEEN = 1 << Team.Blue;
 const LOCAL = 50;
 const ent = (id: number, modelId: string, x = 0, y = 0, over: Partial<EntitySnapshot> = {}) =>
   ({ id, kind: Kind.Minion, modelId, team: Team.Red, x, y, hp: 100, firing: false, channel: 0, visibleMask: SEEN, ...over }) as EntitySnapshot;
-const snap = (...entities: EntitySnapshot[]) => ({ entities }) as unknown as Snapshot;
+const snap = (...entities: EntitySnapshot[]) => ({ entities, match: { phase: 'live' } }) as unknown as Snapshot;
 const shot = (id: number): SimEvent => ({ type: 'shot', id, target: 99 });
 
 function rig(cfg = pinned(), sees = () => true) {
   const played: { name: string; volume: number; pan: number }[] = [];
   const loops = new Map<number, string>();
+  const music: [Track, number, number][] = [];
   const sink: Sink = {
+    music: (track, volume, fadeMs) => music.push([track, volume, fadeMs]),
     play: (name, volume, pan) => played.push({ name, volume, pan }),
     loop: (key, name) => loops.set(key, name),
     stopLoop: (key) => loops.delete(key),
   };
   const director = new AudioDirector(cfg, sprite, sink, Team.Blue, sees, LOCAL);
-  return { director, played, loops };
+  return { director, played, loops, music };
 }
 
 describe('audio director (D-106)', () => {
@@ -146,6 +148,17 @@ describe('audio director (D-106)', () => {
     director.onEvents([shot(2)], 10);
     expect(loops.size).toBe(0);
     expect(played.map((p) => p.name)).toEqual(['victory']);
+  });
+
+  it('plays the march from the start, crossfades to the Sudden Death variant, and fades out at the end', () => {
+    const { director, music } = rig(pinned({ musicVolume: 0.5 }));
+    director.capture(snap());
+    director.capture(snap());
+    director.onEvents([{ type: 'phaseChanged', phase: 'suddenDeath' }], 0);
+    director.setConfig(pinned({ musicVolume: 0.25 }));
+    director.onEvents([{ type: 'matchOver', winner: Team.Red, reason: 'timeout', tick: 1 }], 0);
+    director.capture(snap());
+    expect(music).toEqual([['march', 0.5, 0], ['sudden', 0.5, 2000], ['sudden', 0.25, 0], [null, 0.25, 2000]]);
   });
 
   it('every sound audio.json or the director names is in the sprite', () => {

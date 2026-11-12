@@ -5,8 +5,13 @@ import { Kind, type EntitySnapshot, type Snapshot, type Team } from '../sim/sim'
 /** A Howler sprite map: name → [offset ms, duration ms, loop?]. */
 export type Sprite = Readonly<Record<string, readonly (number | boolean)[]>>;
 
+/** The music: the march, its Sudden Death variant, or none. */
+export type Track = 'march' | 'sudden' | null;
+
 /** Where sounds go: Howler in the game, a recorder in tests. Volumes 0–1, pan −1 (left) to 1. */
 export interface Sink {
+  /** Fades to `track` over `fadeMs`, starting it where the old one is (same tempo), or sets its volume if it is already playing. */
+  music(track: Track, volume: number, fadeMs: number): void;
   play(name: string, volume: number, pan: number): void;
   /** Starts the loop for `key` if it isn't playing, and sets its volume and pan. */
   loop(key: number, name: string, volume: number, pan: number): void;
@@ -15,6 +20,8 @@ export interface Sink {
 
 /** Plays and loops past these are dropped; the live count is always far below. */
 const MAX_TRACKED = 64;
+/** Music crossfades and fade-outs (presentation, ms). */
+const MUSIC_FADE_MS = 2000;
 
 /**
  * Turns sim events and snapshots into sounds (TDD §9, D-106). Pure: no Howler, no clock of its
@@ -44,6 +51,7 @@ export class AudioDirector {
   private over = false;
   /** The local champion's Ultimate charge at the last capture, for the ready chime. */
   private lastCharge = -1;
+  private track: Track = null;
 
   constructor(
     private cfg: AudioConfig,
@@ -57,6 +65,16 @@ export class AudioDirector {
 
   setConfig(cfg: AudioConfig) {
     this.cfg = cfg;
+    if (this.track) this.sink.music(this.track, this.musicVolume(), 0);
+  }
+
+  private musicVolume() {
+    return this.cfg.masterVolume * this.cfg.musicVolume;
+  }
+
+  private setTrack(track: Track, fadeMs: number) {
+    this.track = track;
+    this.sink.music(track, this.musicVolume(), fadeMs);
   }
 
   /** The camera's focus (sim metres): what positional sounds are heard from. */
@@ -93,9 +111,13 @@ export class AudioDirector {
       } else if (ev.type === 'respawn') {
         if (ev.id === this.local) this.cue('respawn');
       } else if (ev.type === 'phaseChanged') {
-        if (ev.phase === 'suddenDeath') this.cue('suddenDeath');
+        if (ev.phase === 'suddenDeath') {
+          this.cue('suddenDeath');
+          this.setTrack('sudden', MUSIC_FADE_MS); // the music intensifies (GDD §10)
+        }
       } else if (ev.type === 'matchOver') {
         this.cue(ev.winner === this.viewer ? 'victory' : 'defeat'); // a draw sounds like a loss
+        this.setTrack(null, MUSIC_FADE_MS);
         this.over = true;
         for (const key of this.loops.keys()) this.sink.stopLoop(key);
         this.loops.clear();
@@ -108,6 +130,7 @@ export class AudioDirector {
     this.entities.clear();
     for (const e of snap.entities) this.entities.set(e.id, e);
     if (this.over) return;
+    if (!this.track) this.setTrack(snap.match.phase === 'suddenDeath' ? 'sudden' : 'march', 0);
     const me = this.entities.get(this.local);
     if (me) {
       if (this.lastCharge >= 0 && this.lastCharge < 100 && me.ultCharge >= 100) this.cue('ultReady');
