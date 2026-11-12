@@ -2391,3 +2391,27 @@ From TDD §13:
   - **Tests:** settings defaults, round-trip and bad input (`tests/settings.test.ts`); the sliders scaling effects, cues and the background (`tests/audio.test.ts`).
 - Why: TDD §10's Settings screen. A match is its own page load (D-091), so browser storage carries the settings from the menus into it.
 - Alternatives: settings in the URL (they would leak into every match link); applying everything at the next match only (volume and FPS are expected live).
+
+## D-112 — Camera shake and reduced effects
+- Date: 2026-11-13
+- Source: M5 Settings row, part 2 (TDD §9 "an additive offset driven by explosion events, disabled by Reduced effects"; GDD §11 "light camera shake on big ones"); the shake was left for this row in D-102
+- Decision:
+  - **Shake as trauma from 0 to 1** (`addTrauma`, `decayTrauma`, `shakeOffset` in `src/render/camera.ts`):
+    - each `explosion` event adds radius × `shakePerRadius` (0.2), scaled down linearly to nothing at `shakeFalloff` (22 m) from the camera's focus, capped at 1;
+    - the HQ's blast chain and any structure falling (as a 4 m blast) add to it too;
+    - it decays by `shakeDecay` (1.6) per render second, so the HQ's slow motion slows it as well;
+    - the offset is trauma² × `shakeAmplitude` (0.45 m) on the ground plane, from two incommensurate sines per axis at `shakeFrequency` (17 Hz), so small knocks barely move the view.
+  - **Applied in the scene's `render()`,** after the rig has placed the camera; the rig sets it afresh the next frame, so nothing accumulates. The numbers live in `camera.json` and are live in F1 (`setCameraConfig`).
+  - **Reduced effects** (`setReduced` on the scene) turns the shake off and halves every particle burst (`Particles.setReduced`, on top of `vfx.json` `density`). A burst of one still fires (D-104).
+  - **Measured** (DevTools Chrome, 540 px wide):
+    - a 3 m blast 2 m from you moves the view by up to 8 cm, about 3 px: light;
+    - with reduced effects, no movement, and the blast's particles went from 12 to 7;
+    - a first try at 0.12 per metre gave about 1 px, too faint to feel, hence 0.2;
+    - no console errors.
+  - **Tests** (`tests/settings.test.ts`):
+    - bigger and nearer blasts add more, far ones none, capped at 1;
+    - decay reaches rest;
+    - the offset grows with the square of trauma, within the amplitude;
+    - reduced effects halve the counts but keep single bursts.
+- Why: TDD §9 and GDD §11, and the setting that turns it off.
+- Alternatives: shaking by rotation (tilts the fixed-angle camera the GDD rules out); shaking in the rig (it doesn't see the blasts, and would need the events plumbed through the match).

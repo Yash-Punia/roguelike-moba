@@ -127,6 +127,8 @@ export class Particles {
   /** The live config (the emitters read their rates from it). */
   vfx: Vfx;
   private density = 1;
+  /** "Reduced effects" (D-112): half of every burst. */
+  private reduce = 1;
   private base: number | undefined;
   private time = 0;
 
@@ -210,9 +212,14 @@ export class Particles {
     }
   }
 
+  /** The "Reduced effects" setting (TDD §9): halves the particle counts. */
+  setReduced(on: boolean) {
+    this.reduce = on ? 0.5 : 1;
+  }
+
   /** A fractional count is a chance; density never drops a burst of one or more to nothing. */
   private countOf(burst: VfxBurst) {
-    const n = Math.floor(burst.count * this.density + Math.random());
+    const n = Math.floor(burst.count * this.density * this.reduce + Math.random());
     return burst.count >= 1 ? Math.max(1, n) : n;
   }
 

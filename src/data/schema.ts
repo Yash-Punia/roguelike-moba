@@ -783,6 +783,16 @@ const Camera = z.object({
   playerFramePct: pct(),
   followSeconds: positive(),
   lookAhead: z.number().nonnegative(),
+  /** Camera shake (TDD §9, D-112): the largest offset (m) at full trauma. */
+  shakeAmplitude: z.number().nonnegative().default(0.45),
+  /** Trauma lost per render second (0–1 scale). */
+  shakeDecay: positive().default(1.6),
+  /** Blasts this far from the camera's focus (m) don't shake it; nearer ones shake it more. */
+  shakeFalloff: positive().default(22),
+  /** Trauma per metre of blast radius, at the focus. */
+  shakePerRadius: z.number().nonnegative().default(0.2),
+  /** How fast it judders (Hz). */
+  shakeFrequency: positive().default(17),
 });
 
 const Input = z.object({

@@ -52,6 +52,29 @@ export function createCameraRig(camera: PerspectiveCamera, team: Team) {
   return { update };
 }
 
+/**
+ * Camera shake (TDD §9, D-112), as "trauma" from 0 to 1: a blast of `radius` m, `distance` m from
+ * the camera's focus, adds to it; it decays over time; the offset grows with its square, so small
+ * knocks barely move the view and big ones jolt it.
+ */
+export function addTrauma(trauma: number, radius: number, distance: number, cfg: CameraConfig) {
+  const near = Math.max(0, 1 - distance / cfg.shakeFalloff);
+  return Math.min(1, trauma + radius * cfg.shakePerRadius * near);
+}
+
+export function decayTrauma(trauma: number, dtSec: number, cfg: CameraConfig) {
+  return Math.max(0, trauma - cfg.shakeDecay * dtSec);
+}
+
+/** The ground offset (m) for `trauma` at time `t` (s): two incommensurate sines per axis, so it judders without repeating. */
+export function shakeOffset(trauma: number, t: number, cfg: CameraConfig, out: { x: number; z: number }) {
+  const a = trauma * trauma * cfg.shakeAmplitude;
+  const w = 2 * Math.PI * cfg.shakeFrequency * t;
+  out.x = (a * (Math.sin(w) + Math.sin(w * 1.37 + 1.3))) / 2;
+  out.z = (a * (Math.sin(w * 1.13 + 2.1) + Math.sin(w * 0.71 + 0.4))) / 2;
+  return out;
+}
+
 /** Beyond the view's ground footprint: raised ground and tall props near the screen edge still receive shadows (m). */
 const SHADOW_MARGIN = 5;
 const NDC_CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;

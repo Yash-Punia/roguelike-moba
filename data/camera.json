@@ -4,5 +4,10 @@
   "viewWidth": 16,
   "playerFramePct": 40,
   "followSeconds": 0.15,
-  "lookAhead": 0
+  "lookAhead": 0,
+  "shakeAmplitude": 0.45,
+  "shakeDecay": 1.6,
+  "shakeFalloff": 22,
+  "shakePerRadius": 0.2,
+  "shakeFrequency": 17
 }

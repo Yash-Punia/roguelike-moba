@@ -84,6 +84,7 @@ effect(() => {
   const s = settings.value;
   audio.setUserVolumes(s.masterVolume / 100, s.effectsVolume / 100, s.backgroundVolume / 100);
   container.style.setProperty('--stick-opacity', String(s.joystickOpacity / 100));
+  view.setReduced(s.reducedEffects);
 });
 const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();
@@ -177,6 +178,7 @@ if (debug) {
       apply: (next) => {
         if (JSON.stringify(next.map) !== JSON.stringify(config.map)) view.setMap(next.map);
         view.particles.setVfx(next.vfx);
+        view.setCameraConfig(next.camera);
         audio.setConfig(next.audio);
         config = next;
         sim.setConfig(next);

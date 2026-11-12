@@ -3,7 +3,7 @@ import type { Config, MapConfig } from '../data/schema';
 import type { SimEvent } from '../sim/events';
 import { Kind, Team, type Snapshot } from '../sim/sim';
 import { displayTeam } from '../sim/sides';
-import { fitShadowBox } from './camera';
+import { addTrauma, decayTrauma, fitShadowBox, shakeOffset } from './camera';
 import { DamageNumbers, damageColours } from './damage-numbers';
 import { buildDressing } from './dressing';
 import { EpicFx } from './epic-fx';
@@ -58,6 +58,8 @@ function unfade(root: THREE.Object3D, f: Fade) {
 const MAST_FALL_MS = 800;
 /** HQ destruction: a chain of this many blasts over the bunker, this far apart (GDD §11). */
 const HQ_BLASTS = 5;
+/** A structure falling shakes the camera like a blast this wide (m). */
+const STRUCTURE_SHAKE_RADIUS = 4;
 const HQ_BLAST_GAP_MS = 120;
 
 /** Starts a structure's collapse: guns and flag go, and the concrete darkens towards scorched earth. */
@@ -181,6 +183,15 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
    */
   let clock = performance.now();
   let timeScale = 1;
+  /** Camera shake (D-112): trauma 0–1, and whether "Reduced effects" turns it off. */
+  let trauma = 0;
+  let reduced = false;
+  let cameraCfg = config.camera;
+  const shakeOut = { x: 0, z: 0 };
+  /** A blast of `radius` m at sim (x, y) shakes the camera, less the further it is from the focus. */
+  const shake = (radius: number, x: number, y: number) => {
+    trauma = addTrauma(trauma, radius, Math.hypot(x - focus.x, y - focus.y), cameraCfg);
+  };
   const blastQueue: { x: number; y: number; at: number }[] = [];
   const toppling: { mast: THREE.Object3D; from: THREE.Quaternion; born: number }[] = [];
   const tipAxis = new THREE.Vector3(0, 0, 1);
@@ -309,6 +320,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     for (const ev of events) {
       if (ev.type === 'explosion' && sees(ev.x, ev.y)) {
         particles.emit('explosion', ev.x, ev.y, 0, ev.radius);
+        shake(ev.radius, ev.x, ev.y);
         decals.stamp(ev.x, ev.y, ev.radius * 0.7);
       }
       if (ev.type === 'shot' && ev.target !== 0) {
@@ -350,6 +362,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         }
       }
       if (ev.type === 'structureDestroyed') {
+        shake(STRUCTURE_SHAKE_RADIUS, ev.x, ev.y);
         // Roof caves in: a dust and smoke column (GDD §11), then rubble for the rest of the match.
         particles.emit('structureDown', ev.x, ev.y);
       }
@@ -420,11 +433,13 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     lastUpdate = real;
     clock += dt * 1000;
     const now = clock;
+    trauma = decayTrauma(trauma, dt, cameraCfg); // render time: the HQ's slow motion slows it too
     let blobCount = 0;
     for (let i = blastQueue.length - 1; i >= 0; i--) {
       const b = blastQueue[i]!;
       if (b.at > now) continue;
       particles.emit('explosion', b.x, b.y, 0, 2.2);
+      shake(2.2, b.x, b.y);
       blastQueue.splice(i, 1);
     }
     for (const t of toppling) {
@@ -542,6 +557,12 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   }
 
   function render() {
+    // Camera shake (D-112): on top of where the rig put the camera this frame; the rig resets it next frame.
+    if (trauma > 0 && !reduced) {
+      shakeOffset(trauma, clock / 1000, cameraCfg, shakeOut);
+      camera.position.x += shakeOut.x;
+      camera.position.z += shakeOut.z;
+    }
     // Bars face the camera; done here because the camera rig moves after update().
     barLayer.update(camera);
     fitShadowBox(sun, sunOffset, camera);
@@ -570,12 +591,23 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     scene.add(arena.group);
   }
 
+  /** A live edit of camera.json (debug panel): the shake follows it. */
+  function setCameraConfig(cfg: typeof cameraCfg) {
+    cameraCfg = cfg;
+  }
+
+  /** The "Reduced effects" setting (TDD §9, D-112): half the particles and no camera shake. */
+  function setReduced(on: boolean) {
+    reduced = on;
+    particles.setReduced(on);
+  }
+
   /** Slows (or speeds) every render-side effect; 1 = real time. */
   function setTimeScale(s: number) {
     timeScale = s;
   }
 
-  return { renderer, camera, focus, sees, capture, addEvents, update, render, setMap, setTimeScale, particles };
+  return { renderer, camera, focus, sees, capture, addEvents, update, render, setMap, setTimeScale, setReduced, setCameraConfig, particles };
 }
 
 function lerpAngle(a: number, b: number, t: number) {
