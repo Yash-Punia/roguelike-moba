@@ -171,6 +171,15 @@ describe('audio director (D-106)', () => {
     expect(music).toEqual([['battle', 0.5, 0], ['sudden', 0.5, 2000], ['sudden', 0.25, 0], [null, 0.25, 2000]]);
   });
 
+  it('the player\'s volume sliders scale effects, cues and the background (D-111)', () => {
+    const { director, played, music } = rig(pinned({ musicVolume: 0.5 }));
+    director.capture(snap(ent(1, 'alpha', 0, 0)));
+    director.setUserVolumes(0.5, 0.5, 0.2);
+    director.onEvents([shot(1), { type: 'phaseChanged', phase: 'suddenDeath' }], 0);
+    expect(played.map((p) => p.volume)).toEqual([0.25, 0.25]);
+    expect(music.at(-1)).toEqual(['sudden', 0.05, 2000]);
+  });
+
   it('every sound audio.json or the director names is in the sprite', () => {
     const names = new Set([
       ...Object.values(base.shots),

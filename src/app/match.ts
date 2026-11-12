@@ -16,6 +16,7 @@ import { mountMinimap } from '../ui/minimap';
 import { hud, pushNotices, resultsView, updateHud } from '../ui/store';
 import { AudioDirector } from '../audio/director';
 import { createHowlerSink, sprite } from '../audio/howler-sink';
+import { settings } from '../ui/settings';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -78,6 +79,12 @@ const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
 const audio = new AudioDirector(config.audio, sprite, sound, localTeam, view.sees, localEntity ?? 0);
+// The player's settings (D-111), live: they change from the pause menu mid-match.
+effect(() => {
+  const s = settings.value;
+  audio.setUserVolumes(s.masterVolume / 100, s.effectsVolume / 100, s.backgroundVolume / 100);
+  container.style.setProperty('--stick-opacity', String(s.joystickOpacity / 100));
+});
 const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();
 // While knocked out the camera follows the killer (D-034); otherwise the local champion.

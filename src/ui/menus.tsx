@@ -2,6 +2,8 @@ import { render } from 'preact';
 import { useSignal } from '@preact/signals';
 import { maps, rawConfig } from '../data/load';
 import type { Difficulty } from '../data/schema';
+import { Segments } from './segments';
+import { SettingsScreen } from './settings-screen';
 
 type Lanes = 2 | 3;
 
@@ -43,22 +45,7 @@ export function matchUrl(c: Choices): string {
   return `?${q}`;
 }
 
-function Segments<T extends string | number>(props: { label: string; options: { value: T; text: string }[]; value: T; onPick: (v: T) => void }) {
-  return (
-    <fieldset class="menu-field">
-      <legend>{props.label}</legend>
-      <div class="menu-segments">
-        {props.options.map((o) => (
-          <button type="button" key={o.value} class={o.value === props.value ? 'on' : ''} aria-pressed={o.value === props.value} onClick={() => props.onPick(o.value)}>
-            {o.text}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-function Title({ onPlay }: { onPlay: () => void }) {
+function Title({ onPlay, onSettings }: { onPlay: () => void; onSettings: () => void }) {
   return (
     <div class="menu menu-title">
       <div class="menu-hazard" />
@@ -71,6 +58,9 @@ function Title({ onPlay }: { onPlay: () => void }) {
         </button>
         <button type="button" class="menu-secondary" onClick={() => (location.search = 'quick')}>
           Quick match
+        </button>
+        <button type="button" class="menu-secondary" onClick={onSettings}>
+          Settings
         </button>
       </div>
     </div>
@@ -118,8 +108,11 @@ function Setup({ onBack }: { onBack: () => void }) {
 }
 
 function Menus() {
-  const screen = useSignal<'title' | 'setup'>('title');
-  return screen.value === 'title' ? <Title onPlay={() => (screen.value = 'setup')} /> : <Setup onBack={() => (screen.value = 'title')} />;
+  const screen = useSignal<'title' | 'setup' | 'settings'>('title');
+  const back = () => (screen.value = 'title');
+  if (screen.value === 'setup') return <Setup onBack={back} />;
+  if (screen.value === 'settings') return <SettingsScreen onBack={back} />;
+  return <Title onPlay={() => (screen.value = 'setup')} onSettings={() => (screen.value = 'settings')} />;
 }
 
 /** The title and match-setup screens (TDD §10), shown on a bare URL. */

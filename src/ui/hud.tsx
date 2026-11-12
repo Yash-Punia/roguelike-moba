@@ -1,7 +1,10 @@
 import { render } from 'preact';
 import { useSignal } from '@preact/signals';
 import { hud, resultsHeading, type StructureView } from './store';
+import { useEffect, useRef } from 'preact/hooks';
 import { DraftTray } from './draft-tray';
+import { settings } from './settings';
+import { SettingsScreen } from './settings-screen';
 
 /** HP per segment on the HUD bar, the same rule as the world bars (GDD §11). */
 const SEGMENT_HP = 250;
@@ -118,7 +121,12 @@ function PauseButton() {
 /** The pause menu (TDD §10, D-092). Surrender (GDD §2) is from 5:00: the first tap asks, a second within 3 s concedes. */
 function PauseMenu({ onSurrender }: { onSurrender: () => void }) {
   const confirming = useSignal(false);
-  if (!hud.paused.value || hud.ended.value) return null;
+  const inSettings = useSignal(false);
+  if (!hud.paused.value || hud.ended.value) {
+    inSettings.value = false;
+    return null;
+  }
+  if (inSettings.value) return <SettingsScreen onBack={() => (inSettings.value = false)} />;
   return (
     <div class="hud-pause" onPointerDown={(e) => e.stopPropagation()}>
       <h2>Paused</h2>
@@ -142,6 +150,9 @@ function PauseMenu({ onSurrender }: { onSurrender: () => void }) {
           {confirming.value ? 'Confirm surrender?' : 'Surrender'}
         </button>
       )}
+      <button type="button" onClick={() => (inSettings.value = true)}>
+        Settings
+      </button>
       <button type="button" onClick={() => (location.href = location.pathname)}>
         Quit
       </button>
@@ -288,6 +299,30 @@ function Results() {
   );
 }
 
+/** "Show FPS" (D-111): frames per second over the last half second; its own loop runs only while shown. */
+function FpsReadout() {
+  const el = useRef<HTMLDivElement>(null);
+  const on = settings.value.showFps;
+  useEffect(() => {
+    if (!on) return;
+    let raf = 0;
+    let frames = 0;
+    let since = performance.now();
+    const tick = (now: number) => {
+      frames++;
+      if (now - since >= 500) {
+        if (el.current) el.current.textContent = `${Math.round((frames * 1000) / (now - since))} FPS`;
+        frames = 0;
+        since = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [on]);
+  return on ? <div ref={el} class="hud-fps" /> : null;
+}
+
 function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => void; onReroll: () => void; onSurrender: () => void }) {
   return (
     <>
@@ -297,6 +332,7 @@ function Hud({ onPick, onReroll, onSurrender }: { onPick: (slot: 0 | 1 | 2) => v
       <RespawnOverlay />
       <Scoreboard />
       <PauseButton />
+      <FpsReadout />
       <Vitals />
       <DraftTray onPick={onPick} onReroll={onReroll} />
       <PauseMenu onSurrender={onSurrender} />

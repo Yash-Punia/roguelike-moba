@@ -52,6 +52,8 @@ export class AudioDirector {
   /** The local champion's Ultimate charge at the last capture, for the ready chime. */
   private lastCharge = -1;
   private track: Track = null;
+  /** The player's volume sliders (D-111), 0–1, on top of the `audio.json` mix. */
+  private user = { master: 1, effects: 1, background: 1 };
 
   constructor(
     private cfg: AudioConfig,
@@ -68,8 +70,19 @@ export class AudioDirector {
     if (this.track) this.sink.music(this.track, this.musicVolume(), 0);
   }
 
+  /** The player's settings: master, effects and background, each 0–1. */
+  setUserVolumes(master: number, effects: number, background: number) {
+    this.user = { master, effects, background };
+    if (this.track) this.sink.music(this.track, this.musicVolume(), 0);
+  }
+
   private musicVolume() {
-    return this.cfg.masterVolume * this.cfg.musicVolume;
+    return this.cfg.masterVolume * this.cfg.musicVolume * this.user.master * this.user.background;
+  }
+
+  /** Master × effects, from the data and the player. */
+  private effectsVolume() {
+    return this.cfg.masterVolume * this.cfg.sfxVolume * this.user.master * this.user.effects;
   }
 
   private setTrack(track: Track, fadeMs: number) {
@@ -177,15 +190,13 @@ export class AudioDirector {
   /** A local cue: centred, full volume, never dropped for the voice cap. */
   private cue(name: string) {
     if (!this.admit(name, true)) return;
-    const { masterVolume, sfxVolume, gains } = this.cfg;
-    this.sink.play(name, Math.min(1, masterVolume * sfxVolume * (gains[name] ?? 1)), 0);
+    this.sink.play(name, Math.min(1, this.effectsVolume() * (this.cfg.gains[name] ?? 1)), 0);
   }
 
   private volume(name: string, x: number, y: number) {
     const d = Math.hypot(x - this.listenerX, y - this.listenerY);
     if (d >= this.cfg.cullDistance) return 0;
-    const { masterVolume, sfxVolume, gains } = this.cfg;
-    return masterVolume * sfxVolume * (gains[name] ?? 1) * (1 - d / this.cfg.cullDistance);
+    return this.effectsVolume() * (this.cfg.gains[name] ?? 1) * (1 - d / this.cfg.cullDistance);
   }
 
   private pan(x: number) {

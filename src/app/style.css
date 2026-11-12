@@ -72,6 +72,7 @@ body {
 .stick-base {
   display: none;
   position: absolute;
+  opacity: var(--stick-opacity, 1); /* the joystick opacity setting (D-111) */
   border-radius: 50%;
   border: 2px solid rgb(255 255 255 / 0.45);
   background: rgb(0 0 0 / 0.18);
@@ -179,7 +180,8 @@ body {
   margin-top: 8cqw;
 }
 
-.menu-setup h2 {
+.menu-setup h2,
+.menu-settings h2 {
   margin: 0;
   color: #d8a64a;
   font-size: max(20px, 6.4cqw);
@@ -303,6 +305,46 @@ body {
   border: 1px solid #5a5140;
   background: none;
   color: #e9ddd0;
+}
+
+/* Settings (ui/settings-screen.tsx, D-111): over the title, or over the match from the pause menu. */
+.menu-settings {
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.menu-slider span {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1cqw;
+  color: #bdb398;
+  font-size: max(14px, 3.2cqw);
+  font-weight: 700;
+}
+
+.menu-slider b {
+  color: #e9ddd0;
+}
+
+.menu-slider input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  accent-color: #d8a64a;
+}
+
+/* "Show FPS" (ui/hud.tsx, D-111): beside the pause button. */
+.hud-fps {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14cqw + 12px);
+  left: calc(2cqw + 52px);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--hud-panel);
+  color: #e9ddd0;
+  font: 700 max(12px, 3cqw) / 1.4 ui-monospace, monospace;
+  pointer-events: none;
 }
 
 /* The Results screen's banner (ui/hud.tsx, D-038, D-093). */

@@ -2370,3 +2370,24 @@ From TDD §13:
   - **Not listened to.**
 - Why: the setting is war, and the player must hear the fight in front of them first; a melody competes for attention, distant battle noise doesn't.
 - Alternatives: keeping a quiet musical bed (D-109); no background at all.
+
+## D-111 — Saved settings and the Settings screen
+- Date: 2026-11-13
+- Source: M5 Settings row, part 1 (TDD §10); the rest made during development
+- Decision:
+  - **One store, `src/ui/settings.ts`:**
+    - a typed `Settings` object and a `settings` signal the HUD, audio and input follow live;
+    - saved to `localStorage` under `warfront.settings.v1` on every change, so they live in that browser only;
+    - reading keeps only known fields of the right type, clamps percentages to 0–100, and falls back to the defaults when storage is empty, broken, blocked or full.
+  - **The screen** (`src/ui/settings-screen.tsx`) opens from the title (a new Settings button) and the pause menu (Settings, then Back returns to Pause). It reuses the menu look: on/off rows (`Segments`, moved to `src/ui/segments.tsx` so both screens can share it) and range sliders in steps of 5%. Colour-blind mode is marked "next match", since it rebuilds every model.
+  - **Volume:** master, effects and background sliders multiply the `audio.json` mix in the director (`setUserVolumes`), so the data keeps the designer's balance and the sliders are the player's. They apply live, background included.
+  - **Show FPS:** a small readout beside the pause button, averaged over half a second, in its own animation-frame loop that only runs while shown. Separate from the debug perf bar, which only exists in debug builds.
+  - **Joystick opacity:** 20–100%, a CSS variable on the frame.
+  - **Parts still to come:** reduced effects and camera shake, left-handed and hold-to-cast, colour-blind mode.
+  - **Measured** (DevTools Chrome, phone-sized frame):
+    - Settings saved from the title arrive in the match: FPS readout shown, joystick at 40%, effects at 60%.
+    - From the pause menu, the background slider at 30% took the battle loop from 0.44 to 0.13 live, and Back returns to Pause.
+    - No console errors.
+  - **Tests:** settings defaults, round-trip and bad input (`tests/settings.test.ts`); the sliders scaling effects, cues and the background (`tests/audio.test.ts`).
+- Why: TDD §10's Settings screen. A match is its own page load (D-091), so browser storage carries the settings from the menus into it.
+- Alternatives: settings in the URL (they would leak into every match link); applying everything at the next match only (volume and FPS are expected live).
