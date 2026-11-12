@@ -142,8 +142,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Audio, part 3: march loop, Sudden Death variant with a beat-aligned crossfade, fade-out at the end; reproducible encodes (D-108); a quieter, simpler combat loop (user, D-109); music replaced by a distant battle, grim and quick sounds (user, D-110) | 485af1c, 4f682f9, 7bc5707, 5abb2dd |
 | `[p]` | Settings, part 1: saved settings, a Settings screen from the title and the pause menu, volume sliders, show FPS, joystick opacity (D-111) | 795a700 |
 | `[p]` | Settings, part 2: camera shake from blasts and structure falls; reduced effects halves particles and turns the shake off (D-112) | ec419bd |
-| `[c]` | Settings, part 3: left-handed (gauge and vitals swap sides, joystick zone mirrors) and hold-to-cast (0.3 s, with a fill ring) (D-113) | |
-| `[ ]` | Settings, part 4: colour-blind mode (Orange vs Blue, shape markers) | |
+| `[p]` | Settings, part 3: left-handed (gauge and vitals swap sides, joystick zone mirrors) and hold-to-cast (0.3 s, with a fill ring) (D-113) | 8f645de |
+| `[c]` | Settings, part 4: colour-blind mode: the red team in vermillion orange everywhere, circle and diamond markers under units (D-114) | |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
 | `[ ]` | Telemetry recorder + JSON export from Results screen | |
 | `[ ]` | Replays: command log, keyframes, scrubbing | |

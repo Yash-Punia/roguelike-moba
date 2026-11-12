@@ -87,6 +87,8 @@ function drawPingShape(c: CanvasRenderingContext2D, kind: PingKind, x: number, y
 export function mountMinimap(layer: HTMLElement, config: Config, getLanes: () => readonly LanePath[], localTeam: Team) {
   const b = config.map.bounds;
   const flip = localTeam === Team.Red;
+  // The enemy's colour follows the HUD's, so colour-blind mode turns it orange here too (D-114).
+  const theirs = getComputedStyle(layer).getPropertyValue('--hud-red').trim() || THEIRS;
   const canvas = document.createElement('canvas');
   canvas.className = 'hud-minimap';
   layer.appendChild(canvas);
@@ -200,7 +202,7 @@ export function mountMinimap(layer: HTMLElement, config: Config, getLanes: () =>
     const unit = w / 28; // sizes follow the strip's width
     c.drawImage(ground, 0, 0);
     drawFog(snap);
-    const colourOf = (e: EntitySnapshot) => (sideOf(e.team, localTeam) === 'ours' ? OURS : THEIRS);
+    const colourOf = (e: EntitySnapshot) => (sideOf(e.team, localTeam) === 'ours' ? OURS : theirs);
     for (const e of snap.entities) {
       if (e.kind !== Kind.SubBase && e.kind !== Kind.HQ) continue;
       const s = (e.kind === Kind.HQ ? 2.2 : 1.6) * unit;

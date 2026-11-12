@@ -2437,3 +2437,29 @@ From TDD §13:
   - **Tests** (`tests/settings.test.ts`, fake timers): no cast when released 1 ms short; one cast after the hold; nothing extra when lifted after; an instant cast with no hold.
 - Why: TDD §8's two options for thumbs and accidental casts.
 - Alternatives: mirroring by flipping the whole HUD layer (it would mirror text and the minimap too); hold-to-cast on the keyboard as well (a key press isn't an accidental touch).
+
+## D-114 — Colour-blind mode
+- Date: 2026-11-13
+- Source: M5 Settings row, part 4 (GDD §10 "Orange vs Blue, plus a circle (friend) or diamond (enemy) ring under each unit"); the rest made during development
+- Decision:
+  - **The orange is Okabe-Ito vermillion, #D55E00 (shade #9A4300),** a colour-blind-safe pair with blue. Not Okabe-Ito's #E69F00, which sits too close to the neutrals' hazard yellow. It is darker than the flames' fire orange, and a test keeps it more than 60 RGB units from blue, fire, hazard and muzzle yellow.
+  - **Swapped once, before the match loads.** `main.ts` calls `applyColourBlind()` on the palette before it imports the match, so every model template, the HP bars, tracers, impacts, the target line and the markers take orange. That is why the setting says "next match": models bake their colours when built.
+  - **The HUD:**
+    - the match sets `--hud-red` and a new `--hud-red-text` (the enemy's names and score, a pale #F2A466) on the HUD layer, replacing `#ee857d` in the kill line, the respawn killer and the score;
+    - the minimap reads `--hud-red` from the layer, since `ui` mustn't import `render`;
+    - the attack ping stays red: it means "attack", not a team.
+  - **Shape markers:**
+    - two instanced ring meshes, filled every frame like the blob shadows, so 2 draws in all: a 24-segment circle in blue under the viewer's units, and a 4-segment ring (a diamond from above) in orange under the enemy's;
+    - 1.25–1.55 × the unit's radius;
+    - champions, minions and summons only, not structures or camps;
+    - hidden for fogged and Trench-hidden units and knock-outs;
+    - drawn above the blobs and under the telegraphs;
+    - created only in colour-blind mode.
+  - **Measured** (DevTools Chrome, The Front, a lane fight at 0:41):
+    - top strip, minimap, HP bars, helmets, score and the kill line all orange;
+    - diamonds under the enemy soldiers and circles under ours;
+    - 84 calls in that view;
+    - no console errors.
+  - **Tests** (`tests/colour-blind.test.ts`, its own file since it changes the palette): the orange stays clear of the other colours; after the switch, `teamColour`, a tracer and a soldier's baked helmet are orange, and blue is unchanged.
+- Why: GDD §10's colour-blind mode, in colour and in shape, so friend and foe never rest on red against blue alone.
+- Alternatives: recolouring live in a match (every baked template and instance would need rebuilding); markers in team colours only, without the shape difference (the GDD asks for the shapes).

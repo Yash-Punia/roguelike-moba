@@ -17,6 +17,10 @@ import { hud, pushNotices, resultsView, updateHud } from '../ui/store';
 import { AudioDirector } from '../audio/director';
 import { createHowlerSink, sprite } from '../audio/howler-sink';
 import { settings } from '../ui/settings';
+import { cssColour, palette } from '../render/palette';
+
+/** The enemy's light text colour in colour-blind mode, a pale orange. */
+const COLOUR_BLIND_TEXT = '#f2a466';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -68,9 +72,14 @@ let lastSnap = sim.snapshot();
 
 const container = document.getElementById('frame')!;
 
-const view = createScene(container, config, localTeam);
+const view = createScene(container, config, localTeam, { shapeMarkers: settings.value.colourBlind });
 const sound = createHowlerSink();
 const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender());
+// Colour-blind mode (D-114): the enemy's HUD colours turn orange with the models.
+if (settings.value.colourBlind) {
+  hudLayer.style.setProperty('--hud-red', cssColour(palette.red));
+  hudLayer.style.setProperty('--hud-red-text', COLOUR_BLIND_TEXT);
+}
 const minimap = mountMinimap(hudLayer, config, () => sim.lanes, localTeam);
 const input = createInput(container, () => config.input, 0, localTeam);
 // The Ultimate button: a 22 mm gauge (GDD §3).

@@ -99,7 +99,7 @@ interface Interp {
  * `viewer`: the local player's true team. Every team colour is drawn from their side of the
  * fight: their team in Blue, the enemy in Red (GDD §10, D-039).
  */
-export function createScene(container: HTMLElement, config: Config, viewer: Team = Team.Blue) {
+export function createScene(container: HTMLElement, config: Config, viewer: Team = Team.Blue, options: { shapeMarkers?: boolean } = {}) {
   const side = (t: Team) => displayTeam(t, viewer);
   const renderer = new THREE.WebGLRenderer({ antialias: !coarsePointer });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -148,6 +148,8 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
   blobs.renderOrder = 1;
   scene.add(blobs);
   const blobMatrix = new THREE.Matrix4();
+  // Colour-blind mode (GDD §10, D-114): a circle under the viewer's units, a diamond under the enemy's.
+  const markers = options.shapeMarkers ? createShapeMarkers(scene) : undefined;
   const soldiers = new SoldierInstances();
   scene.add(soldiers.group);
   // Sniper aim lines (NT-01): thin danger red from each sniper to its target, all in one draw.
@@ -435,6 +437,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     const now = clock;
     trauma = decayTrauma(trauma, dt, cameraCfg); // render time: the HQ's slow motion slows it too
     let blobCount = 0;
+    markers?.begin();
     for (let i = blastQueue.length - 1; i >= 0; i--) {
       const b = blastQueue[i]!;
       if (b.at > now) continue;
@@ -458,6 +461,9 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
         blobMatrix.makeTranslation(x, mesh.position.y + 0.03, -y);
         blobs.setMatrixAt(blobCount++, blobMatrix);
       }
+      if (markers && (s.kind === Kind.Champion || s.kind === Kind.Minion || s.kind === Kind.Summon) && (fades.get(id)?.k ?? 1) > 0 && !knockouts.has(id)) {
+        markers.add(side(teams.get(id) ?? Team.Neutral) === Team.Blue, x, mesh.position.y + 0.04, -y, s.radius);
+      }
       // Minions march with a bouncy stride (UN-01).
       if (s.kind === Kind.Minion && (s.vx !== 0 || s.vy !== 0) && !partsOf(mesh).tracked) mesh.position.y += Math.abs(Math.sin(now * 0.016 + id)) * 0.07;
       // Units turn their legs with the movement facing and the upper body with the aim;
@@ -480,6 +486,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     }
     blobs.count = blobCount;
     blobs.instanceMatrix.needsUpdate = true;
+    markers?.end();
     // A sniper the viewer can see draws its aim line while it has a target (TDD §10 danger red).
     const linePos = aimLines.geometry.getAttribute('position') as THREE.BufferAttribute;
     let lines = 0;
@@ -676,4 +683,45 @@ function entrances(map: MapConfig, x: number, y: number): [number, number][] {
     }
   }
   return out;
+}
+
+/** Rings of these sizes (× the unit's radius) sit under each unit in colour-blind mode. */
+const MARKER_INNER = 1.25;
+const MARKER_OUTER = 1.55;
+const MARKER_CAP = 160;
+
+/**
+ * Shape markers (GDD §10 colour-blind mode, D-114): a circle under the viewer's side and a diamond
+ * under the enemy's, in their team colours, so friend and foe differ by shape as well as colour.
+ * Two instanced meshes refilled every frame, like the blob shadows: two draws in all.
+ */
+function createShapeMarkers(scene: THREE.Scene) {
+  const make = (segments: number, colour: number) => {
+    const m = new THREE.InstancedMesh(
+      new THREE.RingGeometry(MARKER_INNER, MARKER_OUTER, segments).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.9, depthWrite: false }),
+      MARKER_CAP,
+    );
+    m.count = 0;
+    m.frustumCulled = false;
+    m.renderOrder = 2; // over the blobs, under the telegraphs (6, 7)
+    scene.add(m);
+    return m;
+  };
+  const friends = make(24, palette.blue);
+  const foes = make(4, palette.red); // four segments from 0°: a diamond seen from above
+  const matrix = new THREE.Matrix4();
+  return {
+    begin() {
+      friends.count = foes.count = 0;
+    },
+    add(friend: boolean, x: number, h: number, z: number, radius: number) {
+      const m = friend ? friends : foes;
+      if (m.count >= MARKER_CAP) return;
+      m.setMatrixAt(m.count++, matrix.makeScale(radius, 1, radius).setPosition(x, h, z));
+    },
+    end() {
+      friends.instanceMatrix.needsUpdate = foes.instanceMatrix.needsUpdate = true;
+    },
+  };
 }

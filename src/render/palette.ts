@@ -64,3 +64,21 @@ export const palette = {
   hose: 0x4c2e1c,
   steam: 0xd8d6d0,
 } as const;
+
+/**
+ * Colour-blind mode (GDD §10, D-114): the red team turns vermillion orange (Okabe-Ito #D55E00), which
+ * deuteranopes and protanopes tell from blue; darker than the flames' fire orange and redder than the
+ * neutrals' hazard yellow. Call before anything reads the palette: every model, bar and tracer
+ * takes its colours when built.
+ */
+export const COLOUR_BLIND_RED = 0xd55e00;
+export const COLOUR_BLIND_RED_SHADE = 0x9a4300;
+
+export function applyColourBlind() {
+  const p = palette as unknown as { red: number; redShade: number };
+  p.red = COLOUR_BLIND_RED;
+  p.redShade = COLOUR_BLIND_RED_SHADE;
+}
+
+/** A palette colour as a CSS hex string. */
+export const cssColour = (c: number) => `#${c.toString(16).padStart(6, '0')}`;

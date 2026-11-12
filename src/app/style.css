@@ -411,6 +411,7 @@ body {
   color: #fff;
   --hud-blue: #2f6bd6;
   --hud-red: #d23c32;
+  --hud-red-text: #ee857d; /* enemy names and scores on dark panels; orange in colour-blind mode (D-114) */
   --hud-brass: #d8a64a;
   --hud-dark: #1b1a17;
   --hud-panel: rgb(27 26 23 / 0.62);
@@ -583,7 +584,7 @@ body {
 }
 
 .hud-kill-line .theirs {
-  color: #ee857d;
+  color: var(--hud-red-text);
   font-weight: 800;
 }
 
@@ -844,7 +845,7 @@ body {
 }
 
 .hud-score .theirs {
-  color: #ee857d;
+  color: var(--hud-red-text);
 }
 
 .hud-side {
