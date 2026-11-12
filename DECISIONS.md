@@ -2315,3 +2315,19 @@ From TDD §13:
     - **Re-measured on the shipped files:** sprite MP3 onsets within 8.4 ms of the map (the largest is the horn's slow swell). All four music files decode to 16.000 s, so the MP3 fallback loops without a seam.
 - Why: the TDD's march loop and crossfade; aligning the bars keeps the switch musical.
 - Alternatives: one track with a tempo change (a crossfade can't line up across tempos); a hard cut at Sudden Death.
+
+## D-109 — A subtle combat loop
+- Date: 2026-11-12
+- Source: user request (the combat music should be simple and not distract the player); amends D-108
+- Decision:
+  - **The march is now a quiet pad loop with no tune:**
+    - soft chords on the same progression (two detuned saws low-passed at 650 Hz, swelling in over 0.4 s and overlapping into the next bar);
+    - a low sine pulse on beats 1 and 3;
+    - a brushed snare on 2 and 4.
+  - **Same tempo (120 bpm), length (16 s) and chords as before,** so the Sudden Death variant still crossfades in at the same point in the bar.
+  - **Set by loudness, not peak:** the generator scales the combat loop to −26 dBFS RMS (it fails if that would clip), where the old march was −11. It now averages −26 dB with peaks at −13.4 dB after encoding, a steady bed under the effects.
+  - **Sudden Death is unchanged,** so it still lifts: brass tune, snare rolls, running bass, about 15 dB louder than the combat loop. The effect sprite is byte-identical.
+  - `musicVolume` (55%) still scales both and stays live in F1.
+  - **Not listened to.**
+- Why: the player needs to hear the fight (shots, cues, the siren); a tune over it competes for attention.
+- Alternatives: keeping the march and only lowering `musicVolume` (the melody would still pull attention, and Sudden Death would drop with it); no music outside Sudden Death.

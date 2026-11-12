@@ -139,7 +139,7 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
 | `[p]` | Audio, part 1: generated sound sprite (`npm run audio`), Howler, director with event mapping, positional mixing, fog gating, voice cap and rate limits; weapon, explosion, knock-out and collapse sounds, flamethrower and Lead Storm loops (D-106) | 582c475 |
 | `[p]` | Audio, part 2: cues (level-up, Ultimate ready, enemy Ultimate siren, draft, respawn, Sudden Death, victory and defeat) (D-107) | e66783c |
-| `[p]` | Audio, part 3: march loop, Sudden Death variant with a beat-aligned crossfade, fade-out at the end; reproducible encodes (D-108) | 485af1c |
+| `[p]` | Audio, part 3: march loop, Sudden Death variant with a beat-aligned crossfade, fade-out at the end; reproducible encodes (D-108); a quieter, simpler combat loop (user, D-109) | 485af1c, 4f682f9 |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
 | `[ ]` | Telemetry recorder + JSON export from Results screen | |

@@ -315,7 +315,44 @@ function march(rng, sudden) {
   return drive(out, 1.2);
 }
 
-const MUSIC = { 'music-march': (rng) => march(rng, false), 'music-sudden': (rng) => march(rng, true) };
+/** The bar's major triad above `root` (MIDI). */
+const triad = (root) => [root + 12, root + 16, root + 19];
+
+/** A soft pad note: two detuned saws, darkly filtered, swelling in and fading out over `s` seconds. */
+function pad(f, s) {
+  const x = mix(s, [osc(s, f, 'saw'), 0.5], [osc(s, f * 1.003, 'saw'), 0.5]);
+  filter(x, 'lp', 650, 0.6);
+  const attack = 0.4;
+  const release = 0.6;
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    x[i] *= Math.min(1, t / attack, (s - t) / release);
+  }
+  return x;
+}
+
+const brush = (rng) => env(filter(noise(rng, 0.12), 'bp', 3200, 0.5), 0.004, 0.035);
+
+/**
+ * The combat loop (user request, D-109): kept out of the way. Soft chords on the march's
+ * progression, a low pulse on the strong beats and a brushed snare on the off-beats; no tune.
+ * Same tempo, length and chords as the Sudden Death variant, so the crossfade still lines up.
+ */
+function calmMarch(rng) {
+  const out = new Float32Array(samples(LOOP_S));
+  const bar = 4 * BEAT;
+  for (let b = 0; b < BARS; b++) {
+    const t0 = b * bar;
+    for (const n of triad(ROOTS[b])) place(out, pad(hz(n), bar + 0.5), t0, 0.22); // overlaps the next bar's swell
+    for (const beat of [0, 2]) place(out, env(osc(0.6, hz(ROOTS[b] - 12)), 0.01, 0.25), t0 + beat * BEAT, beat === 0 ? 0.45 : 0.3);
+    for (const beat of [1, 3]) place(out, brush(rng), t0 + beat * BEAT, 0.12);
+  }
+  return out;
+}
+
+const MUSIC = { 'music-march': (rng) => calmMarch(rng), 'music-sudden': (rng) => march(rng, true) };
+/** Loudness of each loop (RMS, dBFS): the combat loop sits well under the effects; Sudden Death is peak-normalised as before. */
+const MUSIC_RMS_DB = { 'music-march': -26 };
 
 /** Sounds that loop while their source keeps going (Gamma firing, Lead Storm). */
 const LOOPS = new Set(['flameLoop', 'stormLoop']);
@@ -335,6 +372,22 @@ function normalise(name, x) {
     sum += x[i] * x[i];
   }
   return Math.sqrt(sum / x.length);
+}
+
+/** Scales `x` to an RMS of `db` dBFS; it must not clip. */
+function toRms(name, x, db) {
+  let sum = 0;
+  for (let i = 0; i < x.length; i++) {
+    if (!Number.isFinite(x[i])) throw new Error(`${name}: non-finite sample at ${i}`);
+    sum += x[i] * x[i];
+  }
+  const rms = Math.sqrt(sum / x.length);
+  if (rms < 1e-6) throw new Error(`${name}: silent`);
+  const k = Math.pow(10, db / 20) / rms;
+  let peak = 0;
+  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs((x[i] *= k)));
+  if (peak > PEAK) throw new Error(`${name}: peak ${peak.toFixed(2)} at ${db} dBFS RMS`);
+  return rms * k;
 }
 
 function wav(x) {
@@ -394,7 +447,7 @@ try {
   console.log(`sfx: ${Object.keys(sprite).length} sounds, ${(total.length / SR).toFixed(1)} s`);
   for (const [i, [name, make]] of Object.entries(MUSIC).entries()) {
     const x = make(mulberry32(5000 + i));
-    const rms = normalise(name, x);
+    const rms = MUSIC_RMS_DB[name] === undefined ? normalise(name, x) : toRms(name, x, MUSIC_RMS_DB[name]);
     encode(name, x, tmp, '80k', '112k');
     console.log(`${name}: ${(x.length / SR).toFixed(1)} s loop, rms ${(20 * Math.log10(rms)).toFixed(1)} dBFS`);
   }
