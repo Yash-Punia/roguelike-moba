@@ -158,6 +158,27 @@ function blast(rng, s, { from = 2400, to = 180, decay = 0.45, sub = 60, crackle 
   );
 }
 
+/** Equal-tempered pitch of MIDI note `n` (Hz). */
+const hz = (n) => 440 * Math.pow(2, (n - 69) / 12);
+
+/** A brass note: two detuned saws through a low-pass that opens with the attack, with a late vibrato. */
+function brass(f, s, { attack = 0.03, decay = 0.6, bright = 3200, hold = 1 } = {}) {
+  const vib = (t) => f * (1 + (t > 0.2 ? 0.006 * Math.sin(2 * Math.PI * 5.5 * t) : 0));
+  const tone = mix(s, [osc(s, vib, 'saw'), 0.5], [osc(s, (t) => vib(t) * 1.004, 'saw'), 0.5]);
+  filter(tone, 'lp', (t) => 500 + (bright - 500) * Math.min(1, t / (attack * 3)) * (0.7 + 0.3 * Math.exp(-t / 0.3)), 1.1);
+  for (let i = 0; i < tone.length; i++) {
+    const t = i / SR;
+    tone[i] *= (t < attack ? t / attack : 1) * (t < hold ? 1 : Math.exp(-(t - hold) / decay));
+  }
+  return tone;
+}
+
+/** A struck bell: a sine with an inharmonic partial, both ringing out. */
+const bell = (f, s, decay = 0.5) => mix(s, [env(osc(s, f), 0.002, decay), 1], [env(osc(s, f * 2.76), 0.002, decay * 0.4), 0.35], [env(osc(s, f * 5.4), 0.001, decay * 0.15), 0.15]);
+
+/** Notes in sequence: `[midi, startSeconds, lengthSeconds]`, each a brass note. */
+const phrase = (s, notes, opts) => mix(s, ...notes.map(([n, at, len]) => [brass(hz(n), len, { hold: len * 0.6, decay: len * 0.4, ...opts }), 0.6, at]));
+
 const SOUNDS = {
   // Champions: each must be told apart by ear (GDD §10).
   revolver: (rng) => gunshot(rng, { s: 0.55, crack: 1800, crackDecay: 0.025, body: 900, bodyDecay: 0.09, thump: 120, thumpDecay: 0.09, tail: 0.25, tailFreq: 420, k: 2.5 }),
@@ -221,6 +242,27 @@ const SOUNDS = {
     for (let n = 0; n < 6; n++) crashes.push([env(filter(noise(rng, 0.6), 'bp', 500 + rng() * 900, 0.9), 0.003, 0.12), 0.7, 0.1 + n * 0.25 + rng() * 0.1]);
     return drive(mix(2.6, [env(filter(noise(rng, 2.6), 'lp', 260, 0.8), 0.05, 1.0), 1.6], [env(osc(2.6, sweep(45, 30, 1.5)), 0.05, 0.9), 0.8], ...crashes), 2);
   },
+  // The local player's cues (GDD §10): not positional.
+  levelUp: () => phrase(0.95, [[72, 0, 0.12], [76, 0.09, 0.12], [79, 0.18, 0.12], [84, 0.27, 0.65]], { bright: 4000 }),
+  ultReady: () => mix(1, [bell(hz(88), 1, 0.45), 0.6], [bell(hz(95), 1, 0.55), 0.5, 0.12]),
+  // A rising siren: an enemy Ultimate is aimed at you.
+  ultSiren: () => {
+    const s = 1.1;
+    const tone = osc(s, (t) => 380 * Math.pow(3, Math.min(1, t / 0.9)) * (1 + 0.03 * Math.sin(2 * Math.PI * 9 * t)), 'square');
+    filter(tone, 'lp', 2400, 0.9);
+    for (let i = 0; i < tone.length; i++) {
+      const t = i / SR;
+      tone[i] *= Math.min(1, t / 0.05) * (t < 0.8 ? 1 : Math.exp(-(t - 0.8) / 0.1)); // up, held, then cut
+    }
+    return drive(tone, 1.4);
+  },
+  cardDeal: (rng) => env(filter(noise(rng, 0.2), 'bp', sweep(1800, 5200, 0.15), 1.4), 0.02, 0.06),
+  cardPick: (rng) => mix(0.22, [env(osc(0.22, sweep(220, 110, 0.05)), 0.001, 0.04), 1], [env(filter(noise(rng, 0.22), 'bp', 2500, 1.2), 0.001, 0.02), 0.6]),
+  respawn: (rng) => mix(0.6, [env(filter(noise(rng, 0.6), 'hp', 2500), 0.001, 0.02), 0.7], [env(filter(noise(rng, 0.6), 'lp', sweep(4000, 600, 0.5)), 0.02, 0.22), 1]),
+  // A low brass horn swelling in.
+  suddenDeath: () => mix(1.8, [brass(hz(45), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1400 }), 0.5], [brass(hz(52), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1400 }), 0.4], [brass(hz(57), 1.8, { attack: 0.35, hold: 1.2, decay: 0.3, bright: 1800 }), 0.35]),
+  victory: () => phrase(2, [[67, 0, 0.16], [72, 0.15, 0.16], [76, 0.3, 0.16], [79, 0.45, 1.4], [72, 0.45, 1.4], [76, 0.45, 1.4]], { bright: 3800 }),
+  defeat: () => phrase(2, [[67, 0, 0.4], [63, 0.38, 0.4], [60, 0.76, 1.2], [55, 0.76, 1.2]], { bright: 1600 }),
 };
 
 /** Sounds that loop while their source keeps going (Gamma firing, Lead Storm). */

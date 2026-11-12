@@ -22,6 +22,9 @@ const MAX_TRACKED = 64;
  * `cullDistance`; under fog, a source the viewer can't see makes no sound. At most `maxVoices`
  * play at once, and each sound is rate-limited, so a team fight isn't a wall of noise.
  *
+ * The local player's cues (level-up, Ultimate ready, the siren, draft, respawn, Sudden Death,
+ * the result) aren't positional and always play, past the voice cap if they must.
+ *
  * Call order per tick, as `match.ts` does for the scene: `onEvents` (against last tick's
  * entities: a unit knocked out this tick is already gone from the new snapshot), then `capture`.
  */
@@ -39,6 +42,8 @@ export class AudioDirector {
   private listenerY = 0;
   private now = 0;
   private over = false;
+  /** The local champion's Ultimate charge at the last capture, for the ready chime. */
+  private lastCharge = -1;
 
   constructor(
     private cfg: AudioConfig,
@@ -46,6 +51,8 @@ export class AudioDirector {
     private readonly sink: Sink,
     private readonly viewer: Team,
     private readonly sees: (x: number, y: number) => boolean,
+    /** The local player's champion. */
+    private readonly local: number,
   ) {}
 
   setConfig(cfg: AudioConfig) {
@@ -74,7 +81,21 @@ export class AudioDirector {
         if (this.sees(ev.x, ev.y)) this.at('knockout', ev.x, ev.y);
       } else if (ev.type === 'structureDestroyed') {
         this.at('collapse', ev.x, ev.y);
+      } else if (ev.type === 'levelUp') {
+        if (ev.id === this.local) this.cue('levelUp');
+      } else if (ev.type === 'ultCast') {
+        const caster = this.entities.get(ev.id);
+        if (ev.target === this.local && caster && caster.team !== this.viewer) this.cue('ultSiren');
+      } else if (ev.type === 'draftOffered') {
+        if (ev.id === this.local) this.cue('cardDeal');
+      } else if (ev.type === 'powerPicked') {
+        if (ev.id === this.local) this.cue('cardPick');
+      } else if (ev.type === 'respawn') {
+        if (ev.id === this.local) this.cue('respawn');
+      } else if (ev.type === 'phaseChanged') {
+        if (ev.phase === 'suddenDeath') this.cue('suddenDeath');
       } else if (ev.type === 'matchOver') {
+        this.cue(ev.winner === this.viewer ? 'victory' : 'defeat'); // a draw sounds like a loss
         this.over = true;
         for (const key of this.loops.keys()) this.sink.stopLoop(key);
         this.loops.clear();
@@ -87,6 +108,11 @@ export class AudioDirector {
     this.entities.clear();
     for (const e of snap.entities) this.entities.set(e.id, e);
     if (this.over) return;
+    const me = this.entities.get(this.local);
+    if (me) {
+      if (this.lastCharge >= 0 && this.lastCharge < 100 && me.ultCharge >= 100) this.cue('ultReady');
+      this.lastCharge = me.ultCharge;
+    }
     this.seenLoops.clear();
     for (const e of snap.entities) {
       const name = (e.firing && this.cfg.firingLoops[e.modelId]) || (e.channel === 2 && this.cfg.channelLoops[e.modelId]) || undefined;
@@ -123,6 +149,13 @@ export class AudioDirector {
     this.sink.play(name, Math.min(1, volume), this.pan(x));
   }
 
+  /** A local cue: centred, full volume, never dropped for the voice cap. */
+  private cue(name: string) {
+    if (!this.admit(name, true)) return;
+    const { masterVolume, sfxVolume, gains } = this.cfg;
+    this.sink.play(name, Math.min(1, masterVolume * sfxVolume * (gains[name] ?? 1)), 0);
+  }
+
   private volume(name: string, x: number, y: number) {
     const d = Math.hypot(x - this.listenerX, y - this.listenerY);
     if (d >= this.cfg.cullDistance) return 0;
@@ -134,11 +167,13 @@ export class AudioDirector {
     return Math.max(-1, Math.min(1, (x - this.listenerX) / this.cfg.panDistance));
   }
 
-  /** The voice cap and the sound's rate limit; records the play when it passes both. */
-  private admit(name: string) {
-    let live = this.loops.size;
-    for (let i = 0; i < MAX_TRACKED; i++) if (this.ends[i]! > this.now) live++;
-    if (live >= Math.min(this.cfg.maxVoices, MAX_TRACKED)) return false;
+  /** The voice cap (unless `priority`) and the sound's rate limit; records the play when it passes. */
+  private admit(name: string, priority = false) {
+    if (!priority) {
+      let live = this.loops.size;
+      for (let i = 0; i < MAX_TRACKED; i++) if (this.ends[i]! > this.now) live++;
+      if (live >= Math.min(this.cfg.maxVoices, MAX_TRACKED)) return false;
+    }
     const limit = this.cfg.limits[name] ?? this.cfg.defaultLimit;
     let r = this.recent.get(name);
     if (!r || r.times.length !== limit) this.recent.set(name, (r = { times: new Float64Array(limit).fill(-Infinity), next: 0 }));

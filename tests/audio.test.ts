@@ -24,6 +24,8 @@ const pinned = (over: Partial<AudioConfig> = {}): AudioConfig => ({
 });
 
 const SEEN = 1 << Team.Blue;
+/** The local player's champion. */
+const LOCAL = 50;
 const ent = (id: number, modelId: string, x = 0, y = 0, over: Partial<EntitySnapshot> = {}) =>
   ({ id, kind: Kind.Minion, modelId, team: Team.Red, x, y, hp: 100, firing: false, channel: 0, visibleMask: SEEN, ...over }) as EntitySnapshot;
 const snap = (...entities: EntitySnapshot[]) => ({ entities }) as unknown as Snapshot;
@@ -37,7 +39,7 @@ function rig(cfg = pinned(), sees = () => true) {
     loop: (key, name) => loops.set(key, name),
     stopLoop: (key) => loops.delete(key),
   };
-  const director = new AudioDirector(cfg, sprite, sink, Team.Blue, sees);
+  const director = new AudioDirector(cfg, sprite, sink, Team.Blue, sees, LOCAL);
   return { director, played, loops };
 }
 
@@ -101,6 +103,40 @@ describe('audio director (D-106)', () => {
     expect(loops.size).toBe(0);
   });
 
+  it('plays the local cues only for the local champion, centred, even with the voice cap full', () => {
+    const { director, played } = rig(pinned({ maxVoices: 2 }));
+    director.capture(snap(ent(1, 'alpha'), ent(LOCAL, 'beta', 30, 30, { team: Team.Blue }), ent(3, 'gamma', 0, 0, { team: Team.Blue })));
+    director.onEvents([shot(1), shot(1)], 0); // fills the cap
+    const cues: SimEvent[] = [
+      { type: 'levelUp', id: LOCAL, level: 2 },
+      { type: 'levelUp', id: 3, level: 2 },
+      { type: 'draftOffered', id: LOCAL, cards: [] },
+      { type: 'powerPicked', id: 3, power: 'x', auto: false },
+      { type: 'respawn', id: LOCAL, x: 0, y: 0 },
+      { type: 'ultCast', id: 1, target: LOCAL, x: 0, y: 0 }, // an enemy, at you
+      { type: 'ultCast', id: 3, target: LOCAL, x: 0, y: 0 }, // an ally's doesn't count
+      { type: 'phaseChanged', phase: 'suddenDeath' },
+    ];
+    director.onEvents(cues, 1);
+    expect(played.slice(2).map((p) => p.name)).toEqual(['levelUp', 'cardDeal', 'respawn', 'ultSiren', 'suddenDeath']);
+    expect(played.slice(2).every((p) => p.pan === 0 && p.volume === 1)).toBe(true);
+  });
+
+  it('chimes once each time the Ultimate fills', () => {
+    const { director, played } = rig();
+    const me = (ultCharge: number) => snap(ent(LOCAL, 'alpha', 0, 0, { team: Team.Blue, ultCharge }));
+    for (const c of [40, 99, 100, 100, 0, 100]) director.capture(me(c));
+    expect(played.filter((p) => p.name === 'ultReady')).toHaveLength(2);
+  });
+
+  it('plays victory or defeat from the viewer\'s side', () => {
+    const won = rig();
+    won.director.onEvents([{ type: 'matchOver', winner: Team.Blue, reason: 'hq', tick: 1 }], 0);
+    const lost = rig();
+    lost.director.onEvents([{ type: 'matchOver', winner: Team.Red, reason: 'hq', tick: 1 }], 0);
+    expect([won.played[0]?.name, lost.played[0]?.name]).toEqual(['victory', 'defeat']);
+  });
+
   it('goes quiet when the match is over', () => {
     const { director, played, loops } = rig();
     director.capture(snap(ent(1, 'gamma', 0, 0, { firing: true }), ent(2, 'alpha')));
@@ -109,7 +145,7 @@ describe('audio director (D-106)', () => {
     director.capture(snap(ent(1, 'gamma', 0, 0, { firing: true }), ent(2, 'alpha')));
     director.onEvents([shot(2)], 10);
     expect(loops.size).toBe(0);
-    expect(played).toHaveLength(0);
+    expect(played.map((p) => p.name)).toEqual(['victory']);
   });
 
   it('every sound audio.json or the director names is in the sprite', () => {
@@ -119,9 +155,8 @@ describe('audio director (D-106)', () => {
       ...Object.values(base.channelLoops),
       ...Object.keys(base.gains),
       ...Object.keys(base.limits),
-      'explosion',
-      'knockout',
-      'collapse',
+      ...['explosion', 'knockout', 'collapse'],
+      ...['levelUp', 'ultReady', 'ultSiren', 'cardDeal', 'cardPick', 'respawn', 'suddenDeath', 'victory', 'defeat'],
     ]);
     for (const name of names) expect(sprite, name).toHaveProperty(name);
   });

@@ -2257,3 +2257,29 @@ From TDD §13:
   - **Not listened to:** loudness and character are untested by ear; gains are a first guess.
 - Why: the TDD's Howler sprites, without recorded assets or licences, and a director testable without a browser.
 - Alternatives: synthesising with Web Audio at boot (no files, but the user preferred files and Howler); CC0 packs (licences, and they wouldn't exist yet).
+
+## D-107 — The local player's audio cues
+- Date: 2026-11-12
+- Source: M5 Audio row, part 2 (GDD §10 "Audio and feedback"); the rest made during development
+- Decision:
+  - **Nine more sprites** from the same generator, the first 16 unchanged (each sound keeps its seed). New voices: a brass note (two detuned saws through a low-pass that opens on the attack, a late vibrato), a bell with inharmonic partials, a square-wave siren.
+    - `levelUp`: a rising brass arpeggio.
+    - `ultReady`: two bell strikes, when the local champion's charge crosses 100 between snapshots, once per crossing.
+    - `ultSiren`: a rising siren, for an `ultCast` by an enemy at the local champion (an ally's doesn't count).
+    - `cardDeal` and `cardPick`: a paper swish and a stamp, for the local draft.
+    - `respawn`: a smoke-grenade pop.
+    - `suddenDeath`: a low brass horn swelling in.
+    - `victory` and `defeat`: a brass fanfare or a falling phrase, from the viewer's side. A draw plays the defeat.
+  - **Cues are centred, never positional,** and skip the 24-voice cap, so a minion firefight can't drop them. They still have rate limits: level-up and the draft sounds play once per 100 ms, since a big XP grant can bring three levels in one tick.
+  - **The sprite** is now 27.3 s: 257 KB WebM, 329 KB MP3.
+  - The siren renders much louder than the rest (RMS −3 dBFS against −11 to −20), so its gain starts at 40%.
+  - **The director takes the local champion,** so `match.ts` creates it once `localEntity` exists.
+  - **Measured:** in the running game, the debug level-up and Ultimate fill play `levelUp`, `cardDeal` and `ultReady`. No console errors.
+  - **Tests** (`tests/audio.test.ts`):
+    - cues play only for the local champion, centred, even with the cap full;
+    - the chime plays once per fill;
+    - the right stinger plays for each side;
+    - every cue name is in the sprite.
+  - **Not listened to.**
+- Why: GDD §10's feedback set, minus the voice lines the user left out.
+- Alternatives: positional cues (they're about you, so they belong in the centre).

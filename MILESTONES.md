@@ -137,8 +137,8 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | GPU particle pool, part 2: muzzle flashes, bullet impacts in the shooter's team colour (D-103) | edc9f0d |
 | `[p]` | GPU particle pool, part 3: Gamma's flames and fire pools as particles, embers, explosion debris, structure chunks, 64 pooled scorch decals (D-104) | e418c32, a197d41 |
 | `[ ]` | `assets.json` model registry (primitive models → optional glTF swap, D-020), damage states | |
-| `[c]` | Audio, part 1: generated sound sprite (`npm run audio`), Howler, director with event mapping, positional mixing, fog gating, voice cap and rate limits; weapon, explosion, knock-out and collapse sounds, flamethrower and Lead Storm loops (D-106) | |
-| `[ ]` | Audio, part 2: cues (level-up, Ultimate ready, enemy Ultimate siren, draft, respawn, Sudden Death, victory and defeat) | |
+| `[p]` | Audio, part 1: generated sound sprite (`npm run audio`), Howler, director with event mapping, positional mixing, fog gating, voice cap and rate limits; weapon, explosion, knock-out and collapse sounds, flamethrower and Lead Storm loops (D-106) | 582c475 |
+| `[c]` | Audio, part 2: cues (level-up, Ultimate ready, enemy Ultimate siren, draft, respawn, Sudden Death, victory and defeat) (D-107) | |
 | `[ ]` | Audio, part 3: music and the Sudden Death crossfade | |
 | `[ ]` | Settings: left-handed, hold-to-cast, joystick opacity, reduced effects, colour-blind, volume, show FPS | |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |

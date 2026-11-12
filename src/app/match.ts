@@ -69,7 +69,6 @@ const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam);
 const sound = createHowlerSink();
-const audio = new AudioDirector(config.audio, sprite, sound, localTeam, view.sees);
 const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender());
 const minimap = mountMinimap(hudLayer, config, () => sim.lanes, localTeam);
 const input = createInput(container, () => config.input, 0, localTeam);
@@ -78,6 +77,7 @@ const ultGauge = mountUltGauge(container, 22 * config.input.pxPerMm, input.press
 const rig = createCameraRig(view.camera, localTeam);
 view.capture(sim.snapshot());
 const localEntity = sim.entityOf(0);
+const audio = new AudioDirector(config.audio, sprite, sound, localTeam, view.sees, localEntity ?? 0);
 const stats = { simMs: 0, renderMs: 0 };
 let lastFrame = performance.now();
 // While knocked out the camera follows the killer (D-034); otherwise the local champion.

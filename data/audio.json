@@ -7,13 +7,15 @@
   "maxVoices": 24,
   "limitWindow": 0.1,
   "defaultLimit": 3,
-  "limits": { "mg": 6, "smg": 4, "hmg": 3, "flak": 2, "rifle": 3, "knockout": 4, "explosion": 4 },
+  "limits": { "mg": 6, "smg": 4, "hmg": 3, "flak": 2, "rifle": 3, "knockout": 4, "explosion": 4, "levelUp": 1, "cardDeal": 1, "cardPick": 1 },
   "explosionFullRadius": 3,
   "gains": {
     "revolver": 80, "smg": 55, "flameLoop": 55, "stormLoop": 55,
     "mg": 28, "hmg": 40, "flak": 45, "rocket": 55,
     "rifle": 35, "sniper": 65, "cannon": 70, "halftrackGun": 45, "turret": 70,
-    "explosion": 85, "knockout": 50, "collapse": 95
+    "explosion": 85, "knockout": 50, "collapse": 95,
+    "levelUp": 70, "ultReady": 75, "ultSiren": 40, "cardDeal": 50, "cardPick": 55,
+    "respawn": 60, "suddenDeath": 85, "victory": 85, "defeat": 85
   },
   "shots": {
     "alpha": "revolver", "beta": "smg",
