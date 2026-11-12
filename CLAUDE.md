@@ -60,6 +60,7 @@ Prefix shell commands with `rtk`.
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run audio` — re-render the sound sprites into `assets/audio/` from `scripts/make-audio.mjs` (needs ffmpeg on PATH; the outputs are committed)
 - Later: `npm run soak` (headless bot matches, M5), `npm run e2e` (Playwright, M5)
+- Deploy: every push to `main` builds on Vercel (project `warfront`) and goes live at https://warfront-five.vercel.app; GitHub Actions runs typecheck, lint and tests on it (D-116)
 
 TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (D-011).
 

@@ -145,13 +145,13 @@ Build order (D-046), so each commit is playable: The Front complete → match co
 | `[p]` | Settings, part 3: left-handed (gauge and vitals swap sides, joystick zone mirrors) and hold-to-cast (0.3 s, with a fill ring) (D-113) | 8f645de |
 | `[p]` | Settings, part 4: colour-blind mode: the red team in vermillion orange everywhere, circle and diamond markers under units (D-114) | 5b41c33 |
 | `[ ]` | Debug panel full: match control, cheats, overlays, perf overlay (perf overlay with draw calls and triangles pulled into Gate 1, D-044) | |
-| `[c]` | Telemetry recorder + JSON export from Results screen: match result, structure falls by lane, levels by minute, draft offers and picks, champion deaths, Ultimate casts, movement, device and FPS; Ultimate hits and charge sources, and the POST endpoint, not built (D-115) | |
+| `[p]` | Telemetry recorder + JSON export from Results screen: match result, structure falls by lane, levels by minute, draft offers and picks, champion deaths, Ultimate casts, movement, device and FPS; Ultimate hits and charge sources, and the POST endpoint, not built (D-115) | db9de66 |
 | `[ ]` | Replays: command log, keyframes, scrubbing | |
 | `[ ]` | `npm run soak` headless bot matches with report | |
 | `[ ]` | Playwright smoke test | |
 | `[ ]` | Mobile polish: fullscreen, orientation lock / rotate overlay, haptics, audio unlock, safe areas, adaptive pixel ratio | |
 | `[ ]` | PWA manifest + service worker | |
-| `[ ]` | CI (lint, type-check, tests, 50-match soak) and static deploy | |
+| `[~]` | CI (lint, type-check, tests, 50-match soak) and static deploy; done so far: CI (typecheck, lint, tests) on GitHub Actions, and Vercel deploys every push to `main` to https://warfront-five.vercel.app; the soak joins CI with `npm run soak` (D-116) | |
 
 **Gate 2 exit criteria (TDD §1 success criteria):**
 - 60 fps typical on a mid-range phone browser, never below 30 fps in a full team fight.

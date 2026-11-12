@@ -2484,3 +2484,17 @@ From TDD §13:
   - **Tests** (`tests/telemetry.test.ts`): a champion knock-out records position and killer; minion deaths are skipped; offers, rerolls and an auto pick are kept, with cards copied; Ultimate casts carry the target's kind; distance and still time add up without a teleport's jump; levels every minute; the result ends recording; the record survives a JSON round trip unchanged.
 - Why: playtests need the numbers the GDD targets are checked against, and Gate 2 needs a JSON from every match.
 - Alternatives: automatic upload (needs a backend and consent); the recorder only in debug builds (playtesters would have nothing to export); counting from HUD state (it updates at 10 Hz and misses per-tick data).
+
+## D-116 — Vercel deploys every push to main; CI on GitHub Actions
+- Date: 2026-11-12
+- Source: user request (ship and deploy on Vercel; Git auto-deploy, GitHub Actions CI, project name "warfront"); M5 row "CI and static deploy"; TDD §12 "main deploys to the playtest URL"
+- Decision:
+  - **Vercel project `warfront`** in the team "yashpunia's projects", linked to the GitHub repo with `vercel link`. Every push to `main` is a production deploy at https://warfront-five.vercel.app (`warfront.vercel.app` was taken). Other branches get preview URLs, which sit behind Vercel's default deployment protection; production is public, so playtesters need only the link.
+  - **Build:** Vercel's Vite preset runs `npm run build` (type-check, then the bundle) into `dist`. No rewrites: the game routes by query string on `index.html` (D-091).
+  - **`vercel.json`** only sets `Cache-Control: public, max-age=31536000, immutable` on `/assets/*`, whose file names Vite hashes. `index.html` keeps Vercel's revalidate default, so a new deploy reaches players on their next load.
+  - **Node 24** (`engines` in `package.json`), the version used locally and in CI; Vercel's default was 26.
+  - **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, `npm ci`, typecheck, lint and tests on Ubuntu. The 50-match soak joins once `npm run soak` exists. CI doesn't gate the deploy: Vercel builds on its own, and a red run shows on the commit.
+  - **`?debug` stays reachable in production** (TDD §11's playtest flag): the debug panel is still a lazy chunk loaded only with the flag.
+  - **The CLI link wrote `.vercel/` and an `.env.local` holding a Vercel OIDC token;** both are git-ignored.
+- Why: a public link that updates itself on every push, which the user and playtesters can open on a phone.
+- Alternatives: manual `vercel deploy --prod` (deploys only when someone remembers); checks inside the Vercel build so a failing test blocks the deploy (not chosen: CI on GitHub was preferred); GitHub Pages (no preview deploys per branch).
