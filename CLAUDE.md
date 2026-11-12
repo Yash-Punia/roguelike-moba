@@ -25,7 +25,7 @@ The simulation only takes **commands** and only produces **snapshots** and **eve
 | `input` | Keyboard/mouse/touch → `Command` | `sim` types |
 | `render` | Three.js scene, camera, models, VFX; interpolates snapshots | `sim` types, `data` |
 | `ui` | Preact HUD and menus | `sim` types, `data` |
-| `audio` | Sounds from sim events | `sim` types |
+| `audio` | Sounds from sim events | `sim` types, `data` (config types) |
 | `tools` | Debug panel, telemetry, replays, perf overlay (dev builds) | everything |
 | `app` | Boot, loop, match setup | everything |
 
@@ -58,6 +58,7 @@ Prefix shell commands with `rtk`.
 - `npm test` — Vitest unit, scenario and determinism tests (`tests/`)
 - `npm run lint` — ESLint, including the determinism rules for `src/sim/**`
 - `npm run typecheck` — `tsc --noEmit`
+- `npm run audio` — re-render the sound sprites into `assets/audio/` from `scripts/make-audio.mjs` (needs ffmpeg on PATH; the outputs are committed)
 - Later: `npm run soak` (headless bot matches, M5), `npm run e2e` (Playwright, M5)
 
 TypeScript is pinned to 6.0.x because typescript-eslint does not yet support 7 (D-011).

@@ -2221,3 +2221,39 @@ From TDD §13:
   - **Tests** (`tests/render-perf.test.ts`): the casters hold exactly the tiles' triangles that face away from the sun, in under a quarter as many meshes; only a camera with layer 1 sees them; tiles receive but don't cast.
 - Why: the terrain's shadow pass was a third of every frame, and the change costs nothing visible.
 - Alternatives: coarser tiles for both passes (more off-screen triangles in the main pass); instancing knock-outs (more code, not needed for the budget now).
+
+## D-106 — Generated sound sprites and the audio director
+- Date: 2026-11-12
+- Source: M5 Audio row, part 1; the user chose generated sprite files played through Howler, and no voice lines; the rest made during development
+- Decision:
+  - **Sounds are rendered by code:** `scripts/make-audio.mjs` (`npm run audio`) is a small DSP in plain JS:
+    - oscillators, seeded noise, envelopes, RBJ biquads and soft clipping;
+    - 48 kHz mono, each sound peak-normalised to −1 dB, with its RMS printed so loudness can be compared;
+    - ffmpeg encodes one sprite as Opus-in-WebM (64 kb/s) and MP3 (96 kb/s), and `sfx.json` holds Howler's sprite map.
+    - The outputs are committed, so building never needs ffmpeg. It fails on non-finite samples, silence or overlapping ranges.
+    - A `.mjs` script, since there is no `@types/node`; it is linted but not type-checked.
+  - **16 sounds:** a revolver crack, SMG, flamethrower roar and Lead Storm rattle, so each champion can be told apart by ear; minion, structure, camp and boss guns; explosions; knock-outs; a structure collapse. Loops are seamless: the flamethrower crossfades its tail into its head, and Lead Storm is exactly 15 shots in a second.
+  - **Sizes:** 143 KB WebM and 194 KB MP3. The whole build is 1.4 MB.
+  - **`AudioDirector`** (`src/audio/director.ts`) is pure, with Howler behind a small sink (`howler-sink.ts`), so Vitest can test it.
+    - It handles a tick's events against last tick's entities, then captures the new snapshot, the same order as the scene.
+    - Shots map by model id through `audio.json` `shots`, structures by kind, numbered variants by prefix. Cone shots are silent; Gamma's sound is the firing loop.
+    - Loops follow snapshot state (`firing`, `channel === 2`) and stop when their unit stops, dies, is hidden or goes out of range. Everything stops when the match is over.
+  - **Mixing:**
+    - The listener is the camera's focus. Sounds pan by the side offset (12 m is fully to one side) and fade linearly to 20 m, where they are culled (TDD §9).
+    - Under fog, a source the viewer can't see is silent: `visibleMask` for units, `sees` for positions.
+    - At most 24 sounds at once, counted from sprite durations. Per-sound rate limits (MG 6, others mostly 3 per 100 ms) are kept in fixed rings, so no allocation per shot.
+  - **`data/audio.json`:** volumes, gains, distances, the cap, limits, and the shot and loop maps. It is live-tunable (F1), and `setConfig` is called from the debug panel's apply.
+  - **Howler 2.2.4,** `@types/howler` 2.2.13, pinned exactly (D-011).
+    - Plays before the file loads are dropped, not queued, so a fight during loading doesn't burst out at once.
+    - Everything is muted while the tab is hidden or the game is paused (pause menu or debug), which would otherwise leave loops playing.
+    - Howler's `webm` test probes Vorbis, not Opus; a browser that says no takes the MP3.
+  - **CLAUDE.md:** `audio` may now import config types from `data`, and `npm run audio` is listed.
+  - **Measured** (DevTools Chrome):
+    - After a key press the context is `running`, the sprite `loaded` and the WebM chosen.
+    - Decoded sound onsets match the map within 3 ms (WebM) and 6 ms (MP3), so Chrome honours the MP3 gapless header; no offset shift needed. Safari not tested.
+    - 20 s of a 3v3 bot fight as Gamma: at most 16 sounds at once, MG at most 5 per 100 ms on the director's clock, the flame loop starting and stopping with firing.
+    - With `?fog`: 168 shots by unseen units made no sound.
+    - No console errors.
+  - **Not listened to:** loudness and character are untested by ear; gains are a first guess.
+- Why: the TDD's Howler sprites, without recorded assets or licences, and a director testable without a browser.
+- Alternatives: synthesising with Web Audio at boot (no files, but the user preferred files and Howler); CC0 packs (licences, and they wouldn't exist yet).

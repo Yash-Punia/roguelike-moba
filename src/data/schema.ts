@@ -835,6 +835,35 @@ const Vfx = z.object({
 });
 export type VfxBurst = z.output<typeof VfxBurst>;
 
+/** Sound mixing and the event → sound map (TDD §9, D-106). Sound names are sprites in assets/audio/sfx.json. */
+const Audio = z.object({
+  masterVolume: pct(),
+  sfxVolume: pct(),
+  musicVolume: pct(),
+  /** Positional sounds fade out linearly to this distance from the camera's focus, and are culled past it (m). */
+  cullDistance: positive(),
+  /** A source this far to the side pans fully (m). */
+  panDistance: positive(),
+  /** Most sounds playing at once; the local player's cues may go past it. */
+  maxVoices: z.number().int().positive(),
+  /** Rate limits count plays within this window (render seconds). */
+  limitWindow: positive(),
+  /** Most plays of one sound per window, unless `limits` names it. */
+  defaultLimit: z.number().int().positive(),
+  limits: z.record(z.string(), z.number().int().positive()),
+  /** An explosion this wide (m) plays at its full gain; smaller ones are quieter. */
+  explosionFullRadius: positive(),
+  /** Per-sound gain (%), on top of the master and effect volumes. */
+  gains: z.record(z.string(), pct()),
+  /** The sound a unit's shot makes, by model id (numbered variants such as `deserter0` match `deserter`) or structure kind. */
+  shots: z.record(z.string(), z.string()),
+  /** Loops held while a unit fires (a cone weapon), by model id. */
+  firingLoops: z.record(z.string(), z.string()),
+  /** Loops held while a champion's channelled Ultimate fires, by model id. */
+  channelLoops: z.record(z.string(), z.string()),
+});
+export type AudioConfig = z.output<typeof Audio>;
+
 export const ConfigSchema = z.object({
   match: Match,
   champions: z.array(Champion).min(1),
@@ -850,6 +879,7 @@ export const ConfigSchema = z.object({
   camera: Camera,
   input: Input,
   vfx: Vfx,
+  audio: Audio,
 });
 
 export type RawConfig = z.input<typeof ConfigSchema>;

@@ -14,6 +14,8 @@ import { mountHud } from '../ui/hud';
 import { mountUltGauge } from '../ui/ult-button';
 import { mountMinimap } from '../ui/minimap';
 import { hud, pushNotices, resultsView, updateHud } from '../ui/store';
+import { AudioDirector } from '../audio/director';
+import { createHowlerSink, sprite } from '../audio/howler-sink';
 
 const params = new URLSearchParams(location.search);
 const localTeam = params.get('team') === 'red' ? Team.Red : Team.Blue;
@@ -66,6 +68,8 @@ let lastSnap = sim.snapshot();
 const container = document.getElementById('frame')!;
 
 const view = createScene(container, config, localTeam);
+const sound = createHowlerSink();
+const audio = new AudioDirector(config.audio, sprite, sound, localTeam, view.sees);
 const hudLayer = mountHud(container, (slot) => input.pickCard(slot), () => input.reroll(), () => input.surrender());
 const minimap = mountMinimap(hudLayer, config, () => sim.lanes, localTeam);
 const input = createInput(container, () => config.input, 0, localTeam);
@@ -111,9 +115,11 @@ const loop = startLoop({
     // Events first: a minion knocked out this tick is already gone from the snapshot, and its
     // model must reach the knock-out before capture drops it.
     view.addEvents(events);
+    audio.onEvents(events, performance.now());
     const snap = sim.snapshot();
     lastSnap = snap;
     view.capture(snap);
+    audio.capture(snap);
     pushNotices(events, snap, localEntity, localTeam, config); // every tick: no event is missed
     minimap.onEvents(events, snap);
     // HUD at 10 Hz (TDD §10): every third tick, and on the tick the match ends.
@@ -142,6 +148,8 @@ const loop = startLoop({
     const dt = Math.min((now - lastFrame) / 1000, 0.1);
     lastFrame = now;
     view.update(alpha, localEntity, cameraFocus);
+    audio.setListener(view.focus.x, view.focus.y);
+    sound.setHeld(loop.paused || loop.held);
     rig.update(view.focus, config.camera, dt);
     const r0 = debug ? performance.now() : 0;
     view.render();
@@ -155,13 +163,14 @@ effect(() => {
 });
 
 if (debug) {
-  Object.assign(window, { warfront: { sim, view, loop, bot, bots, squads, get config() { return config; } } });
+  Object.assign(window, { warfront: { sim, view, audio, loop, bot, bots, squads, get config() { return config; } } });
   import('../tools/debug-panel').then(({ createDebugPanel }) =>
     createDebugPanel({
       raw,
       apply: (next) => {
         if (JSON.stringify(next.map) !== JSON.stringify(config.map)) view.setMap(next.map);
         view.particles.setVfx(next.vfx);
+        audio.setConfig(next.audio);
         config = next;
         sim.setConfig(next);
       },

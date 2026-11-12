@@ -15,12 +15,13 @@ import combat from '../../data/combat.json';
 import camera from '../../data/camera.json';
 import input from '../../data/input.json';
 import vfx from '../../data/vfx.json';
+import audio from '../../data/audio.json';
 
 /** The map for each lane count (D-069): 3 = The Front, 2 = The Bridgehead. */
 export const maps = { 2: map2, 3: map } as unknown as Record<2 | 3, RawConfig['map']>;
 export const mapFiles = { 2: 'map-2lane.json', 3: 'map-3lane.json' } as const;
 
-export const rawConfig: RawConfig = { match, champions, map, structures, units, neutrals, waves, progression, powers, bots, combat, camera, input, vfx } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
+export const rawConfig: RawConfig = { match, champions, map, structures, units, neutrals, waves, progression, powers, bots, combat, camera, input, vfx, audio } as unknown as RawConfig; // JSON number arrays widen to number[]; the schema checks the tuples
 
 /** Source file of each config section, for exporting edits back to `/data`. */
 export const configFiles: Record<keyof RawConfig, string> = {
@@ -38,6 +39,7 @@ export const configFiles: Record<keyof RawConfig, string> = {
   camera: 'camera.json',
   input: 'input.json',
   vfx: 'vfx.json',
+  audio: 'audio.json',
 };
 
 /** Validates and converts raw JSON config. Throws a readable error on any bad value. */

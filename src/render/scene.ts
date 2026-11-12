@@ -575,7 +575,7 @@ export function createScene(container: HTMLElement, config: Config, viewer: Team
     timeScale = s;
   }
 
-  return { renderer, camera, focus, capture, addEvents, update, render, setMap, setTimeScale, particles };
+  return { renderer, camera, focus, sees, capture, addEvents, update, render, setMap, setTimeScale, particles };
 }
 
 function lerpAngle(a: number, b: number, t: number) {

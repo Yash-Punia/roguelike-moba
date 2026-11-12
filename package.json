@@ -9,10 +9,12 @@
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "audio": "node scripts/make-audio.mjs"
   },
   "dependencies": {
     "@preact/signals": "2.11.3",
+    "howler": "2.2.4",
     "lil-gui": "0.21.0",
     "preact": "11.0.1",
     "three": "0.187.0",
@@ -20,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/howler": "2.2.13",
     "@types/three": "0.187.0",
     "eslint": "10.14.0",
     "globals": "17.13.0",
